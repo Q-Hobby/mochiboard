@@ -771,7 +771,7 @@
   });
 
   // ---------- quick capture (⌘K) ----------
-  const capture = on => { $('capture').classList.toggle('on', on); if (on) { $('capInput').value = ''; setTimeout(() => $('capInput').focus(), 30); } else $('capInput').blur(); };
+  const capture = on => { $('capture').classList.toggle('on', on); if (on) { $('capInput').value = ''; $('capInput').focus(); } else $('capInput').blur(); };
   // clicking anywhere outside the box closes it (what you typed isn't saved unless you pressed Enter)
   addEventListener('pointerdown', e => { if ($('capture').classList.contains('on') && !e.target.closest('.capture')) capture(false); }, true);
   $('capForm').onsubmit = e => { e.preventDefault(); const v = $('capInput').value.trim(); if (v) { if (/^https?:\/\//.test(v)) linkCard(v, null, true); else { board.tray.unshift(card('note', { text: v })); renderTray(); save(); } $('tray').classList.remove('closed'); } capture(false); };
@@ -798,7 +798,7 @@
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape' && selWire) { selectWire(null); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
-    if (typing || homeAt) return;
+    if (typing || homeAt || $('capture').classList.contains('on')) return;   // never fire board shortcuts while quick capture is open
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
     if ((e.key === 'Backspace' || e.key === 'Delete') && selWire) { board.links = board.links.filter(l => l.id !== selWire); selWire = null; renderWires(); save(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) removeSelected();
@@ -911,7 +911,7 @@
   }
   // ---------- Mochi's chat window: click her to open it, click again (or Esc) to close ----------
   const chatOpen = () => $('mochi').classList.contains('chat');
-  function mochiOpen(on) { $('mochi').classList.toggle('chat', on); if (on) { $('mBubble').classList.remove('on'); renderChat(); setTimeout(() => $('mcInput').focus(), 60); } }
+  function mochiOpen(on) { $('mochi').classList.toggle('chat', on); if (on) { $('mBubble').classList.remove('on'); renderChat(); $('mcInput').focus(); } }
   $('mPill').onclick = () => mochiOpen(!chatOpen());
   $('mcClose').onclick = () => mochiOpen(false);
   $('mcNew').onclick = () => { board.chat = []; renderChat(); save(); $('mcInput').focus(); };
@@ -1295,7 +1295,7 @@
     stage.classList.toggle('erasing', drawOn && pen.tool === 'eraser'); stage.classList.toggle('drawing', drawOn && pen.tool !== 'eraser');
     try { localStorage.setItem('mochiboard:pen', JSON.stringify(pen)); } catch (e) {}
   }
-  function enterDraw() { stopPlacing(); selectOnly([]); selWire = null; drawOn = true; $('dock').classList.add('drawing'); renderDrawbar();
+  function enterDraw() { if (pen.tool === 'eraser') pen.tool = 'pen'; stopPlacing(); selectOnly([]); selWire = null; drawOn = true; $('dock').classList.add('drawing'); renderDrawbar();
     if (!liveSvg) { liveSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); liveSvg.classList.add('live-ink'); world.appendChild(liveSvg); const ring = document.createElement('div'); ring.className = 'erase-ring'; ring.id = 'eraseRing'; stage.appendChild(ring); } }
   function exitDraw() { drawOn = false; stroke = null; erasing = false; $('dock').classList.remove('drawing'); stage.classList.remove('drawing', 'erasing'); if (liveSvg) liveSvg.innerHTML = ''; }
   $('drawbar').addEventListener('pointerdown', e => e.stopPropagation());
@@ -1640,6 +1640,10 @@
     set(!!boxState[k]); btn.onclick = () => set(!b.classList.contains('min'));
   });
   $('keysX').onclick = () => { settings.keys = false; applySettings(); };
+
+  // the board area never scrolls (it pans instead); if focusing something nudges it, snap it straight back
+  [stage, document.scrollingElement].forEach(el => el && el.addEventListener('scroll', () => { if (el.scrollTop || el.scrollLeft) { el.scrollTop = 0; el.scrollLeft = 0; } }));
+  addEventListener('scroll', () => { if (scrollX || scrollY) scrollTo(0, 0); });
 
   // ---------- start ----------
   (async () => {
