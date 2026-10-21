@@ -156,7 +156,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         The person asked you: \(request)
 
         Here is their board as JSON. Positions are in pixels (x grows right, y grows down). A note card is about 220 x 140, a checklist about 240 x 180, a color swatch 120 x 150, a title is one line of big text. \
-        "unsorted" holds ideas waiting in the side tray, not yet on the board. Cards marked "selected" are what they have selected right now.
+        "unsorted" holds ideas waiting in the side tray, not yet on the board. Cards marked "selected" are what they have selected right now. \
+        When they say "this", "these" or "it", they mean the selected cards. They can ask you to change ANY words, labels, colors or list items on any card, \
+        including cards you made: use "edit" for that (only send the fields that change), and "remove" only when they ask to delete something.
         \(boardJSON)
 
         Reply with ONLY one JSON object, no other words before or after it. Use only the keys you need:
@@ -165,6 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                   "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label"}],
          "titles": [{"text": "group name", "x": 0, "y": 0}],
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
+         "edit": [{"id": "existing card id", "text": "new words (a note, title, list heading, or a link's title)", "items": ["the full new list, for a todo"], "desc": "a link's note",
+                   "color": "white|pink|butter|mint|lilac|sky|peach", "tag": "the little handwritten label above a card (\"\" removes it)", "hex": "#rrggbb", "label": "swatch name"}],
+         "remove": ["card id"],
          "place": [{"id": "an unsorted card id", "x": 0, "y": 0}],
          "connect": [["card id", "card id"]],
          "projects": {"create": ["project name"], "rename": [{"from": "old name", "to": "new name"}]},

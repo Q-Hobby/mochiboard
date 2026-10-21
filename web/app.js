@@ -145,7 +145,9 @@
     const btns = el.querySelectorAll('button'); if (p) { btns[1].textContent = p.name; btns[1].title = p.name; } if (f) { btns[btns.length - 1].textContent = f.name; btns[btns.length - 1].title = f.name; }
   }
   $('crumbs').onclick = e => { const g = e.target.closest('[data-go]')?.dataset.go; if (g) openHome(g); };
-  $('homeBtn').onclick = e => { e.stopPropagation(); openHome('all'); };
+  $('homeBtn').onclick = () => openHome('all');
+  $('brand').onclick = () => openHome('all');
+  $('homeBack').onclick = () => { if (!homeAt) return; const f = homeAt.level === 'folder' && folders.find(x => x.id === homeAt.id); openHome(f && f.project && projects.some(p => p.id === f.project) ? 'project:' + f.project : 'all'); };
   function openHome(go = 'all') { const [level, id] = go.split(':'); homeAt = { level, id }; $('home').classList.add('on'); renderHome(); }
   function closeHome() { homeAt = null; $('home').classList.remove('on'); }
   const miniCache = new Map();
@@ -176,6 +178,7 @@
     if ((level === 'project' && !p) || (level === 'folder' && !f)) { homeAt = { level: 'all' }; return renderHome(); }
     crumbs.innerHTML = `<button data-go="all">All projects</button>` + (p ? `<i>/</i><button data-go="project:${p.id}"></button>` : '') + (f ? `<i>/</i><button data-go="folder:${f.id}"></button>` : '');
     const cb = crumbs.querySelectorAll('button'); if (p) cb[1].textContent = p.name; if (f) cb[cb.length - 1].textContent = f.name;
+    $('home').classList.toggle('deep', level !== 'all');
     $('homeTitle').textContent = f ? f.name : p ? p.name : 'Your projects';
     $('homeSub').textContent = f ? plural(boardsIn(f.id).length, 'board') : p ? plural(foldersIn(p.id).length, 'folder') : 'Every project, with its folders and boards inside.';
     const add = (label, run) => { const a = document.createElement('button'); a.className = 'tile add'; a.innerHTML = `<span>+</span>${label}`; a.onclick = run; grid.appendChild(a); };
@@ -183,8 +186,18 @@
     const projectTile = pp => {
       const fs = foldersIn(pp.id), nb = fs.reduce((n, x) => n + boardsIn(x.id).length, 0);
       const t = tile('project', pp, `${plural(fs.length, 'folder')} · ${plural(nb, 'board')}`, () => openHome('project:' + pp.id), [['ren', 'Rename', '✎'], ['del', 'Remove (keeps its folders)', '×']]);
-      t.querySelector('.tile-art').style.background = COLORS[pp.color] || COLORS.pink;
-      t.querySelector('.tile-art').innerHTML = fs.slice(0, 4).map(x => `<span class="mf"><i></i>${esc(x.name)}</span>`).join('') || '<em>empty project</em>';
+      const art = t.querySelector('.tile-art'), chips = `<div class="chips">${fs.slice(0, 3).map(x => `<span class="mf"><i></i>${esc(x.name)}</span>`).join('')}</div>`;
+      const first = fs.map(x => boardsIn(x.id)[0]).find(Boolean);
+      if (pp.cover) { art.classList.add('cover'); art.style.background = `url('${pp.cover}')`; art.innerHTML = chips; }
+      else if (first) { art.classList.add('peekboard'); art.innerHTML = chips; mini(first.id).then(svg => { if (svg) art.insertAdjacentHTML('afterbegin', svg); else { art.classList.remove('peekboard'); art.style.background = COLORS[pp.color] || COLORS.pink; } }); }
+      else { art.style.background = COLORS[pp.color] || COLORS.pink; art.innerHTML = fs.length ? chips : '<em>empty project</em>'; }
+      const cb = document.createElement('button'); cb.className = 'cover-btn'; cb.textContent = 'Cover'; t.appendChild(cb);
+      cb.onclick = e => { e.stopPropagation(); t.querySelector('.cover-menu')?.remove(); const m = document.createElement('div'); m.className = 'cover-menu';
+        m.innerHTML = `<button data-c="pick">Choose an image…</button><button data-c="board">Use the first board</button>`; t.appendChild(m);
+        m.onclick = ev => { ev.stopPropagation(); const c = ev.target.closest('[data-c]')?.dataset.c; m.remove();
+          if (c === 'pick') { coverFor = pp; $('coverPick').value = ''; $('coverPick').click(); }
+          if (c === 'board') { delete pp.cover; saveLib().then(refreshBoards); } };
+        setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true)); };
       t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), pp);
       t.querySelector('[data-a="del"]').onclick = () => del('p', pp, () => fs.forEach(x => x.project = null));
       dropZone(t, 'folder', fid => { const x = folders.find(y => y.id === fid); if (x) x.project = pp.id; });
@@ -192,7 +205,7 @@
     };
     const folderTile = ff => {
       const bs = boardsIn(ff.id), t = tile('folder', ff, plural(bs.length, 'board'), () => openHome('folder:' + ff.id), [['ren', 'Rename', '✎'], ['del', 'Remove (keeps its boards)', '×']]);
-      const art = t.querySelector('.tile-art'); art.innerHTML = '<div class="peek"></div>';
+      const art = t.querySelector('.tile-art'); art.innerHTML = '<div class="back"></div><div class="tab"></div><div class="peek"></div><div class="front"><span class="face"><b></b><i></i><b></b></span></div>';
       bs.slice(0, 3).forEach(async (b, i) => { const d = document.createElement('div'); d.className = 'paper'; d.style.setProperty('--i', i); d.innerHTML = await mini(b.id); art.querySelector('.peek').appendChild(d); });
       t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), ff);
       t.querySelector('[data-a="del"]').onclick = async () => { for (const b of bs) await moveBoard(b.id, null); del('f', ff, () => {}); };
@@ -222,6 +235,11 @@
   const ago = t => { const s = (Date.now() / 1000 - t), m = s / 60, h = m / 60, d = h / 24; return s < 90 ? 'just now' : m < 60 ? Math.round(m) + 'm ago' : h < 24 ? Math.round(h) + 'h ago' : Math.round(d) + 'd ago'; };
   $('homeCrumbs').onclick = e => { const g = e.target.closest('[data-go]')?.dataset.go; if (g) openHome(g); };
   $('homeClose').onclick = closeHome;
+  // a project's cover image: shrunk to a tidy size and saved with the library
+  let coverFor = null;
+  $('coverPick').onchange = () => { const file = $('coverPick').files[0], p = coverFor; if (!file || !p) return;
+    const rd = new FileReader(); rd.onload = () => { const im = new Image(); im.onload = () => { const k = Math.min(1, 720 / im.width), cv = document.createElement('canvas'); cv.width = im.width * k; cv.height = im.height * k;
+      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); p.cover = cv.toDataURL('image/jpeg', .86); saveLib().then(refreshBoards); }; im.src = rd.result; }; rd.readAsDataURL(file); };
 
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
@@ -337,8 +355,31 @@
   }
 
   // ---------- editing text ----------
-  function startEdit(id) {
+  // any words on a card can be edited: double-click the bit you want (text, list heading, a list item, the little label, a link's title or note)
+  function editField(el, t, set, done) {
+    editing = el.dataset.id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus();
+    const r = document.createRange(); r.selectNodeContents(t); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    const oneLine = !t.matches('.body > .text');   // notes and titles can wrap; labels, headings and list items are one line
+    t.oninput = () => { set(oneLine ? t.innerText.replace(/\n/g, ' ').trim() : t.innerText.replace(/\n$/, '')); save(); };
+    t.onkeydown = ev => { if (ev.key === 'Enter' && oneLine) { ev.preventDefault(); t.blur(); } };
+    t.onblur = () => { endEdit(); done && done(); };
+  }
+  function editTag(c) {
+    const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
+    if (!c.tagText) { c.tagText = 'label'; renderCard(c); selectOnly([c.id]); }
+    const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`);
+    editField(e2, e2.querySelector('.tag'), v => c.tagText = v.trim(), () => { if (!c.tagText) { delete c.tagText; renderCard(c); selectOnly([c.id]); save(); } });
+  }
+  let lastTap = {};
+  function startEdit(id, target) {
     const el = cardsEl.querySelector(`[data-id="${id}"]`), c = byId(id); if (!el || !c) return;
+    if (target && target.closest('.tag')) return editTag(c);
+    const li = target && target.closest('li');
+    if (li && c.type === 'todo') { const i = +li.dataset.i; return editField(el, li.querySelector('span'), v => c.items[i].t = v, () => { if (!c.items[i]?.t.trim()) { c.items.splice(i, 1); renderCard(c); save(); } }); }
+    if (c.type === 'link') { const desc = target && target.closest('.meta span'); return editField(el, el.querySelector(desc ? '.meta span' : '.meta b'), v => desc ? c.desc = v : c.title = v); }
+    if (c.type === 'image') return editTag(c);
+    if (c.type === 'swatch') return openColor(c);
+    if (c.type === 'todo') return editField(el, el.querySelector('.head'), v => c.text = v);
     const t = el.querySelector(c.type === 'todo' ? '.head' : '.text'); if (!t) return;
     editing = id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus();
     const r = document.createRange(); r.selectNodeContents(t); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
@@ -401,7 +442,11 @@
       }
       if (d.moved) save();
       else if (d.start.length === 1 && d.start[0].c.type === 'swatch') openColor(d.start[0].c);
-      else if (e.detail >= 2) startEdit(d.start[0].c.id);
+      else {   // our own double-click check (pointer events don't count clicks everywhere), on whatever is really under the pointer
+        const now = Date.now(), id = d.start[0].c.id, under = document.elementFromPoint(e.clientX, e.clientY);
+        if (under && under.matches('.card.todo li span') && !under.isContentEditable) { lastTap = {}; startEdit(id, under); return; }   // list items edit with one click
+        if (lastTap.id === id && now - lastTap.t < 420) { lastTap = {}; startEdit(id, document.elementFromPoint(e.clientX, e.clientY)); } else lastTap = { id, t: now };
+      }
     }
     if (d.mode === 'resize') save();
     if (d.mode === 'wire') {
@@ -411,6 +456,7 @@
     }
   });
   stage.addEventListener('dblclick', e => {
+    if (document.elementFromPoint(e.clientX, e.clientY)?.closest('.card, .selbar')) return;
     if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home')) return;
     const w = toWorld(e.clientX, e.clientY), c = card('note', { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] }); c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
@@ -422,7 +468,7 @@
     const li = e.target.closest('li'); if (li && c.type === 'todo') {
       const i = +li.dataset.i;
       if (e.target.matches('input')) { c.items[i].done = e.target.checked; li.classList.toggle('done', c.items[i].done); save(); }
-      else if (e.target.matches('span')) { const s = e.target; s.contentEditable = 'true'; s.focus(); s.oninput = () => { c.items[i].t = s.innerText; save(); }; s.onblur = () => { s.contentEditable = 'false'; if (!c.items[i].t.trim()) { c.items.splice(i, 1); renderCard(c); save(); } }; }
+      else if (e.target.matches('span') && !e.target.isContentEditable) startEdit(c.id, e.target);
     }
   });
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
@@ -522,7 +568,7 @@
   // what Mochi sees: the cards (trimmed), where they are, what's selected, and what's in Unsorted
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
-      text: (c.text || c.title || c.label || '').slice(0, 300), items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
+      text: (c.text || c.title || c.label || '').slice(0, 300), desc: c.desc, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
@@ -532,7 +578,7 @@
     catch (err) { say("Hmm, I couldn't reach Claude: " + err.message); }
     finally { $('mochi').classList.remove('thinking'); goo.think(false); }
   }
-  $('mForm').onsubmit = e => { e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return; $('mInput').value = ''; mochiOpen(false); ask(q); };
+  $('mForm').onsubmit = e => { e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return; $('mInput').value = ''; mochiOpen(false); $('mInput').placeholder = 'Ask Mochi… “group these by theme”'; ask(q); };
   const parse = raw => { const s = String(raw), a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0) return { say: s.trim() }; try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { return { say: s.trim() }; } };
   // her actions: say, add cards, move cards, place unsorted ideas, add titles, connect cards
   async function applyMochi(r, q) {
@@ -558,6 +604,16 @@
     (r.place || []).forEach(o => { const c = board.tray.find(x => x.id === o.id); if (!c) return; place(o); c.x = o.x; c.y = o.y; board.tray = board.tray.filter(x => x !== c); addCard(c); added.push(c); });
     (r.move || []).forEach(o => { const c = byId(o.id); if (!c || o.x == null) return; c.x = o.x; c.y = o.y; if (o.color && COLOR_NAMES.includes(o.color)) c.color = o.color;
       const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.transition = 'left .6s cubic-bezier(.2,.8,.3,1), top .6s cubic-bezier(.2,.8,.3,1)'; renderCard(c); setTimeout(() => el.style.transition = '', 650); } added.push(c); });
+    (r.edit || []).forEach(o => { const c = byId(o.id) || board.tray.find(x => x.id === o.id); if (!c) return;
+      if (o.text != null) { if (c.type === 'link') c.title = o.text; else c.text = o.text; }
+      if (o.desc != null) c.desc = o.desc;
+      if (o.items) c.items = o.items.map((t, k) => ({ t: typeof t === 'string' ? t : t.t, done: (typeof t === 'object' && t.done) || (c.items?.[k]?.t === t && c.items[k].done) || false }));
+      if (o.color && COLOR_NAMES.includes(o.color)) c.color = o.color;
+      if (o.tag !== undefined) { if (o.tag) c.tagText = o.tag; else delete c.tagText; }
+      if (o.hex && /^#[0-9a-f]{6}$/i.test(o.hex)) c.hex = o.hex.toLowerCase();
+      if (o.label != null) c.label = o.label;
+      if (board.cards.includes(c)) { renderCard(c, true); added.push(c); } else renderTray(); });
+    if (r.remove && r.remove.length) { const gone = new Set(r.remove); board.cards = board.cards.filter(c => !gone.has(c.id)); board.tray = board.tray.filter(c => !gone.has(c.id)); board.links = board.links.filter(l => !gone.has(l.a) && !gone.has(l.b)); gone.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove()); }
     (r.connect || []).forEach(p => { const [a, b] = Array.isArray(p) ? p : [p.a, p.b]; if (byId(a) && byId(b)) board.links.push({ id: uid(), a, b }); });
     // pictures (Mobbin screens, Higgsfield images): fetched and saved into the board, laid out in a row of tilted cards
     const imgs = r.images || [];
@@ -574,7 +630,7 @@
       }
     }
     renderTray(); renderWires(); save();
-    if (added.length) setTimeout(() => fit(board.cards), 300);
+    if (added.length && (r.add || r.titles || r.place || r.move || imgs.length)) setTimeout(() => fit(board.cards), 300);
     const acts = r.confirm ? [{ label: (r.confirm || 'Yes, make it') + ' ✦', run: () => ask(q, true) }, { label: 'Not now', ghost: true, run: () => {} }] : [];
     say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), acts.length ? 0 : 9000, acts);
   }
@@ -594,6 +650,34 @@
       el.appendChild(r); });
   }
   addEventListener('focus', () => showConnections());
+
+  // ---------- the bar above the selection ----------
+  const FILLABLE = ['note', 'todo', 'link'];
+  function selCards() { return [...sel].map(byId).filter(Boolean); }
+  function placeSelbar() {
+    const bar = $('selbar'), cs = selCards();
+    if (!cs.length || editing || homeAt || stage.querySelector('.card.dragging') || $('cpop').classList.contains('on')) { bar.classList.remove('on'); return; }
+    let top = Infinity, bot = -Infinity, l = Infinity, rr = -Infinity; const s = stage.getBoundingClientRect();
+    cs.forEach(c => { const r = cardsEl.querySelector(`[data-id="${c.id}"]`)?.getBoundingClientRect(); if (!r) return; top = Math.min(top, r.top); bot = Math.max(bot, r.bottom); l = Math.min(l, r.left); rr = Math.max(rr, r.right); });
+    if (top === Infinity) return bar.classList.remove('on');
+    const fill = cs.filter(c => FILLABLE.includes(c.type)), key = cs.map(c => c.id + c.color).join();
+    if (bar.dataset.key !== key) { bar.dataset.key = key;
+      $('sbDots').innerHTML = fill.length ? COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('') : '';
+      bar.querySelector('[data-sb="tag"]').style.display = cs.length === 1 ? '' : 'none';
+      bar.querySelector('[data-sb="edit"]').style.display = cs.length === 1 && cs[0].type !== 'image' ? '' : 'none';
+      bar.querySelector('[data-sb="tag"]').textContent = cs.length === 1 && cs[0].tagText ? 'Label' : '+ Label'; }
+    bar.style.left = clamp((l + rr) / 2 - s.left, 300, s.width - 300) + 'px'; bar.style.top = (top - s.top - 22 < 110 ? Math.min(bot - s.top + 62, s.height - 100) : top - s.top - 22) + 'px'; bar.classList.add('on');   // under the cards when they're near the toolbar
+  }
+  (function tick() { placeSelbar(); requestAnimationFrame(tick); })();
+  $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
+  $('selbar').onclick = e => {
+    const cs = selCards(), dot = e.target.closest('[data-c]'), a = e.target.closest('[data-sb]')?.dataset.sb;
+    if (dot) { cs.filter(c => FILLABLE.includes(c.type)).forEach(c => { c.color = dot.dataset.c; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
+    if (a === 'tag') editTag(cs[0]);
+    if (a === 'edit') startEdit(cs[0].id);
+    if (a === 'del') { const gone = new Set(sel); board.cards = board.cards.filter(c => !gone.has(c.id)); board.links = board.links.filter(l => !gone.has(l.a) && !gone.has(l.b)); gone.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove()); sel.clear(); renderWires(); save(); }
+    if (a === 'mochi') { mochiOpen(true); $('mInput').placeholder = cs.length === 1 ? 'Change this… “make it say…”, “turn it mint”' : `Change these ${cs.length}… “rename to step 1, 2, 3”`; }
+  };
 
   // ---------- colors: the editor beside a color card, and the board's own palette ----------
   // the wheel works in HSV: hue = angle, saturation = distance from the middle, value = the brightness slider
@@ -695,5 +779,5 @@
     setTimeout(() => { fit(board.cards); say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
     showConnections(true);
   })();
-  window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome };   // handy for testing
+  window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
 })();

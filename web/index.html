@@ -18,8 +18,9 @@
 
 <aside class="side" id="side">
   <section class="box" data-box="boards">
-    <header><div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div><button class="mini home-btn" id="homeBtn" title="All projects">⌂</button><button class="mini" title="Minimize">–</button></header>
+    <header><div class="brand" id="brand" title="Home: all projects"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div><button class="mini" title="Minimize">–</button></header>
     <div class="box-body">
+      <button class="home-row" id="homeBtn"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 9.5 10 3.5l7 6V16a1.5 1.5 0 0 1-1.5 1.5h-3v-5h-5v5h-3A1.5 1.5 0 0 1 3 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>All projects</button>
       <div class="label">Boards</div>
       <div class="boards" id="boards"></div>
       <div class="new-row"><button class="pill-btn" id="newBoard">+ Board</button><button class="pill-btn" id="newFolder">+ Folder</button><button class="pill-btn" id="newProject">+ Project</button></div>
@@ -73,7 +74,7 @@
   <!-- home: zoomed all the way out, every project → its folders → its boards -->
   <section class="home" id="home">
     <div class="home-in">
-      <nav class="home-crumbs" id="homeCrumbs"></nav>
+      <div class="home-nav"><button class="home-back" id="homeBack">← Back</button><nav class="home-crumbs" id="homeCrumbs"></nav></div>
       <div class="home-head"><div><h1 id="homeTitle">Your projects</h1><p id="homeSub"></p></div><button class="home-close" id="homeClose">Back to board</button></div>
       <div class="home-grid" id="homeGrid"></div>
     </div>
@@ -93,6 +94,14 @@
     <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
   </div>
   <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> + drag to pan</span><button id="keysX" title="Hide">×</button></div>
+  <!-- the little bar above whatever is selected: fill color, a label, edit, ask Mochi, delete -->
+  <div class="selbar" id="selbar">
+    <div class="sb-dots" id="sbDots"></div><span class="sb-sep"></span>
+    <button data-sb="tag" title="Add or edit the little label above the card">+ Label</button>
+    <button data-sb="edit" title="Edit the words">Edit</button>
+    <button data-sb="mochi" title="Ask Mochi to change this">✦ Ask Mochi</button>
+    <button data-sb="del" class="sb-del" title="Delete">×</button>
+  </div>
   <!-- the color editor: pops up beside a color card -->
   <div class="cpop" id="cpop">
     <div class="wheel" id="wheel"><canvas id="wheelCv" width="440" height="440"></canvas><i class="ring" id="wheelRing"></i></div>
@@ -103,6 +112,7 @@
     <div class="cp-acts"><button id="cpSave" class="solid">Save to board colors</button><button id="cpDone">Done</button></div>
   </div>
   <input type="file" id="filePick" accept="image/*" multiple hidden>
+  <input type="file" id="coverPick" accept="image/*" hidden>
 </main>
 
 <script src="bridge.js"></script>
