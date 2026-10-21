@@ -144,6 +144,20 @@
     <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
   </div>
   <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> drag to pan</span><button id="keysX" title="Hide">×</button></div>
+  <!-- wireframes: screens, boxes and text, plus a design panel for the selection -->
+  <aside class="design" id="design">
+    <div class="dz-head"><span class="label">Wireframe</span><button class="mini" id="dzMin" title="Minimize">–</button></div>
+    <div class="dz-body">
+      <div class="dz-tools">
+        <button data-wf="frame" title="Screen: pick a device, then click to place"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M9 15h2"/></svg><span>Screen</span></button>
+        <button data-wf="box" title="Box: drag to draw (R)"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="13" height="10" rx="1.5"/></svg><span>Box</span></button>
+        <button data-wf="text" title="Text (X)"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5.5V4h10v1.5M10 4v12M8 16h4"/></svg><span>Text</span></button>
+      </div>
+      <div class="dz-presets" id="dzPresets"></div>
+      <div class="dz-props" id="dzProps"></div>
+    </div>
+  </aside>
+  <svg class="guides" id="guides"></svg>
   <!-- the color editor: pops up beside a color card -->
   <div class="cpop" id="cpop">
     <div class="wheel" id="wheel"><canvas id="wheelCv" width="440" height="440"></canvas><i class="ring" id="wheelRing"></i></div>

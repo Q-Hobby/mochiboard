@@ -108,6 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
                 }
             }
+        case "fonts":
+            reply(true, NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") }.sorted())
         case "speechAuth":
             SFSpeechRecognizer.requestAuthorization { st in reply(true, st == .authorized ? "ok" : st == .notDetermined ? "ask" : "off") }
         case "transcribe":

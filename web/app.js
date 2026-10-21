@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -396,6 +396,9 @@
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
+      case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
+      case 'box': return `<div class="bx"></div>`;
+      case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
       case 'image': {
@@ -428,6 +431,7 @@
     if (c.type === 'coll') { const t = COLL[c.color] || COLL.pink; el.style.setProperty('--chead', t[0]); el.style.setProperty('--cframe', t[1]); el.classList.toggle('nohead', c.head === false); el.style.height = c.h + 'px'; }
     else if (parentOf(c.id)) el.classList.add('inside');
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>`;
+    if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     return el;
   }
   function renderAll() { cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
@@ -603,6 +607,7 @@
     if (target && target.closest('.tag')) return editTag(c);
     if (target && target.closest('.nname')) return editField(el, el.querySelector('.nname'), v => c.name = v);
     if (c.type === 'coll') return editField(el, el.querySelector('.coll-head .text'), v => c.text = v);
+    if (c.type === 'frame') return editField(el, el.querySelector('.fr-name'), v => c.name = v);
     if ((c.type === 'doc' || c.type === 'canvas') && target && !target.closest('.text')) return c.type === 'doc' ? openDoc(c) : openCanvas(c);
     if (c.type === 'doc') return editField(el, el.querySelector('.text'), v => c.text = v);
     if (c.type === 'canvas') return editField(el, el.querySelector('.text'), v => c.text = v, () => renameChild(c));
@@ -633,6 +638,7 @@
     if (board) { clearTimeout(snapT); remember(); }   // lock in the last change before a new one starts, so undo steps stay separate
     if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
     if (cropping && e.target.closest('.crop-ui')) { e.preventDefault(); cropDown(e); return; }
+    if (placing?.type === 'box' && e.button === 0) { e.preventDefault(); stopPlacing(); drag = { mode: 'drawbox', sx: w.x, sy: w.y }; stage.setPointerCapture(e.pointerId); return; }
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
     const wireEl = e.target.closest('[data-wire]');
     if (wireEl && !space) {
@@ -655,7 +661,7 @@
         endEdit();
         if (e.shiftKey) { sel.has(id) ? sel.delete(id) : sel.add(id); selectOnly([...sel]); }
         else if (!sel.has(id)) selectOnly([id]);
-        const ids = new Set(sel); [...sel].forEach(i => { const c = byId(i); if (c?.type === 'coll') (c.kids || []).forEach(k => ids.add(k)); });
+        const ids = new Set(sel); [...sel].forEach(i => { const c = byId(i); if (c?.type === 'coll') (c.kids || []).forEach(k => ids.add(k)); if (c?.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); });
         drag = { mode: 'move', sx: w.x, sy: w.y, start: [...ids].map(i => byId(i)).filter(Boolean).map(c => ({ c, x: c.x, y: c.y })), moved: false };
       }
       stage.setPointerCapture(e.pointerId); return;
@@ -668,7 +674,8 @@
     if (!drag) return; const w = toWorld(e.clientX, e.clientY);
     if (drag.mode === 'pan') { view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; applyView(); }
     if (drag.mode === 'move') {
-      const dx = w.x - drag.sx, dy = w.y - drag.sy; if (Math.hypot(dx, dy) > 2) drag.moved = true;
+      let dx = w.x - drag.sx, dy = w.y - drag.sy; if (Math.hypot(dx, dy) > 2) drag.moved = true;
+      const sn = snapWF(drag.start, dx, dy); dx = sn.dx; dy = sn.dy;
       drag.start.forEach(s => { s.c.x = s.x + dx; s.c.y = s.y + dy; const el = cardsEl.querySelector(`[data-id="${s.c.id}"]`); el.style.left = s.c.x + 'px'; el.style.top = s.c.y + 'px'; el.classList.add('dragging'); });
       renderWires();
       $('tray').classList.toggle('drop', overTray(e));
@@ -682,6 +689,8 @@
     if (drag.mode === 'resize' && byId(drag.id).type === 'stamp') { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'drawbox') { let r = drag.rect; if (!r) { r = drag.rect = document.createElement('div'); r.className = 'draw-rect'; world.appendChild(r); }
+      const x = Math.min(drag.sx, w.x), y = Math.min(drag.sy, w.y); Object.assign(r.style, { left: x + 'px', top: y + 'px', width: Math.abs(w.x - drag.sx) + 'px', height: Math.abs(w.y - drag.sy) + 'px' }); }
     if (drag.mode === 'bend') { const a = byId(drag.l.a), b = byId(drag.l.b); if (a && b) { drag.l.bend = 0; const g = wireGeom(drag.l, a, b), bend = 2 * ((w.x - g.mid.x) * g.n.x + (w.y - g.mid.y) * g.n.y);
       drag.l.bend = Math.abs(bend) < 12 ? 0 : Math.round(bend); renderWires(); } }   // pull it flat and it snaps straight
     if (drag.mode === 'rewire') { const keep = byId(drag.end === 'a' ? drag.l.b : drag.l.a); if (keep) renderWires({ a: center(keep), b: w }); }
@@ -694,7 +703,7 @@
   });
   const overTray = e => { const r = $('tray').getBoundingClientRect(); return e.clientX > r.left && e.clientY > r.top && e.clientY < r.bottom && !$('tray').classList.contains('closed'); };
   stage.addEventListener('pointerup', e => {
-    if (!drag) return; const d = drag; drag = null; stage.classList.remove('panning'); $('marquee').style.display = 'none'; $('tray').classList.remove('drop');
+    if (!drag) return; const d = drag; drag = null; stage.classList.remove('panning'); $('guides').innerHTML = ''; $('marquee').style.display = 'none'; $('tray').classList.remove('drop');
     if (d.mode === 'move') {
       d.start.forEach(s => cardsEl.querySelector(`[data-id="${s.c.id}"]`)?.classList.remove('dragging'));
       if (d.moved && overTray(e)) {                       // dropped on the tray: back to Unsorted
@@ -712,6 +721,7 @@
           if (t) dropInto(t, ids, w);
           else ids.forEach(id => { const from = parentOf(id); if (from) { from.kids = from.kids.filter(k => k !== id); const el = cardsEl.querySelector(`[data-id="${id}"]`); el?.classList.remove('inside'); byId(id).r = tilt(); renderCard(byId(id)); } });
         }
+        if (!skip.size) fileIntoFrame(d.start.map(s2 => s2.c).filter(c => c.type !== 'frame' && !parentOf(c.id)));
         save(); renderWires();
       }
       else if (d.start.length === 1 && d.start[0].c.type === 'swatch') openColor(d.start[0].c);
@@ -723,6 +733,9 @@
     }
     if (d.mode === 'resize') save();
     if (d.mode === 'bend') save();
+    if (d.mode === 'drawbox') { d.rect?.remove(); const w = toWorld(e.clientX, e.clientY); let x = Math.min(d.sx, w.x), y = Math.min(d.sy, w.y), bw = Math.abs(w.x - d.sx), bh = Math.abs(w.y - d.sy);
+      if (bw < 6 && bh < 6) { bw = 160; bh = 100; }   // a click makes a standard box
+      const c = card('box', { x, y, w: Math.round(bw), h: Math.round(bh), r: 0, fill: '#e4e4e7', radius: 6 }); addCard(c); fileIntoFrame([c]); pickWF(null); selectOnly([c.id]); save(); }
     if (d.mode === 'rewire') {
       const w = toWorld(e.clientX, e.clientY), other = d.end === 'a' ? d.l.b : d.l.a, t = [...board.cards].reverse().find(c => c.id !== other && c.type !== 'coll' && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h);
       if (t) { d.l[d.end] = t.id; save(); } renderWires();
@@ -812,6 +825,8 @@
     if (k === 't') startPlacing('title');
     if (k === 'c') startPlacing('todo');
     if (k === 'g') startPlacing('coll');
+    if (k === 'r') pickWF('box');
+    if (k === 'x') pickWF('text');
     if (k === 'd') startPlacing('doc');
     if (k === 's') $('tools').querySelector('[data-add="shape"]').click();
     if (k === 'e') $('tools').querySelector('[data-add="stamp"]').click();
@@ -1070,12 +1085,13 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]] };
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] };
   function startPlacing(type, extra = {}) {
     if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
     g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape });
+    if (type === 'frame' && DEVICES[extra.device]) { g.style.width = DEVICES[extra.device][0] + 'px'; g.style.height = DEVICES[extra.device][1] + 'px'; g.querySelector('span').textContent = extra.device; }
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
@@ -1085,7 +1101,8 @@
   function placeAt(w) {
     if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
     const type = placing.type, more = placing.extra || {}; stopPlacing();
-    const extra = type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: newNoteColor() } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
+    const dev = DEVICES[more.device], extra = type === 'frame' ? { name: more.device === 'Desktop' ? 'Desktop' : 'Screen', device: more.device || 'Custom', w: dev ? dev[0] : 393, h: dev ? dev[1] : 852, radius: dev ? dev[2] : 0, fill: '#ffffff', r: 0 }
+      : type === 'text' ? { text: '', size: 18, weight: 500, font: 'DM Sans', color: '#27272a', r: 0 } : type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: newNoteColor() } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
     const c = card(type, extra); c.x = snapTo(w.x - 14 / view.z); c.y = snapTo(w.y - 14 / view.z);
     if (type === 'coll') c.r = 0;
@@ -1096,8 +1113,9 @@
     addCard(c); selectOnly([c.id]);
     if (type === 'note' && board.cards.filter(x => x.type === 'note' && !parentOf(x.id)).length === 6) tip('That\'s a lot of loose notes! Want me to sort them into collections? Just ask ✦');
     const t = type !== 'coll' && collAt(w, new Set([c.id])); if (t) { dropInto(t, [c.id], w); save(); }
-    if (['note', 'todo', 'title', 'doc', 'canvas'].includes(type)) setTimeout(() => startEdit(c.id), 30);
-    if (type === 'coll') setTimeout(() => startEdit(c.id), 30);
+    if (type === 'text' || WF.includes(type)) { fileIntoFrame([c]); pickWF(null); }
+    if (['note', 'todo', 'title', 'doc', 'canvas', 'text'].includes(type)) startEdit(c.id);   // ready to type right away, so the first letters never act as shortcuts
+    if (type === 'coll') startEdit(c.id);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
     if (type === 'audio') record(c);
   }
@@ -1106,7 +1124,7 @@
   const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   async function exportCards(cs, name, pdf) {
     if (!cs.length) return say('Nothing to export yet ✦', 2500);
-    const all = new Set(cs); cs.forEach(c => c.type === 'coll' && (c.kids || []).forEach(k => byId(k) && all.add(byId(k))));
+    const all = new Set(cs); cs.forEach(c => { if (c.type === 'coll') (c.kids || []).forEach(k => byId(k) && all.add(byId(k))); if (c.type === 'frame') onFrame(c).forEach(k => all.add(k)); });
     const list = [...all], x0 = Math.min(...list.map(c => c.x)) - 24, y0 = Math.min(...list.map(c => c.y)) - 40, x1 = Math.max(...list.map(c => c.x + c.w)) + 24, y1 = Math.max(...list.map(c => c.y + c.h)) + 24;
     const keep = { ...view }, keepSel = [...sel], r = stage.getBoundingClientRect(), bw = x1 - x0, bh = y1 - y0;
     selectOnly([]); selWire = null; endEdit(); renderWires(); document.body.classList.add('exporting');
@@ -1223,6 +1241,98 @@
       p.onended = tick; requestAnimationFrame(tick);
     }
   }
+
+  // ---------- wireframes: screens, boxes and text, a design panel, and snapping ----------
+  const WF = ['frame', 'box', 'text'];
+  const DEVICES = { iPhone: [393, 852, 44], Android: [412, 915, 28], iPad: [834, 1194, 20], Desktop: [1440, 1024, 10], Watch: [205, 251, 40] };
+  let FONTS = ['DM Sans', 'Inter', 'Helvetica Neue', 'Georgia']; MB.fonts().then(f => { if (f?.length) FONTS = f; }).catch(() => {});
+  function styleWF(c, el) {
+    el.classList.add('wf'); c.r = 0;
+    if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill || '#ffffff'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
+    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
+      boxShadow: c.stroke && c.sw ? `inset 0 0 0 ${c.sw}px ${c.stroke}` : 'none' });
+    if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
+      color: c.color || '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
+  }
+  // what's on a screen: anything whose middle sits inside it
+  const onFrame = f => board.cards.filter(c => c.id !== f.id && c.type !== 'frame' && c.onFrame === f.id);
+  function fileIntoFrame(cs) {
+    cs.forEach(c => { const mx = c.x + c.w / 2, my = c.y + c.h / 2, f = [...board.cards].reverse().find(f => f.type === 'frame' && f.id !== c.id && mx > f.x && mx < f.x + f.w && my > f.y && my < f.y + f.h);
+      if (f) c.onFrame = f.id; else delete c.onFrame; });
+  }
+  // snapping: edges and middles line up with other wireframe things (and their screen), with pink guides
+  function snapWF(start, dx, dy) {
+    const moving = new Set(start.map(s => s.c.id)), mine = start.filter(s => WF.includes(s.c.type)); $('guides').innerHTML = '';
+    if (!mine.length || space) return { dx, dy };
+    const x0 = Math.min(...mine.map(s => s.x)) + dx, y0 = Math.min(...mine.map(s => s.y)) + dy, x1 = Math.max(...mine.map(s => s.x + s.c.w)) + dx, y1 = Math.max(...mine.map(s => s.y + s.c.h)) + dy;
+    const others = board.cards.filter(c => WF.includes(c.type) && !moving.has(c.id)), T = 6 / view.z;
+    let bx = null, by = null;
+    const mx = [x0, (x0 + x1) / 2, x1], my = [y0, (y0 + y1) / 2, y1];
+    others.forEach(o => { const ox = [o.x, o.x + o.w / 2, o.x + o.w], oy = [o.y, o.y + o.h / 2, o.y + o.h];
+      mx.forEach(a => ox.forEach(b => { const d = b - a; if (Math.abs(d) < T && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d, at: b, o }; }));
+      my.forEach(a => oy.forEach(b => { const d = b - a; if (Math.abs(d) < T && (!by || Math.abs(d) < Math.abs(by.d))) by = { d, at: b, o }; })); });
+    let g = '';
+    if (bx) { dx += bx.d; const top = Math.min(y0 + dy - y0 + y0, bx.o.y), bot = Math.max(y1, bx.o.y + bx.o.h); g += `<line x1="${bx.at + O}" y1="${Math.min(y0, bx.o.y) + O - 10}" x2="${bx.at + O}" y2="${Math.max(y1, bx.o.y + bx.o.h) + O + 10}"/>`; }
+    if (by) { dy += by.d; g += `<line x1="${Math.min(x0, by.o.x) + O - 10}" y1="${by.at + O}" x2="${Math.max(x1, by.o.x + by.o.w) + O + 10}" y2="${by.at + O}"/>`; }
+    $('guides').innerHTML = g; return { dx, dy };
+  }
+  // the design panel: tools when nothing's picked, the selection's settings when something is
+  let wfTool = null;
+  function pickWF(t) {
+    document.querySelectorAll('[data-wf]').forEach(b => b.classList.toggle('on', b.dataset.wf === t));
+    $('dzPresets').classList.toggle('on', t === 'frame');
+    if (t === 'frame') { $('dzPresets').innerHTML = Object.keys(DEVICES).map(n => `<button data-dev="${n}">${n}</button>`).join(''); return; }
+    if (t) startPlacing(t);
+  }
+  document.querySelectorAll('[data-wf]').forEach(b => b.onclick = () => { const t = b.dataset.wf; if (b.classList.contains('on')) { stopPlacing(); pickWF(null); return; } pickWF(t); });
+  $('dzPresets').onclick = e => { const b = e.target.closest('[data-dev]'); if (!b) return; $('dzPresets').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); startPlacing('frame', { device: b.dataset.dev }); };
+  $('dzMin').onclick = () => { const m = $('design').classList.toggle('min'); $('dzMin').textContent = m ? '+' : '–'; placeTray(); };
+  $('design').addEventListener('pointerdown', e => e.stopPropagation());
+  function placeTray() { const d = $('design').getBoundingClientRect(), s = stage.getBoundingClientRect(); $('tray').style.top = (d.bottom - s.top + 12) + 'px'; }
+  new ResizeObserver(placeTray).observe($('design'));
+  const AL = d => `<svg viewBox="0 0 20 20">${d}</svg>`;
+  const ALIGN = { l: AL('<path d="M4 3v14M7 6h9M7 13h5"/>'), c: AL('<path d="M10 3v14M5 6h10M7 13h6"/>'), r: AL('<path d="M16 3v14M4 6h9M8 13h5"/>'),
+    t: AL('<path d="M3 4h14M6 7v9M13 7v5"/>'), m: AL('<path d="M3 10h14M6 5v10M13 7v6"/>'), b: AL('<path d="M3 16h14M6 4v9M13 8v5"/>'),
+    dh: AL('<path d="M3 4v12M17 4v12M8 7v6M12 7v6"/>'), dv: AL('<path d="M4 3h12M4 17h12M7 8h6M7 12h6"/>') };
+  const field = (k, label, v, type = 'number', extra = '') => `<label class="dz-f ${extra}"><span>${label}</span><input data-k="${k}" type="${type}" value="${esc(v)}"${type === 'number' ? ' step="1"' : ''}></label>`;
+  function renderDesign() {
+    const cs = selCards().filter(c => WF.includes(c.type)), el = $('dzProps');
+    if (!cs.length) { el.innerHTML = selCards().length ? '' : '<div class="dz-hint">Pick a tool. Draw a box by dragging; Shift-free snapping lines things up for you.</div>'; return; }
+    const one = cs.length === 1 ? cs[0] : null; let h = '';
+    if (one) h += `<div class="dz-sec"><div class="label">${{ frame: 'Screen', box: 'Box', text: 'Text' }[one.type]}</div><div class="dz-grid">${field('x', 'X', Math.round(one.x))}${field('y', 'Y', Math.round(one.y))}${field('w', 'W', Math.round(one.w))}${one.type === 'text' ? '' : field('h', 'H', Math.round(one.h))}</div></div>`;
+    if (one?.type === 'frame') h += `<div class="dz-sec"><div class="dz-grid">${field('name', 'Name', one.name || 'Screen', 'text', 'wide')}<label class="dz-f wide"><span>Device</span><select data-k="device">${['Custom', ...Object.keys(DEVICES)].map(n => `<option${(one.device || 'Custom') === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>${field('fill', 'Fill', one.fill || '#ffffff', 'color')}${field('radius', 'Corners', one.radius ?? 0)}</div></div>`;
+    if (one?.type === 'box') h += `<div class="dz-sec"><div class="label">Look</div><div class="dz-grid">${field('fill', 'Fill', one.fill || '#e4e4e7', 'color')}${field('radius', 'Corners', one.radius || 0)}${field('stroke', 'Border', one.stroke || '#a1a1aa', 'color')}${field('sw', 'Width', one.sw || 0)}${field('opacity', 'Opacity %', Math.round((one.opacity ?? 1) * 100), 'number', 'wide')}</div></div>`;
+    if (one?.type === 'text') h += `<div class="dz-sec"><div class="label">Type</div><div class="dz-grid"><label class="dz-f wide"><span>Font</span><select data-k="font">${[...new Set([one.font || 'DM Sans', ...FONTS])].map(f => `<option${(one.font || 'DM Sans') === f ? ' selected' : ''} style="font-family:'${esc(f)}'">${esc(f)}</option>`).join('')}</select></label>
+      ${field('size', 'Size', one.size || 18)}<label class="dz-f"><span>Weight</span><select data-k="weight">${[[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semi'], [700, 'Bold'], [800, 'Extra']].map(([v, n]) => `<option value="${v}"${(+one.weight || 500) === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      ${field('color', 'Color', one.color || '#27272a', 'color')}${field('lh', 'Line', one.lh || 1.3)}</div><div class="dz-row">${['left', 'center', 'right'].map(a => `<button data-talign="${a}" class="${(one.align || 'left') === a ? 'on' : ''}" title="Align ${a}">${ALIGN[a[0]]}</button>`).join('')}</div></div>`;
+    const inFrame = one && one.onFrame && byId(one.onFrame);
+    if (cs.length > 1 || inFrame) h += `<div class="dz-sec"><div class="label">${cs.length > 1 ? 'Align' : 'Align on its screen'}</div><div class="dz-row">${['l', 'c', 'r', 't', 'm', 'b'].map(a => `<button data-align="${a}" title="Align">${ALIGN[a]}</button>`).join('')}</div>${cs.length > 2 ? `<div class="dz-row"><button data-dist="h" title="Even spacing across">${ALIGN.dh}</button><button data-dist="v" title="Even spacing down">${ALIGN.dv}</button></div>` : ''}</div>`;
+    el.innerHTML = h;
+  }
+  $('dzProps').addEventListener('input', e => {
+    const k = e.target.dataset.k, one = selCards().filter(c => WF.includes(c.type))[0]; if (!k || !one) return; let v = e.target.value;
+    if (['x', 'y', 'w', 'h', 'radius', 'sw', 'size'].includes(k)) v = +v || 0; if (k === 'opacity') v = Math.max(0, Math.min(100, +v)) / 100; if (k === 'lh') v = +v || 1.3; if (k === 'weight') v = +v;
+    if (k === 'device') { if (DEVICES[v]) { one.w = DEVICES[v][0]; one.h = DEVICES[v][1]; one.radius = DEVICES[v][2]; } one.device = v; }
+    else one[k] = v;
+    if (k === 'w' || k === 'h') one.device = 'Custom';
+    renderCard(one); selectOnly([one.id]); renderWires(); save();
+    if (k === 'device') $('selbar').dataset.key = '', renderDesign();
+  });
+  $('dzProps').addEventListener('click', e => {
+    const cs = selCards().filter(c => WF.includes(c.type)), ta = e.target.closest('[data-talign]'), al = e.target.closest('[data-align]'), di = e.target.closest('[data-dist]');
+    if (ta) { cs.forEach(c => c.align = ta.dataset.talign); }
+    if (al) { // line them up with each other, or a single thing with its screen
+      const ref = cs.length === 1 ? byId(cs[0].onFrame) : null, x0 = ref ? ref.x : Math.min(...cs.map(c => c.x)), y0 = ref ? ref.y : Math.min(...cs.map(c => c.y)), x1 = ref ? ref.x + ref.w : Math.max(...cs.map(c => c.x + c.w)), y1 = ref ? ref.y + ref.h : Math.max(...cs.map(c => c.y + c.h));
+      cs.forEach(c => { const a = al.dataset.align; if (a === 'l') c.x = x0; if (a === 'c') c.x = (x0 + x1) / 2 - c.w / 2; if (a === 'r') c.x = x1 - c.w; if (a === 't') c.y = y0; if (a === 'm') c.y = (y0 + y1) / 2 - c.h / 2; if (a === 'b') c.y = y1 - c.h; });
+    }
+    if (di) { const hz = di.dataset.dist === 'h', s = [...cs].sort((a, b) => hz ? a.x - b.x : a.y - b.y), first = s[0], last = s[s.length - 1];
+      const span = hz ? last.x + last.w - first.x : last.y + last.h - first.y, used = s.reduce((t, c) => t + (hz ? c.w : c.h), 0), gap = (span - used) / (s.length - 1); let at = hz ? first.x : first.y;
+      s.forEach(c => { if (hz) c.x = at; else c.y = at; at += (hz ? c.w : c.h) + gap; }); }
+    if (ta || al || di) { cs.forEach(c => renderCard(c)); selectOnly(cs.map(c => c.id)); renderWires(); save(); renderDesign(); }
+  });
+  // keep X / Y / W / H current while you drag (unless you're typing in them)
+  function syncDesign() { const one = selCards().length === 1 && WF.includes(selCards()[0].type) ? selCards()[0] : null; if (!one || $('dzProps').contains(document.activeElement)) return;
+    ['x', 'y', 'w', 'h'].forEach(k => { const i = $('dzProps').querySelector(`[data-k="${k}"]`); if (i && +i.value !== Math.round(one[k])) i.value = Math.round(one[k]); }); }
 
   // ---------- crop an image: see the whole picture, drag the box or its corners, then Done ----------
   let cropping = null, cropDrag = null;
@@ -1494,11 +1604,11 @@
         + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
-    dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { bar.dataset.key = ''; return; }
+    dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { if (bar.dataset.key !== '') { bar.dataset.key = ''; renderDesign(); } return; }
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit).join();
-    if (bar.dataset.key === key) return; bar.dataset.key = key;
+    if (bar.dataset.key === key) { syncDesign(); return; } bar.dataset.key = key; renderDesign();
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
@@ -1659,6 +1769,7 @@
   [stage, document.scrollingElement].forEach(el => el && el.addEventListener('scroll', () => { if (el.scrollTop || el.scrollLeft) { el.scrollTop = 0; el.scrollLeft = 0; } }));
   addEventListener('scroll', () => { if (scrollX || scrollY) scrollTo(0, 0); });
 
+  world.appendChild($('guides')); setTimeout(placeTray, 0); renderDesign();
   // ---------- start ----------
   (async () => {
     let list = await MB.list();
