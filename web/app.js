@@ -105,15 +105,17 @@
     await saveLib(); await refreshBoards();
     if (board && ids.includes(board.id)) { let list = await MB.list(); if (!list.length) { const b = newBoard('My first board'); await MB.save(b); list = await MB.list(); } await openBoard(list[0].id); }
   }
-  function rowMenu(e, kind, obj) {
+  async function renameBoard(b, v) { if (!v) return; if (board && board.id === b.id) { board.name = v; $('boardName').value = v; save(); } else { const bb = await MB.load(b.id); if (bb) { bb.name = v; await MB.save(bb); } } }
+  function rowMenu(e, kind, obj, nameEl) {
     e.preventDefault(); e.stopPropagation(); $('rowMenu')?.remove();
     const n = kind === 'board' ? 1 + boardList.filter(x => x.parent === obj.id).length : kind === 'folder' ? boardsIn(obj.id).length : foldersIn(obj.id).reduce((t, f) => t + boardsIn(f.id).length, 0);
     const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
-    m.innerHTML = `<button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+    m.innerHTML = `${nameEl ? '<button data-m="ren">Rename</button>' : ''}<button data-m="dup">Duplicate</button><span class="rm-sep"></span><button data-m="del" class="danger">Delete</button>`;
     document.body.appendChild(m);
     const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     m.onclick = async ev => {
       const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return;
+      if (a === 'ren') { m.remove(); return inlineRename(nameEl, obj, kind === 'board' ? v => renameBoard(obj, v) : undefined); }
       if (a === 'dup') { m.remove(); return duplicate(kind, obj); }
       if (a === 'del') { // ask first: deleting can't be undone
         const what = kind === 'board' ? (n > 1 ? `and the ${n - 1} canvas${n > 2 ? 'es' : ''} inside it` : '') : n ? `and the ${n} board${n === 1 ? '' : 's'} inside it` : '';
@@ -124,6 +126,9 @@
     setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true));
   }
 
+  // the little row buttons use the same line icons as the toolbar
+  const FB = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const FBTN = { add: FB('<path d="M10 4.5v11M4.5 10h11"/>'), ren: FB('<path d="M13.5 3.5l3 3L8 15l-4 1 1-4z"/><path d="M11.5 5.5l3 3"/>'), del: FB('<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>') };
   // the left box: a small tree (projects ▸ folders ▸ boards)
   function boardRow(b) {
     const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : '');
@@ -131,17 +136,15 @@
     // one click opens the board; a double-click renames it right here (so wait a beat to tell them apart)
     let tap = 0; const name = r.querySelector('span');
     r.onclick = () => { if (name.isContentEditable) return; clearTimeout(tap); tap = setTimeout(() => { closeHome(); openBoard(b.id); }, 230); };
-    r.ondblclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, async v => { if (!v) return;
-      if (board && board.id === b.id) { board.name = v; $('boardName').value = v; save(); }
-      else { const bb = await MB.load(b.id); if (bb) { bb.name = v; await MB.save(bb); } } }); };
-    draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b);
+    r.ondblclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, v => renameBoard(b, v)); };
+    draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b, name);
     const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
     const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
     kids.forEach(k => sub.appendChild(boardRow(k))); frag.appendChild(r); frag.appendChild(sub); return frag;
   }
   function treeNode(obj, kind, count, kids, btns) {
     const wrap = document.createElement('div'); wrap.className = 'node ' + kind + (obj.open ? ' open' : '');
-    wrap.innerHTML = `<div class="node-head"><span class="chev">▶</span><span class="${kind === 'project' ? 'pic' : 'fic'}"></span><span class="fname"></span><small>${count}</small>${btns.map(([a, t, s]) => `<button class="f-btn" data-a="${a}" title="${t}">${s}</button>`).join('')}</div><div class="node-body"></div>`;
+    wrap.innerHTML = `<div class="node-head"><span class="chev">▶</span><span class="${kind === 'project' ? 'pic' : 'fic'}"></span><span class="fname"></span><small>${count}</small>${btns.map(([a, t, s]) => `<button class="f-btn" data-a="${a}" title="${t}">${FBTN[a] || s}</button>`).join('')}</div><div class="node-body"></div>`;
     if (kind === 'project') wrap.querySelector('.pic').style.background = tint(obj.color);
     const name = wrap.querySelector('.fname'), body = wrap.querySelector('.node-body'); name.textContent = obj.name;
     kids.forEach(k => body.appendChild(k));
@@ -151,7 +154,7 @@
   }
   function folderNode(f) {
     const inside = boardsIn(f.id); if (board && inside.some(b => b.id === board.id)) f.open = true;
-    const { wrap, name } = treeNode(f, 'folder', inside.length, inside.map(boardRow), [['add', 'New board in this folder', '+'], ['ren', 'Rename', '✎'], ['del', 'Remove folder (keeps its boards)', '×']]);
+    const { wrap, name } = treeNode(f, 'folder', inside.length, inside.map(boardRow), [['add', 'New board in this folder', '+'], ['ren', 'Rename', '✎']]);
     wrap.querySelector('.node-head').onclick = async e => {
       const a = e.target.closest('.f-btn')?.dataset.a;
       if (a === 'add') return newBoardIn(f.id);
@@ -160,13 +163,13 @@
       if (name.isContentEditable) return;
       f.open = !f.open; wrap.classList.toggle('open', f.open); saveLib();
     };
-    draggable(wrap.querySelector('.node-head'), 'folder', f.id); wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'folder', f);
+    draggable(wrap.querySelector('.node-head'), 'folder', f.id); wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'folder', f, name);
     dropZone(wrap.querySelector('.node-head'), 'board', id => moveBoard(id, f.id).then(() => { f.open = true; }));
     return wrap;
   }
   function projectNode(p) {
     const fs = foldersIn(p.id); if (board && fs.some(f => boardsIn(f.id).some(b => b.id === board.id))) p.open = true;
-    const { wrap, name } = treeNode(p, 'project', fs.length, fs.map(folderNode), [['add', 'New folder in this project', '+'], ['ren', 'Rename', '✎'], ['del', 'Remove project (keeps its folders)', '×']]);
+    const { wrap, name } = treeNode(p, 'project', fs.length, fs.map(folderNode), [['add', 'New folder in this project', '+'], ['ren', 'Rename', '✎']]);
     wrap.querySelector('.node-head').onclick = async e => {
       const a = e.target.closest('.f-btn')?.dataset.a;
       if (a === 'add') { const f = makeFolder(uniqueName(folders, 'New folder'), p.id); p.open = true; await saveLib(); await refreshBoards(); return renameNewest('.node.folder', f); }
@@ -175,7 +178,7 @@
       if (name.isContentEditable) return;
       p.open = !p.open; wrap.classList.toggle('open', p.open); saveLib();
     };
-    wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'project', p);
+    wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'project', p, name);
     dropZone(wrap.querySelector('.node-head'), 'folder', id => { const f = folders.find(x => x.id === id); if (f) { f.project = p.id; p.open = true; } });
     return wrap;
   }
@@ -235,7 +238,7 @@
   }
   function tile(kind, obj, sub, onOpen, btns = []) {
     const t = document.createElement('div'); t.className = 'tile ' + kind; t.style.rotate = (((obj.id.charCodeAt(0) + obj.id.charCodeAt(1)) % 5) - 2) * .6 + 'deg';
-    t.innerHTML = `<div class="tile-art"></div><div class="tile-meta"><b></b><small>${sub}</small>${btns.map(([a, tt, s]) => `<button class="f-btn" data-a="${a}" title="${tt}">${s}</button>`).join('')}</div>`;
+    t.innerHTML = `<div class="tile-art"></div><div class="tile-meta"><b></b><small>${sub}</small>${btns.map(([a, tt, s]) => `<button class="f-btn" data-a="${a}" title="${tt}">${FBTN[a] || s}</button>`).join('')}</div>`;
     t.querySelector('b').textContent = obj.name;
     t.onclick = e => { if (e.target.closest('.f-btn') || t.querySelector('b').isContentEditable) return; onOpen(); };
     return t;
@@ -255,7 +258,7 @@
     const del = async (arr, obj, fix) => { fix(); if (arr === 'p') projects = projects.filter(x => x !== obj); else folders = folders.filter(x => x !== obj); await saveLib(); refreshBoards(); };
     const projectTile = pp => {
       const fs = foldersIn(pp.id), nb = fs.reduce((n, x) => n + boardsIn(x.id).length, 0);
-      const t = tile('project', pp, `${plural(fs.length, 'folder')} · ${plural(nb, 'board')}`, () => openHome('project:' + pp.id), [['ren', 'Rename', '✎'], ['del', 'Remove (keeps its folders)', '×']]);
+      const t = tile('project', pp, `${plural(fs.length, 'folder')} · ${plural(nb, 'board')}`, () => openHome('project:' + pp.id), [['ren', 'Rename', '✎']]);
       const art = t.querySelector('.tile-art'), chips = `<div class="chips">${fs.slice(0, 3).map(x => `<span class="mf"><i></i>${esc(x.name)}</span>`).join('')}</div>`;
       const first = fs.map(x => boardsIn(x.id)[0]).find(Boolean);
       if (pp.cover) { art.classList.add('cover'); art.style.background = `url('${pp.cover}')`; art.innerHTML = chips; }
@@ -268,24 +271,22 @@
           if (c === 'pick') { coverFor = pp; $('coverPick').value = ''; $('coverPick').click(); }
           if (c === 'board') { delete pp.cover; saveLib().then(refreshBoards); } };
         setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true)); };
-      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), pp);
-      t.querySelector('[data-a="del"]').onclick = () => del('p', pp, () => fs.forEach(x => x.project = null));
+      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), pp); t.oncontextmenu = e => rowMenu(e, 'project', pp, t.querySelector('b'));
       dropZone(t, 'folder', fid => { const x = folders.find(y => y.id === fid); if (x) x.project = pp.id; });
       return t;
     };
     const folderTile = ff => {
-      const bs = boardsIn(ff.id), t = tile('folder', ff, plural(bs.length, 'board'), () => openHome('folder:' + ff.id), [['ren', 'Rename', '✎'], ['del', 'Remove (keeps its boards)', '×']]);
+      const bs = boardsIn(ff.id), t = tile('folder', ff, plural(bs.length, 'board'), () => openHome('folder:' + ff.id), [['ren', 'Rename', '✎']]);
       const art = t.querySelector('.tile-art'); art.innerHTML = '<div class="back"></div><div class="tab"></div><div class="peek"></div><div class="front"><span class="face"><b></b><i></i><b></b></span></div>';
       bs.slice(0, 3).forEach(async (b, i) => { const d = document.createElement('div'); d.className = 'paper'; d.style.setProperty('--i', i); d.innerHTML = await mini(b.id); art.querySelector('.peek').appendChild(d); });
-      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), ff);
-      t.querySelector('[data-a="del"]').onclick = async () => { for (const b of bs) await moveBoard(b.id, null); del('f', ff, () => {}); };
+      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), ff); t.oncontextmenu = e => rowMenu(e, 'folder', ff, t.querySelector('b'));
       draggable(t, 'folder', ff.id); dropZone(t, 'board', bid => moveBoard(bid, ff.id));
       return t;
     };
     const boardTile = b => {
       const t = tile('board', b, b.updated ? 'edited ' + ago(b.updated) : '', () => { closeHome(); openBoard(b.id); });
       mini(b.id).then(svg => t.querySelector('.tile-art').innerHTML = svg || '<em>empty board</em>');
-      draggable(t, 'board', b.id); return t;
+      draggable(t, 'board', b.id); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('b')); return t;
     };
     const section = label => { const h = document.createElement('div'); h.className = 'home-sec'; h.textContent = label; grid.appendChild(h); };
     if (level === 'all') {

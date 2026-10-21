@@ -783,3 +783,11 @@ body.dark .mc-ideas button { border-color: #3e3846; }
 }
 @media (prefers-reduced-motion: reduce) { #goo.hopping { animation: none; } }
 body.calm #goo.hopping { animation: none; }
+
+/* row buttons in the left box and on Home tiles: toolbar-style line icons, bigger, with a soft circle on hover */
+.f-btn { width: 26px; height: 26px; padding: 0; border-radius: 999px; place-items: center; flex: none; color: var(--ink-soft); font-size: 0; }
+.f-btn svg { width: 16px; height: 16px; }
+.f-btn:hover { background: var(--blush); color: var(--ink); }
+.node-head:hover > .f-btn, .tile:hover .f-btn { display: grid; }
+.f-btn[data-a="del"]:hover { color: #d6455d; }
+.tile .f-btn { width: 30px; height: 30px; } .tile .f-btn svg { width: 17px; height: 17px; }
