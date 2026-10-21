@@ -469,3 +469,4 @@ html.native .dv-bar { padding-top: 14px; }
 .row-menu div { display: flex; gap: 6px; padding: 0 4px 4px; }
 .row-menu div button { flex: 1; text-align: center; border: 1.5px solid #eee5f0; }
 .row-menu .danger.solid { background: #e0566d; border-color: #e0566d; color: #fff; }
+.board-row span[contenteditable="true"] { background: #fff; box-shadow: 0 0 0 1.5px var(--select); border-radius: 4px; padding: 0 3px; outline: none; cursor: text; user-select: text; -webkit-user-select: text; }

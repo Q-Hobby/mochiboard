@@ -125,7 +125,13 @@
   function boardRow(b) {
     const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : '');
     r.innerHTML = `<i style="background:${tint(b.color)}"></i><span></span>`; r.querySelector('span').textContent = b.name;
-    r.onclick = () => { closeHome(); openBoard(b.id); }; draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b);
+    // one click opens the board; a double-click renames it right here (so wait a beat to tell them apart)
+    let tap = 0; const name = r.querySelector('span');
+    r.onclick = () => { if (name.isContentEditable) return; clearTimeout(tap); tap = setTimeout(() => { closeHome(); openBoard(b.id); }, 230); };
+    r.ondblclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, async v => { if (!v) return;
+      if (board && board.id === b.id) { board.name = v; $('boardName').value = v; save(); }
+      else { const bb = await MB.load(b.id); if (bb) { bb.name = v; await MB.save(bb); } } }); };
+    draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b);
     const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
     const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
     kids.forEach(k => sub.appendChild(boardRow(k))); frag.appendChild(r); frag.appendChild(sub); return frag;
