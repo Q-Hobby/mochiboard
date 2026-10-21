@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24], icon: [28, 28] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -398,6 +398,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'box': return `<div class="bx"></div>`;
+      case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
@@ -655,12 +656,13 @@
       if (editing === id && !e.target.closest('.handle, .knob')) return;      // clicking inside text you're editing
       if (e.target.closest('input[type=checkbox], .link-in input')) return;
       if (e.target.closest('[data-act]')) return;
-      if (e.target.classList.contains('handle')) { drag = { mode: 'resize', id, sx: w.x, sy: w.y, w0: c.w, h0: c.h }; }
+      if (e.target.classList.contains('rot-h')) { drag = { mode: 'rotate', c, cx: c.x + c.w / 2, cy: c.y + c.h / 2 }; }
+      else if (e.target.classList.contains('handle')) { drag = { mode: 'resize', id, sx: w.x, sy: w.y, w0: c.w, h0: c.h }; }
       else if (e.target.classList.contains('knob')) { drag = { mode: 'wire', id, a: { x: c.x + c.w, y: c.y + c.h / 2 } }; }
       else {
         endEdit();
         if (e.shiftKey) { sel.has(id) ? sel.delete(id) : sel.add(id); selectOnly([...sel]); }
-        else if (!sel.has(id)) selectOnly([id]);
+        else if (!sel.has(id)) selectOnly(groupOf(id));
         const ids = new Set(sel); [...sel].forEach(i => { const c = byId(i); if (c?.type === 'coll') (c.kids || []).forEach(k => ids.add(k)); if (c?.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); });
         drag = { mode: 'move', sx: w.x, sy: w.y, start: [...ids].map(i => byId(i)).filter(Boolean).map(c => ({ c, x: c.x, y: c.y })), moved: false };
       }
@@ -686,9 +688,12 @@
       else if (loose.length && !skip.size) { const t = collAt(w, skip); if (t) cardsEl.querySelector(`[data-id="${t.s.id}"]`)?.classList.add(t.side ? 'drop-col' : 'drop-in'); }
     }
     if (drag.mode === 'resize' && byId(drag.id).type === 'coll') { const c = byId(drag.id); c.cols = Math.max(1, Math.round((drag.w0 + w.x - drag.sx - CPAD * 2 + CGAP) / (CW + CGAP))); layoutColl(c); renderWires(); return; }
-    if (drag.mode === 'resize' && byId(drag.id).type === 'stamp') { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
+    if (drag.mode === 'resize' && ['stamp', 'icon'].includes(byId(drag.id).type)) { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'rotate') { let a = Math.atan2(w.y - drag.cy, w.x - drag.cx) * 180 / Math.PI + 90; a = ((a % 360) + 360) % 360; if (a > 180) a -= 360;
+      const near = Math.round(a / 15) * 15; if (Math.abs(a - near) < 4) a = near;   // eases onto 15° steps
+      drag.c.rot = Math.round(a); cardsEl.querySelector(`[data-id="${drag.c.id}"]`)?.style.setProperty('--rot', drag.c.rot + 'deg'); syncDesign(); }
     if (drag.mode === 'drawbox') { let r = drag.rect; if (!r) { r = drag.rect = document.createElement('div'); r.className = 'draw-rect'; world.appendChild(r); }
       const x = Math.min(drag.sx, w.x), y = Math.min(drag.sy, w.y); Object.assign(r.style, { left: x + 'px', top: y + 'px', width: Math.abs(w.x - drag.sx) + 'px', height: Math.abs(w.y - drag.sy) + 'px' }); }
     if (drag.mode === 'bend') { const a = byId(drag.l.a), b = byId(drag.l.b); if (a && b) { drag.l.bend = 0; const g = wireGeom(drag.l, a, b), bend = 2 * ((w.x - g.mid.x) * g.n.x + (w.y - g.mid.y) * g.n.y);
@@ -733,6 +738,7 @@
     }
     if (d.mode === 'resize') save();
     if (d.mode === 'bend') save();
+    if (d.mode === 'rotate') { save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'drawbox') { d.rect?.remove(); const w = toWorld(e.clientX, e.clientY); let x = Math.min(d.sx, w.x), y = Math.min(d.sy, w.y), bw = Math.abs(w.x - d.sx), bh = Math.abs(w.y - d.sy);
       if (bw < 6 && bh < 6) { bw = 160; bh = 100; }   // a click makes a standard box
       const c = card('box', { x, y, w: Math.round(bw), h: Math.round(bh), r: 0, fill: '#e4e4e7', radius: 6 }); addCard(c); fileIntoFrame([c]); pickWF(null); selectOnly([c.id]); save(); }
@@ -815,6 +821,7 @@
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
     if ((e.key === 'Backspace' || e.key === 'Delete') && selWire) { board.links = board.links.filter(l => l.id !== selWire); selWire = null; renderWires(); save(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) removeSelected();
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g' && sel.size) { e.preventDefault(); groupSel(!e.shiftKey); return; }
     if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase()) && sel.size) { e.preventDefault(); $('selbar').querySelector(`[data-ts="${{ b: 'bold', i: 'italic', u: 'under' }[e.key.toLowerCase()]}"]`)?.click(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectOnly(board.cards.map(c => c.id)); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); const copies = [...sel].map(id => Object.assign(JSON.parse(JSON.stringify(byId(id))), { id: uid(), r: tilt() })); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
@@ -1085,12 +1092,14 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] };
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], piece: ['', [300, 60]], icon: ['', [28, 28]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] };
   function startPlacing(type, extra = {}) {
     if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
     g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape });
+    if (type === 'piece') { const P = PIECES[extra.piece], items = P.make(P.bar ? 360 : 360), W = Math.max(...items.map(i => i.x + i.w)), H = Math.max(...items.map(i => i.y + i.h)); g.style.width = W + 'px'; g.style.height = H + 'px'; g.querySelector('span').textContent = extra.piece; }
+    if (type === 'icon') { g.innerHTML = `<span class="mi" style="font-size:28px;position:static;color:#27272a">${esc(extra.name)}</span>`; g.style.width = g.style.height = '28px'; }
     if (type === 'frame' && DEVICES[extra.device]) { g.style.width = DEVICES[extra.device][0] + 'px'; g.style.height = DEVICES[extra.device][1] + 'px'; g.querySelector('span').textContent = extra.device; }
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
@@ -1100,8 +1109,9 @@
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
     if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
+    if (placing.type === 'piece') { const n = placing.extra.piece; stopPlacing(); $('dzPieces').querySelectorAll('.on').forEach(x => x.classList.remove('on')); return placePiece(n, w); }
     const type = placing.type, more = placing.extra || {}; stopPlacing();
-    const dev = DEVICES[more.device], extra = type === 'frame' ? { name: more.device === 'Desktop' ? 'Desktop' : 'Screen', device: more.device || 'Custom', w: dev ? dev[0] : 393, h: dev ? dev[1] : 852, radius: dev ? dev[2] : 0, fill: '#ffffff', r: 0 }
+    const dev = DEVICES[more.device], extra = type === 'icon' ? { name: more.name || 'star', color: '#27272a', w: 28, h: 28, r: 0 } : type === 'frame' ? { name: more.device === 'Desktop' ? 'Desktop' : 'Screen', device: more.device || 'Custom', w: dev ? dev[0] : 393, h: dev ? dev[1] : 852, radius: dev ? dev[2] : 0, fill: '#ffffff', r: 0 }
       : type === 'text' ? { text: '', size: 18, weight: 500, font: 'DM Sans', color: '#27272a', r: 0 } : type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: newNoteColor() } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
     const c = card(type, extra); c.x = snapTo(w.x - 14 / view.z); c.y = snapTo(w.y - 14 / view.z);
@@ -1113,7 +1123,7 @@
     addCard(c); selectOnly([c.id]);
     if (type === 'note' && board.cards.filter(x => x.type === 'note' && !parentOf(x.id)).length === 6) tip('That\'s a lot of loose notes! Want me to sort them into collections? Just ask ✦');
     const t = type !== 'coll' && collAt(w, new Set([c.id])); if (t) { dropInto(t, [c.id], w); save(); }
-    if (type === 'text' || WF.includes(type)) { fileIntoFrame([c]); pickWF(null); }
+    if (WF.includes(type)) { fileIntoFrame([c]); pickWF(null); }
     if (['note', 'todo', 'title', 'doc', 'canvas', 'text'].includes(type)) startEdit(c.id);   // ready to type right away, so the first letters never act as shortcuts
     if (type === 'coll') startEdit(c.id);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
@@ -1243,11 +1253,13 @@
   }
 
   // ---------- wireframes: screens, boxes and text, a design panel, and snapping ----------
-  const WF = ['frame', 'box', 'text'];
+  const WF = ['frame', 'box', 'text', 'icon'];
   const DEVICES = { iPhone: [393, 852, 44], Android: [412, 915, 28], iPad: [834, 1194, 20], Desktop: [1440, 1024, 10], Watch: [205, 251, 40] };
   let FONTS = ['DM Sans', 'Inter', 'Helvetica Neue', 'Georgia']; MB.fonts().then(f => { if (f?.length) FONTS = f; }).catch(() => {});
   function styleWF(c, el) {
-    el.classList.add('wf'); c.r = 0;
+    el.classList.add('wf'); c.r = 0; el.style.setProperty('--rot', (c.rot || 0) + 'deg'); el.classList.toggle('grouped', !!c.group);
+    if (!el.querySelector('.rot-h')) el.insertAdjacentHTML('beforeend', '<i class="rot-h" title="Drag to rotate"></i>');
+    if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill || '#ffffff'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
     if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
       boxShadow: c.stroke && c.sw ? `inset 0 0 0 ${c.sw}px ${c.stroke}` : 'none' });
@@ -1276,11 +1288,56 @@
     if (by) { dy += by.d; g += `<line x1="${Math.min(x0, by.o.x) + O - 10}" y1="${by.at + O}" x2="${Math.max(x1, by.o.x + by.o.w) + O + 10}" y2="${by.at + O}"/>`; }
     $('guides').innerHTML = g; return { dx, dy };
   }
+  // groups: ready-made pieces arrive grouped; ⌘G groups a selection, ⇧⌘G ungroups
+  const groupOf = id => { const g = byId(id)?.group; return g ? board.cards.filter(c => c.group === g).map(c => c.id) : [id]; };
+  function groupSel(on) { const cs = selCards(); if (on && cs.length < 2) return; const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
+  // ready-made pieces, in clean gray; bars stretch to the screen they land on
+  const T = (x, y, w, text, o = {}) => ({ type: 'text', x, y, w, h: Math.round((o.size || 15) * 1.3), text, size: 15, weight: 500, color: '#27272a', font: 'DM Sans', ...o });
+  const B = (x, y, w, h, o = {}) => ({ type: 'box', x, y, w, h, fill: '#e4e4e7', radius: 0, ...o });
+  const IC = (x, y, name, s = 24, o = {}) => ({ type: 'icon', x, y, w: s, h: s, name, color: '#3f3f46', ...o });
+  const PIECES = {
+    'Nav bar': { icon: 'web_asset', bar: 'top', make: W => [B(0, 0, W, 56, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), IC(14, 16, 'arrow_back'), T(56, 18, W - 112, 'Title', { size: 17, weight: 700, align: 'center' }), IC(W - 38, 16, 'more_vert')] },
+    'Tab bar': { icon: 'tab', bar: 'bottom', make: W => { const items = [['home', 'Home'], ['search', 'Search'], ['favorite_border', 'Saved'], ['person_outline', 'Profile']], cw = W / 4;
+      return [B(0, 0, W, 64, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), ...items.flatMap(([n, l], i) => [IC(i * cw + cw / 2 - 12, 10, n), T(i * cw, 38, cw, l, { size: 11, align: 'center', color: '#52525b' })])]; } },
+    'Button': { icon: 'smart_button', make: () => [B(0, 0, 160, 44, { fill: '#27272a', radius: 10 }), T(0, 12, 160, 'Button', { size: 15, weight: 600, color: '#ffffff', align: 'center' })] },
+    'Input': { icon: 'input', make: () => [B(0, 0, 300, 48, { fill: '#ffffff', stroke: '#d4d4d8', sw: 1.5, radius: 10 }), T(14, 14, 260, 'Placeholder', { color: '#a1a1aa' })] },
+    'Search': { icon: 'search', make: () => [B(0, 0, 300, 44, { fill: '#f4f4f5', radius: 22 }), IC(14, 10, 'search', 24, { color: '#71717a' }), T(46, 12, 220, 'Search', { color: '#a1a1aa' })] },
+    'Card': { icon: 'crop_landscape', make: () => [B(0, 0, 300, 236, { fill: '#ffffff', stroke: '#e4e4e7', sw: 1, radius: 14 }), B(10, 10, 280, 130, { radius: 10 }), IC(138, 63, 'image', 24, { color: '#a1a1aa' }), T(16, 154, 268, 'Card title', { size: 17, weight: 700 }), T(16, 182, 268, 'A short line about this card.', { size: 13, color: '#71717a' })] },
+    'List row': { icon: 'view_list', bar: 'row', make: W => [B(0, 0, W, 68, { fill: '#ffffff' }), B(16, 14, 40, 40, { radius: 20 }), T(68, 15, W - 120, 'Row title', { weight: 600 }), T(68, 36, W - 120, 'Supporting text', { size: 13, color: '#71717a' }), IC(W - 36, 22, 'chevron_right', 24, { color: '#a1a1aa' }), B(68, 67, W - 68, 1, { fill: '#e4e4e7' })] },
+    'Toggle': { icon: 'toggle_on', make: () => [B(0, 0, 52, 30, { fill: '#27272a', radius: 15 }), B(25, 3, 24, 24, { fill: '#ffffff', radius: 12 })] },
+    'Checkbox': { icon: 'check_box', make: () => [B(0, 0, 22, 22, { fill: '#27272a', radius: 6 }), IC(1, 1, 'check', 20, { color: '#ffffff' }), T(32, 2, 200, 'Remember me')] },
+    'Avatar': { icon: 'account_circle', make: () => [B(0, 0, 56, 56, { radius: 28 }), IC(14, 14, 'person', 28, { color: '#a1a1aa' })] },
+    'Image': { icon: 'image', make: () => [B(0, 0, 300, 180, { radius: 12 }), IC(134, 74, 'image', 32, { color: '#a1a1aa' })] },
+    'Heading': { icon: 'title', make: () => [T(0, 0, 300, 'Heading', { size: 28, weight: 800 }), T(0, 42, 300, 'A little line underneath it.', { size: 15, color: '#71717a' })] },
+  };
+  $('dzPieces').innerHTML = Object.entries(PIECES).map(([n, p]) => `<button data-piece="${n}" title="Add a ${n.toLowerCase()}"><span class="mi">${p.icon}</span>${n}</button>`).join('');
+  $('dzPieces').onclick = e => { const b = e.target.closest('[data-piece]'); if (!b) return; pickWF(null); $('dzPieces').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); startPlacing('piece', { piece: b.dataset.piece }); };
+  function placePiece(name, w) {
+    const P = PIECES[name], f = [...board.cards].reverse().find(f => f.type === 'frame' && w.x > f.x && w.x < f.x + f.w && w.y > f.y && w.y < f.y + f.h);
+    const W = P.bar && f ? f.w : 360, items = P.make(W); let ox = w.x - 14 / view.z, oy = w.y - 14 / view.z;
+    if (P.bar && f) { ox = f.x; if (P.bar === 'top') oy = Math.max(f.y, oy); if (P.bar === 'bottom') oy = Math.min(f.y + f.h - 64, Math.max(f.y, oy)); }
+    const g = uid(), made = items.map(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: g }); board.cards.push(c); renderCard(c, true); return c; });
+    fileIntoFrame(made); selectOnly(made.map(c => c.id)); renderWires(); save();
+  }
+  // icons: search all of Material Icons, then click to place (or swap the selected icon)
+  let iconSwap = null;
+  function renderIcons() {
+    const q = $('iconSearch').value.trim().toLowerCase().replace(/\s+/g, '_'), all = window.MATERIAL_ICONS || [], hits = q ? all.filter(n => n.includes(q)) : all, shown = hits.slice(0, 180);
+    $('iconGrid').innerHTML = shown.map(n => `<button data-icon="${n}" title="${n.replace(/_/g, ' ')}"><span class="mi">${n}</span></button>`).join('') + (hits.length > shown.length ? `<div class="more">${hits.length - shown.length} more… keep typing to narrow it down</div>` : hits.length ? '' : '<div class="more">No icons match that</div>');
+  }
+  $('iconSearch').oninput = renderIcons;
+  $('iconSearch').onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape') { pickWF(null); stopPlacing(); } };
+  $('iconGrid').onclick = e => { const b = e.target.closest('[data-icon]'); if (!b) return; $('iconGrid').querySelectorAll('.on').forEach(x => x.classList.remove('on')); b.classList.add('on');
+    if (iconSwap && byId(iconSwap)) { const c = byId(iconSwap); c.name = b.dataset.icon; renderCard(c); selectOnly([c.id]); save(); iconSwap = null; pickWF(null); return; }
+    startPlacing('icon', { name: b.dataset.icon }); };
+
   // the design panel: tools when nothing's picked, the selection's settings when something is
   let wfTool = null;
   function pickWF(t) {
     document.querySelectorAll('[data-wf]').forEach(b => b.classList.toggle('on', b.dataset.wf === t));
     $('dzPresets').classList.toggle('on', t === 'frame');
+    $('dzIcons').classList.toggle('on', t === 'icon'); if (t === 'icon') { renderIcons(); setTimeout(() => $('iconSearch').focus(), 20); return; }
+    if (t !== 'icon') iconSwap = null; if (t) $('dzPieces').querySelectorAll('.on').forEach(x => x.classList.remove('on'));
     if (t === 'frame') { $('dzPresets').innerHTML = Object.keys(DEVICES).map(n => `<button data-dev="${n}">${n}</button>`).join(''); return; }
     if (t) startPlacing(t);
   }
@@ -1297,9 +1354,13 @@
   const field = (k, label, v, type = 'number', extra = '') => `<label class="dz-f ${extra}"><span>${label}</span><input data-k="${k}" type="${type}" value="${esc(v)}"${type === 'number' ? ' step="1"' : ''}></label>`;
   function renderDesign() {
     const cs = selCards().filter(c => WF.includes(c.type)), el = $('dzProps');
-    if (!cs.length) { el.innerHTML = selCards().length ? '' : '<div class="dz-hint">Pick a tool. Draw a box by dragging; Shift-free snapping lines things up for you.</div>'; return; }
+    if (!cs.length) { el.innerHTML = selCards().length ? '' : '<div class="dz-hint">Pick a tool or a piece. Drag to draw a box; things snap into line as you move them.</div>'; return; }
     const one = cs.length === 1 ? cs[0] : null; let h = '';
     if (one) h += `<div class="dz-sec"><div class="label">${{ frame: 'Screen', box: 'Box', text: 'Text' }[one.type]}</div><div class="dz-grid">${field('x', 'X', Math.round(one.x))}${field('y', 'Y', Math.round(one.y))}${field('w', 'W', Math.round(one.w))}${one.type === 'text' ? '' : field('h', 'H', Math.round(one.h))}</div></div>`;
+    if (one && one.type !== 'frame') h += `<div class="dz-sec"><div class="dz-grid">${field('rot', 'Rotate°', one.rot || 0, 'number', 'wide')}</div></div>`;
+    if (one?.type === 'icon') h += `<div class="dz-sec"><div class="label">Icon</div><div class="dz-grid">${field('isz', 'Size', Math.round(one.w))}${field('color', 'Color', one.color || '#27272a', 'color')}</div><div class="dz-row"><button data-swap="1" style="font:600 11.5px/1 var(--font);gap:6px;display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:16px">${esc(one.name)}</span> Change icon</button></div></div>`;
+    const groupedSel = cs.length > 1 && cs.every(c => c.group && c.group === cs[0].group);
+    if (cs.length > 1) h += `<div class="dz-sec"><div class="dz-row"><button data-grp="${groupedSel ? 'off' : 'on'}" style="font:600 11.5px/1 var(--font)">${groupedSel ? 'Ungroup  ⇧⌘G' : 'Group  ⌘G'}</button></div></div>`;
     if (one?.type === 'frame') h += `<div class="dz-sec"><div class="dz-grid">${field('name', 'Name', one.name || 'Screen', 'text', 'wide')}<label class="dz-f wide"><span>Device</span><select data-k="device">${['Custom', ...Object.keys(DEVICES)].map(n => `<option${(one.device || 'Custom') === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>${field('fill', 'Fill', one.fill || '#ffffff', 'color')}${field('radius', 'Corners', one.radius ?? 0)}</div></div>`;
     if (one?.type === 'box') h += `<div class="dz-sec"><div class="label">Look</div><div class="dz-grid">${field('fill', 'Fill', one.fill || '#e4e4e7', 'color')}${field('radius', 'Corners', one.radius || 0)}${field('stroke', 'Border', one.stroke || '#a1a1aa', 'color')}${field('sw', 'Width', one.sw || 0)}${field('opacity', 'Opacity %', Math.round((one.opacity ?? 1) * 100), 'number', 'wide')}</div></div>`;
     if (one?.type === 'text') h += `<div class="dz-sec"><div class="label">Type</div><div class="dz-grid"><label class="dz-f wide"><span>Font</span><select data-k="font">${[...new Set([one.font || 'DM Sans', ...FONTS])].map(f => `<option${(one.font || 'DM Sans') === f ? ' selected' : ''} style="font-family:'${esc(f)}'">${esc(f)}</option>`).join('')}</select></label>
@@ -1311,14 +1372,17 @@
   }
   $('dzProps').addEventListener('input', e => {
     const k = e.target.dataset.k, one = selCards().filter(c => WF.includes(c.type))[0]; if (!k || !one) return; let v = e.target.value;
-    if (['x', 'y', 'w', 'h', 'radius', 'sw', 'size'].includes(k)) v = +v || 0; if (k === 'opacity') v = Math.max(0, Math.min(100, +v)) / 100; if (k === 'lh') v = +v || 1.3; if (k === 'weight') v = +v;
-    if (k === 'device') { if (DEVICES[v]) { one.w = DEVICES[v][0]; one.h = DEVICES[v][1]; one.radius = DEVICES[v][2]; } one.device = v; }
+    if (['x', 'y', 'w', 'h', 'radius', 'sw', 'size', 'rot', 'isz'].includes(k)) v = +v || 0; if (k === 'opacity') v = Math.max(0, Math.min(100, +v)) / 100; if (k === 'lh') v = +v || 1.3; if (k === 'weight') v = +v;
+    if (k === 'rot') { one.rot = v; } else if (k === 'isz') { one.w = one.h = Math.max(8, v); }
+    else if (k === 'device') { if (DEVICES[v]) { one.w = DEVICES[v][0]; one.h = DEVICES[v][1]; one.radius = DEVICES[v][2]; } one.device = v; }
     else one[k] = v;
     if (k === 'w' || k === 'h') one.device = 'Custom';
     renderCard(one); selectOnly([one.id]); renderWires(); save();
     if (k === 'device') $('selbar').dataset.key = '', renderDesign();
   });
   $('dzProps').addEventListener('click', e => {
+    if (e.target.closest('[data-swap]')) { iconSwap = selCards()[0]?.id; pickWF('icon'); return; }
+    const gp = e.target.closest('[data-grp]'); if (gp) return groupSel(gp.dataset.grp === 'on');
     const cs = selCards().filter(c => WF.includes(c.type)), ta = e.target.closest('[data-talign]'), al = e.target.closest('[data-align]'), di = e.target.closest('[data-dist]');
     if (ta) { cs.forEach(c => c.align = ta.dataset.talign); }
     if (al) { // line them up with each other, or a single thing with its screen
