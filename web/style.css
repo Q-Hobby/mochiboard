@@ -720,3 +720,4 @@ body.dark .tray-head b, body.dark .sb-dots button, body.dark .tile .mf { color: 
 .crop-box i { position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
 .crop-box i[data-h="nw"] { left: -2px; top: -2px; cursor: nwse-resize; border-radius: 2px 6px 6px 6px; } .crop-box i[data-h="ne"] { right: -2px; top: -2px; cursor: nesw-resize; border-radius: 6px 2px 6px 6px; }
 .crop-box i[data-h="sw"] { left: -2px; bottom: -2px; cursor: nesw-resize; border-radius: 6px 6px 6px 2px; } .crop-box i[data-h="se"] { right: -2px; bottom: -2px; cursor: nwse-resize; border-radius: 6px 6px 2px 6px; }
+.card.image .imgwrap:has(.crop-ui) { border-radius: 0; }
