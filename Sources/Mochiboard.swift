@@ -227,6 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         Reply with ONLY one JSON object, no other words before or after it. Use only the keys you need:
         {"say": "a short, friendly reply in first person (1 to 3 sentences, no em dashes)",
+         "next": ["2 or 3 things they might want next, written as short requests they can tap (under 6 words each, e.g. 'Make the mobile version'), specific to what you just did"],
          "add": [{"type": "note" | "todo" | "title" | "swatch" | "doc" | "font", "text": "... (a doc's title)", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
                   "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label", "body": "for a doc: its full text",
                   "name": "optional bold name above a note's words", "in": "optional: a collection id, or the name of a collection in this reply, to stack it inside"}],

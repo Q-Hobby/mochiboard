@@ -966,3 +966,70 @@ body.dark .card.font.c-white > .frame { background: #322d38 !important; }
 /* Mochi's quieter answer buttons share the .ghost name with the drag preview: keep them visible */
 .m-acts { flex-wrap: wrap; }
 .m-acts button.ghost { display: inline-block; position: static; z-index: auto; pointer-events: auto; box-shadow: none; border-radius: 999px; }
+/* wireframe pieces keep their stacking (a section's background must never jump over its words) */
+.card.wf:hover, .card.wf.dragging { z-index: auto; }
+
+/* ---------- setup with Mochi ---------- */
+.onboard { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; background: rgba(255, 228, 240, .55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.onboard.on { opacity: 1; pointer-events: auto; }
+.ob-panel { position: relative; width: min(520px, calc(100vw - 40px)); max-height: calc(100vh - 60px); overflow: auto; padding: 34px 34px 22px; border-radius: 30px; background: #fff; box-shadow: 0 30px 80px rgba(120, 80, 120, .28); transform: translateY(12px) scale(.98); transition: transform .35s cubic-bezier(.2, .9, .3, 1.2); }
+.onboard.on .ob-panel { transform: none; }
+.ob-step { display: none; animation: ob-in .35s cubic-bezier(.2, .9, .3, 1.1) both; }
+.ob-step.on { display: block; }
+@keyframes ob-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.ob-step canvas { display: block; width: 96px; height: 84px; margin: 0 auto 6px; image-rendering: pixelated; }
+.ob-step[data-step="0"], .ob-step[data-step="5"] { text-align: center; }
+.ob-step h2 { margin: 0 0 8px; font: 800 26px/1.15 var(--font); color: var(--ink); letter-spacing: -.01em; }
+.ob-step p { margin: 0 0 18px; font: 500 14.5px/1.55 var(--font); color: var(--ink-soft); }
+.ob-step .set-row { padding: 12px 0; }
+.ob-field { display: grid; gap: 8px; text-align: left; margin-top: 8px; }
+.ob-field span { font: 700 13px/1 var(--font); color: var(--ink); }
+.ob-field input { padding: 13px 16px; border-radius: 14px; border: 1.5px solid #eadfec; background: #fbf8fc; font: 600 15px/1 var(--font); color: var(--ink); outline: none; }
+.ob-field input:focus { border-color: #ff9ec4; background: #fff; box-shadow: 0 0 0 4px rgba(255, 158, 196, .2); }
+.ob-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.onboard.last .ob-foot #obNext { visibility: hidden; }
+.ob-dots { display: flex; gap: 6px; }
+.ob-dots i { width: 7px; height: 7px; border-radius: 99px; background: #eadfec; transition: width .25s, background .25s; }
+.ob-dots i.done { background: #ffc3da; }
+.ob-dots i.on { width: 22px; background: #ff8fc2; }
+.ob-primary, .ob-ghost { padding: 11px 20px; border-radius: 999px; font: 700 14px/1 var(--font); cursor: pointer; border: 1.5px solid var(--ink); }
+.ob-primary { background: var(--ink); color: #fff; }
+.ob-primary:hover { background: #2f2f2f; }
+.ob-ghost { background: none; color: var(--ink); border-color: transparent; }
+.ob-ghost:hover { background: var(--blush); }
+.ob-big { display: grid; gap: 8px; justify-items: center; margin: 4px 0 14px; }
+.ob-big .ob-primary { padding: 14px 26px; font-size: 15px; }
+.ob-small { font-size: 12.5px !important; color: var(--ink-faint) !important; margin: 0 !important; }
+.ob-skip { position: absolute; top: 16px; right: 18px; border: 0; background: none; font: 600 12px/1 var(--font); color: var(--ink-faint); cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.ob-skip:hover { color: var(--ink); background: var(--blush); }
+.ob-step .conns { margin-bottom: 6px; }
+.set-btns { display: flex; gap: 6px; flex: none; }
+body.dark .ob-panel, body.dark .coach-card { background: var(--surface); }
+body.dark .onboard { background: rgba(20, 16, 24, .6); }
+body.dark .ob-field input { background: #302b35; border-color: #3d3743; }
+body.dark .ob-primary { background: #ece8f0; color: #1c1920; border-color: #ece8f0; }
+body.dark .ob-dots i { background: #3d3743; }
+
+/* ---------- the tour ---------- */
+.coach { position: fixed; inset: 0; z-index: 94; pointer-events: none; display: none; }
+.coach.on { display: block; }
+.coach.dim { background: rgba(60, 40, 70, .14); }
+.coach-ring { position: fixed; border-radius: 22px; box-shadow: 0 0 0 3px #ff8fc2, 0 0 0 9999px rgba(60, 40, 70, .16); transition: all .4s cubic-bezier(.2, .9, .3, 1.1); animation: coach-pulse 1.8s ease-in-out infinite; }
+@keyframes coach-pulse { 50% { box-shadow: 0 0 0 6px rgba(255, 143, 194, .6), 0 0 0 9999px rgba(60, 40, 70, .16); } }
+.coach-card { position: fixed; width: 320px; padding: 16px 18px 14px; border-radius: 22px; background: #fff; box-shadow: 0 20px 50px rgba(120, 80, 120, .28); pointer-events: auto; transition: left .4s cubic-bezier(.2, .9, .3, 1.1), top .4s cubic-bezier(.2, .9, .3, 1.1); }
+.coach-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.coach-top canvas { width: 30px; height: 27px; image-rendering: pixelated; margin-top: -4px; }
+.coach-top b { font: 800 14px/1 var(--font); color: var(--ink); }
+.coach-top span { margin-left: auto; font: 600 10px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+.coach-card p { margin: 0; font: 500 14px/1.5 var(--font); color: var(--ink); }
+.coach-try { margin-top: 10px; padding: 9px 12px; border-radius: 12px; background: #fff0f6; font: 600 13px/1.35 var(--font); color: #d64f8d; }
+.coach-try.yay { background: #e3f9ee; color: #1f9a5e; }
+.coach-acts { display: flex; justify-content: space-between; margin-top: 12px; }
+.coach-acts button { padding: 9px 16px; font-size: 13px; }
+body.dark .coach-try { background: #3a2a34; } body.dark .coach-try.yay { background: #1f3529; }
+
+/* Mochi's "what next" ideas */
+.m-acts button.next { background: #fff0f6; border-color: #ffd0e3; color: #c4417f; }
+.m-acts button.next::before { content: "↳ "; opacity: .6; }
+.m-acts button.next:hover { background: #ffe0ee; }
+body.dark .m-acts button.next { background: #3a2a34; border-color: #5a3a4c; color: #ffb3d4; }

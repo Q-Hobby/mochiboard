@@ -825,6 +825,8 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
+    if (e.key === 'Escape' && $('coach').classList.contains('on') && !editing && !document.activeElement?.closest?.('input, textarea, [contenteditable="true"]') && !$('capture').classList.contains('on')) { endTour(); return; }
+    if ($('onboard').classList.contains('on')) return;   // setup handles its own keys
     if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
     if (e.key === 'Escape' && cropping) { endCrop('cancel'); return; }
     if (e.key === 'Enter' && cropping && !e.target.closest('input, textarea, [contenteditable="true"]')) { endCrop('done'); return; }
@@ -905,7 +907,7 @@
   // ---------- Mochi on the board ----------
   // her hop: she jumps right up out of her pill, then squishes a little as she lands
   function hopMochi() { goo.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
-  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo'))];
+  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo'))];
 
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
@@ -917,10 +919,10 @@
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.body.classList.toggle('dark', dark); document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
     document.querySelectorAll('[data-seg]').forEach(g => g.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', settings[g.dataset.seg] === b.dataset.v)));
-    $('noteColors').innerHTML = `<button data-nc="random" class="rand ${settings.noteColor === 'random' ? 'on' : ''}" title="A random pastel"></button>` + COLOR_NAMES.map(n => `<button data-nc="${n}" title="${n}" style="background:${COLORS[n]}" class="${settings.noteColor === n ? 'on' : ''}"></button>`).join('');
+    $('obNotes').innerHTML = $('noteColors').innerHTML = `<button data-nc="random" class="rand ${settings.noteColor === 'random' ? 'on' : ''}" title="A random pastel"></button>` + COLOR_NAMES.map(n => `<button data-nc="${n}" title="${n}" style="background:${COLORS[n]}" class="${settings.noteColor === n ? 'on' : ''}"></button>`).join('');
     document.body.classList.toggle('no-grid', !settings.grid); document.body.classList.toggle('neat', !settings.tilt); document.body.classList.toggle('calm', !settings.motion);
     $('keys').classList.toggle('hide', !settings.keys);
-    $('mochiColors').innerHTML = Object.entries(MOCHI_COLORS).map(([n, c]) => `<button data-mc="${n}" title="${n}" style="background:${c.B}" class="${settings.mochi === n ? 'on' : ''}"></button>`).join('');
+    $('obMochi').innerHTML = $('mochiColors').innerHTML = Object.entries(MOCHI_COLORS).map(([n, c]) => `<button data-mc="${n}" title="${n}" style="background:${c.B}" class="${settings.mochi === n ? 'on' : ''}"></button>`).join('');
     document.querySelectorAll('[data-set]').forEach(t => t.checked = !!settings[t.dataset.set]);
     try { localStorage.setItem('mochiboard:settings', JSON.stringify(settings)); localStorage.setItem('mochiboard:keys', settings.keys ? 'show' : 'hide'); } catch (e) {}
   }
@@ -928,7 +930,7 @@
   const closeSettings = () => $('settings').classList.remove('on');
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
-  $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
+  $('obMochi').onclick = $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
   document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
   $('recheck').onclick = () => showConnections(true);
   // switching chats off (or to "until I quit") removes what's saved in the board files right away
@@ -936,7 +938,7 @@
   $('clearChats').onclick = async () => { await clearSavedChats(); Object.keys(sessionChats).forEach(k => delete sessionChats[k]); renderChat(); $('clearChats').textContent = 'Cleared ✓'; setTimeout(() => $('clearChats').textContent = 'Clear all chats', 1800); };
   document.querySelectorAll('[data-seg]').forEach(g => g.onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; settings[g.dataset.seg] = b.dataset.v; applySettings();
     if (g.dataset.seg === 'chatKeep' && b.dataset.v !== 'board') clearSavedChats(); if (g.dataset.seg === 'chatKeep') renderChat(); });
-  $('noteColors').onclick = e => { const b = e.target.closest('[data-nc]'); if (b) { settings.noteColor = b.dataset.nc; applySettings(); } };
+  $('obNotes').onclick = $('noteColors').onclick = e => { const b = e.target.closest('[data-nc]'); if (b) { settings.noteColor = b.dataset.nc; applySettings(); } };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => settings.theme === 'system' && applySettings());
   const newNoteColor = () => settings.noteColor === 'random' ? COLOR_NAMES[1 + Math.floor(Math.random() * 6)] : settings.noteColor;
   const snapTo = v => settings.snap ? Math.round(v / 26) * 26 : v;
@@ -948,7 +950,7 @@
   function say(text, ms = 6000, acts = []) {
     if (chatOpen()) { if (text) addMsg('mochi', text, acts); return; }
     $('mSay').textContent = text; $('mActs').innerHTML = '';
-    acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; if (a.ghost) b.className = 'ghost'; b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
+    acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; b.className = a.cls || (a.ghost ? 'ghost' : ''); b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
     $('mBubble').classList.add('on'); hopMochi(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
   }
   // ---------- Mochi's chat window: click her to open it, click again (or Esc) to close ----------
@@ -961,7 +963,7 @@
   function msgEl(m) {
     const d = document.createElement('div'); d.className = 'mc-msg ' + m.who; d.textContent = m.text;
     if (m.acts?.length) { const box = document.createElement('div'); box.className = 'm-acts';
-      m.acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; if (a.ghost) b.className = 'ghost'; b.onclick = () => { box.remove(); a.run(); }; box.appendChild(b); }); d.appendChild(box); }
+      m.acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; b.className = a.cls || (a.ghost ? 'ghost' : ''); b.onclick = () => { box.remove(); a.run(); }; box.appendChild(b); }); d.appendChild(box); }
     return d;
   }
   function renderChat() {
@@ -991,7 +993,7 @@
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
       fontsOnThisMac: FONTS.filter(f => !/^(\.|Apple |System|STIX|Noto Sans [A-Z][a-z]+ [A-Z])/.test(f)).slice(0, 400),
       recentChat: (settings.chatKeep === 'off' ? chatLog().slice(-2) : chatLog().slice(-8)).map(m => `${m.who === 'me' ? 'Person' : 'Mochi'}: ${m.text}`),
-      mochiStyle: ({ quiet: 'Keep "say" to one short sentence.', normal: 'Keep "say" short and warm.', chatty: 'Be warm, playful and encouraging in "say" (2 to 3 sentences, a little cheer is welcome).' }[settings.chat] || '') + (settings.emoji ? ' A couple of fitting emojis in "say" are welcome.' : ' Never use emojis.'),
+      mochiStyle: (settings.name ? `The person's name is ${settings.name}; use it now and then, not in every reply. ` : '') + ({ quiet: 'Keep "say" to one short sentence.', normal: 'Keep "say" short and warm.', chatty: 'Be warm, playful and encouraging in "say" (2 to 3 sentences, a little cheer is welcome).' }[settings.chat] || '') + (settings.emoji ? ' A couple of fitting emojis in "say" are welcome.' : ' Never use emojis.'),
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
   // without AI (switched off, or Claude Code not installed) Mochi still helps with the simple stuff, right here on the Mac
@@ -1087,22 +1089,34 @@
     renderTray(); renderWires(); save();
     if (added.length) setTimeout(() => showWhatMochiMade(added), 250);
     const acts = r.confirm ? [{ label: (r.confirm || 'Yes, make it') + ' ✦', run: () => ask(q, true) }, { label: 'Not now', ghost: true, run: () => {} }] : [];
-    say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), acts.length ? 0 : 9000, acts);
+    // what next: Mochi's own ideas, or a sensible guess from what she just made
+    const next = acts.length ? [] : (Array.isArray(r.next) && r.next.length ? r.next : guessNext(r, added)).filter(t => typeof t === 'string' && t.trim()).slice(0, 3);
+    next.forEach(t => acts.push({ label: t.trim(), cls: 'next', run: () => ask(t.trim()) }));
+    say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), r.confirm ? 0 : next.length ? 16000 : 9000, acts);
+  }
+  function guessNext(r, added) {
+    const has = t => added.some(c => c.type === t);
+    if (r.screens?.length) return added.some(c => c.img) ? ['Make the mobile version', 'Try a different color style', 'Write the real copy'] : ['Add the next screen', 'Make it a website too', 'Try a different style'];
+    if (has('font')) return ['Pair these with colors', 'Show them on a landing page', 'Narrow it down to two'];
+    if (has('swatch')) return ['Pick fonts that match', 'Build a page in these colors'];
+    if (has('todo')) return ['Break it into smaller steps', 'Put dates on it'];
+    if (added.length >= 3) return ['Group these by theme', 'What am I missing?', 'Turn this into a plan'];
+    return [];
   }
 
   // ---------- Mochi's helpers: Claude Code, Mobbin, Higgsfield ----------
   let lastConn = 0;
   async function showConnections(force) {
     if (!force && Date.now() - lastConn < 5 * 60 * 1000) return; lastConn = Date.now();
-    const el = $('conns');
-    if (!el.children.length) el.innerHTML = ['Claude Code', 'Mobbin', 'Higgsfield'].map(n => `<div class="conn"><span class="dot"></span>${n}<em style="color:var(--ink-faint)">checking…</em></div>`).join('');
+    const els = [...document.querySelectorAll('.conns')];
+    els.forEach(el => { if (!el.children.length) el.innerHTML = ['Claude Code', 'Mobbin', 'Higgsfield'].map(n => `<div class="conn"><span class="dot"></span>${n}<em style="color:var(--ink-faint)">checking…</em></div>`).join(''); });
     const c = await MB.connections().catch(() => ({})); if (!c.browser) haveClaude = !!c.claude;
     const rows = [['claude', 'Claude Code', 'https://claude.com/claude-code', 'Install'], ['mobbin', 'Mobbin', 'https://claude.ai/settings/connectors', 'Connect'], ['higgsfield', 'Higgsfield', 'https://claude.ai/settings/connectors', 'Connect']];
-    el.innerHTML = '';
+    els.forEach(el => { el.innerHTML = '';
     rows.forEach(([k, name, url, verb]) => { const r = document.createElement('div'); r.className = 'conn' + (c[k] ? ' on' : ''); r.innerHTML = `<span class="dot"></span>${name}`;
       if (c[k]) r.insertAdjacentHTML('beforeend', '<em>ready</em>');
       else if (!c.browser) { const b = document.createElement('button'); b.textContent = verb; b.onclick = () => { MB.openURL(url); say(k === 'claude' ? 'Install Claude Code, then reopen Mochiboard and I can think on your boards!' : `Connect ${name} in your Claude settings (Connectors), then come back. I'll check again when you reopen me ✦`, 9000); }; r.appendChild(b); }
-      el.appendChild(r); });
+      el.appendChild(r); }); });
   }
   addEventListener('focus', () => showConnections());
 
@@ -2013,6 +2027,80 @@
   addEventListener('scroll', () => { if (scrollX || scrollY) scrollTo(0, 0); });
 
   world.appendChild($('guides')); setTimeout(placeTray, 0); renderDesign();
+  // ---------- first run: set up with Mochi, then an optional hands-on tour ----------
+  const OB_N = 6; let obAt = 0;
+  function obGo(i) {
+    obAt = clamp(i, 0, OB_N - 1);
+    document.querySelectorAll('.ob-step').forEach(s => s.classList.toggle('on', +s.dataset.step === obAt));
+    $('obDots').innerHTML = Array.from({ length: OB_N }, (_, k) => `<i class="${k === obAt ? 'on' : k < obAt ? 'done' : ''}"></i>`).join('');
+    $('obBack').style.visibility = obAt ? 'visible' : 'hidden'; $('obNext').textContent = obAt === 0 ? "Let's go" : 'Next';
+    $('onboard').classList.toggle('last', obAt === OB_N - 1); $('obSkip').style.display = obAt === OB_N - 1 ? 'none' : '';
+    if (obAt === 2) showConnections(true);
+    if (obAt === OB_N - 1) $('obDoneTitle').textContent = `You're all set${settings.name ? ', ' + settings.name : ''}!`;
+    if (obAt === 0) setTimeout(() => $('obName').focus(), 50);
+    goos[4].hop(); goos[5].hop();
+  }
+  function openSetup() { closeSettings(); $('obName').value = settings.name || ''; applySettings(); $('onboard').classList.add('on'); obGo(0); }
+  function finishSetup(tour) {
+    settings.name = $('obName').value.trim().slice(0, 40); applySettings();
+    try { localStorage.setItem('mochiboard:onboarded', '1'); } catch (e) {}
+    $('onboard').classList.remove('on');
+    if (tour) setTimeout(startTour, 350); else say(`Have fun${settings.name ? ', ' + settings.name : ''}! Click me anytime to chat ✦`, 6000);
+  }
+  $('obNext').onclick = () => { if (obAt === 0) { settings.name = $('obName').value.trim().slice(0, 40); applySettings(); } obGo(obAt + 1); };
+  $('obBack').onclick = () => obGo(obAt - 1);
+  $('obSkip').onclick = () => finishSetup(false);
+  $('obTour').onclick = () => finishSetup(true);
+  $('obExplore').onclick = () => finishSetup(false);
+  $('obRecheck').onclick = () => showConnections(true);
+  $('obName').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('obNext').click(); } e.stopPropagation(); };
+  $('onboard').addEventListener('keydown', e => { e.stopPropagation(); if (e.target.closest('input')) return;
+    if (e.key === 'ArrowRight') obGo(obAt + 1); if (e.key === 'ArrowLeft') obGo(obAt - 1); });
+  $('redoSetup').onclick = openSetup;
+  $('redoTour').onclick = () => { closeSettings(); setTimeout(startTour, 250); };
+
+  // the tour: Mochi points at each part; some steps you try for real and she notices
+  const TOUR = [
+    { el: '#tools', side: 'top', text: 'These are your tools: notes, docs, checklists, titles, collections, links, images, voice memos, colors, shapes, stamps and drawing. Pick one, then click the board to place it.', try: 'Try it: add a note (or double-click the board).', done: t => board.cards.length > t.cards },
+    { el: null, text: 'Got an idea mid-thought? Press ⌘K, type it, hit Enter. It goes to Unsorted so you never lose your place.', try: 'Try it: press ⌘K and jot something down.', done: t => board.tray.length > t.tray },
+    { el: '#tray', side: 'left', text: 'Unsorted holds your quick ideas. Drag one onto the board when it finds a home, or ask me to sort them all.' },
+    { el: '#side .box', side: 'right', text: 'Your boards live here. Group them into projects and folders. Right-click anything to rename, move, duplicate or delete it.' },
+    { el: '#design', side: 'left', text: 'Wireframes: screens, boxes, text, icons, and ready-made pieces, from nav bars to whole website sections. Things snap into line as you move them.' },
+    { el: '#mPill', side: 'top', text: "And that's me! Click me to chat. Ask me to sort your notes, plan a project, explore fonts, or build screens and whole landing pages. I'll take you right to whatever I make." },
+    { el: '#gearBtn', side: 'right', text: 'Everything from setup lives in Settings, and you can replay this tour there anytime. Have fun! ✦' },
+  ];
+  let tourAt = -1, tourPoll = 0;
+  function startTour() { if (homeAt) closeHome(); if (chatOpen()) mochiOpen(false); $('mBubble').classList.remove('on'); $('coach').classList.add('on'); tourGo(0); }
+  function endTour() { clearInterval(tourPoll); tourAt = -1; $('coach').classList.remove('on'); }
+  function tourGo(i) {
+    clearInterval(tourPoll);
+    if (i >= TOUR.length) { endTour(); say(`You're ready${settings.name ? ', ' + settings.name : ''}! Click me whenever you want help ✦`, 0,
+      [{ label: 'Brainstorm with me', cls: 'next', run: () => ask('Help me brainstorm a new project. Ask me one question to start.') },
+       { label: 'Build me a landing page', cls: 'next', run: () => { mochiOpen(true); $('mcInput').value = 'Build me a landing page for '; $('mcInput').focus(); } }]); return; }
+    tourAt = i; const st = TOUR[i], start = { cards: board.cards.length, tray: board.tray.length };
+    $('coachStep').textContent = `${i + 1} of ${TOUR.length}`; $('coachText').textContent = st.text;
+    $('coachTry').textContent = st.try || ''; $('coachTry').classList.remove('yay'); $('coachTry').style.display = st.try ? '' : 'none';
+    $('coachNext').textContent = i === TOUR.length - 1 ? 'Done ✦' : st.try ? 'Skip this' : 'Next';
+    placeCoach(); goos[6].hop();
+    if (st.done) tourPoll = setInterval(() => { if (tourAt !== i || !st.done(start)) return; clearInterval(tourPoll);
+      $('coachTry').textContent = 'Nice! ✦'; $('coachTry').classList.add('yay'); hopMochi(); $('coachNext').textContent = 'Next'; setTimeout(() => tourAt === i && tourGo(i + 1), 1200); }, 250);
+  }
+  function placeCoach() {
+    if (tourAt < 0) return; const st = TOUR[tourAt], t = st.el && document.querySelector(st.el), card = $('coachCard'), ring = $('coachRing');
+    const r = t && t.getBoundingClientRect(), ok = r && r.width > 0 && r.height > 0, cw = card.offsetWidth, ch = card.offsetHeight, W = innerWidth, H = innerHeight;
+    ring.style.display = ok ? '' : 'none'; $('coach').classList.toggle('dim', !ok);
+    let x = (W - cw) / 2, y = (H - ch) / 2;
+    if (ok) { Object.assign(ring.style, { left: r.left - 8 + 'px', top: r.top - 8 + 'px', width: r.width + 16 + 'px', height: r.height + 16 + 'px' });
+      if (st.side === 'top') { x = r.left + r.width / 2 - cw / 2; y = r.top - ch - 26; }
+      else if (st.side === 'left') { x = r.left - cw - 26; y = r.top + Math.min(r.height, 300) / 2 - ch / 2; }
+      else if (st.side === 'right') { x = r.right + 26; y = r.top + Math.min(r.height, 300) / 2 - ch / 2; } }
+    card.style.left = clamp(x, 16, W - cw - 16) + 'px'; card.style.top = clamp(y, 16, H - ch - 16) + 'px';
+  }
+  addEventListener('resize', placeCoach);
+  $('coachNext').onclick = () => tourGo(tourAt + 1);
+  $('coachSkip').onclick = endTour;
+  $('coachCard').addEventListener('pointerdown', e => e.stopPropagation());
+
   // ---------- start ----------
   (async () => {
     let list = await MB.list();
@@ -2020,8 +2108,10 @@
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
     applySettings();
-    setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
+    let onboarded = true; try { onboarded = !!localStorage.getItem('mochiboard:onboarded'); } catch (e) {}
+    if (!onboarded) { setTimeout(() => { fit(board.cards); openSetup(); }, 400); showConnections(true); return; }
+    setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say(`Hi${settings.name ? ' ' + settings.name : ''}, it's Mochi! Dump ideas with ⌘K, then ask me to sort them ✦`, 7000); }, 400);
     showConnections(true);
   })();
-  window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
+  window.__mb = { openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
 })();

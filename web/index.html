@@ -175,6 +175,58 @@
 </main>
 
 <!-- settings -->
+<div class="onboard" id="onboard">
+  <div class="ob-panel">
+    <section class="ob-step" data-step="0">
+      <canvas id="obGoo" width="64" height="56"></canvas>
+      <h2>Hi, I'm Mochi!</h2>
+      <p>I'm a little helper who lives in your boards. Let's get you set up. It takes about a minute.</p>
+      <label class="ob-field"><span>What should I call you?</span><input id="obName" placeholder="Your name" autocomplete="off" spellcheck="false"></label>
+    </section>
+    <section class="ob-step" data-step="1">
+      <h2>Make it yours</h2>
+      <p>Pick my color and how the app looks. You can change these anytime.</p>
+      <div class="set-row"><div><b>My color</b><small>Me in the dock and the logo</small></div><div class="mochi-colors" id="obMochi"></div></div>
+      <div class="set-row"><div><b>Theme</b><small>Light, dark, or match your Mac</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match Mac</button></div></div>
+    </section>
+    <section class="ob-step" data-step="2">
+      <h2>My thinking</h2>
+      <p>I think with <b>Claude Code</b> on your Mac. My helpers are connections in your Claude account: <b>Mobbin</b> finds real app screens, <b>Higgsfield</b> makes images (it costs credits, so I always ask first).</p>
+      <div class="conns" id="obConns"></div>
+      <label class="set-row"><div><b>Let me think (AI)</b><small>Off: Mochiboard still works fully on its own, no AI or internet.</small></div><input type="checkbox" class="tgl" data-set="ai"></label>
+      <label class="set-row"><div><b>Use Mobbin</b><small>When it's connected</small></div><input type="checkbox" class="tgl" data-set="mobbin"></label>
+      <label class="set-row"><div><b>Use Higgsfield</b><small>Only after you say yes to the price</small></div><input type="checkbox" class="tgl" data-set="higgs"></label>
+      <div class="set-note">Not ready yet? That's fine, skip it. Connect later, then tap <button class="set-link" id="obRecheck">check again</button> here or in Settings.</div>
+    </section>
+    <section class="ob-step" data-step="3">
+      <h2>How I talk</h2>
+      <p>Some people like a chatty buddy, some like quiet. Both are great.</p>
+      <div class="set-row"><div><b>How chatty</b><small>Quiet only talks when you ask</small></div><div class="seg" data-seg="chat"><button data-v="quiet">Quiet</button><button data-v="normal">Normal</button><button data-v="chatty">Chatty</button></div></div>
+      <label class="set-row"><div><b>Emojis</b><small>A few ✨ 🌸 here and there</small></div><input type="checkbox" class="tgl" data-set="emoji"></label>
+      <div class="set-row"><div><b>Remember our chats</b><small>Saved in your board files on this Mac</small></div><div class="seg" data-seg="chatKeep"><button data-v="off">Off</button><button data-v="session">Until I quit</button><button data-v="board">On each board</button></div></div>
+    </section>
+    <section class="ob-step" data-step="4">
+      <h2>Your board</h2>
+      <p>How cards feel when you make them.</p>
+      <div class="set-row"><div><b>New note color</b><small>What a fresh note starts as</small></div><div class="mochi-colors" id="obNotes"></div></div>
+      <label class="set-row"><div><b>Loose, tilted cards</b><small>Off makes every card sit straight</small></div><input type="checkbox" class="tgl" data-set="tilt"></label>
+      <label class="set-row"><div><b>Snap to the dots</b><small>Cards line up with the grid</small></div><input type="checkbox" class="tgl" data-set="snap"></label>
+    </section>
+    <section class="ob-step" data-step="5">
+      <canvas id="obGoo2" width="64" height="56"></canvas>
+      <h2 id="obDoneTitle">You're all set!</h2>
+      <p>Want a quick tour? I'll show you around and you can try things as we go. About a minute.</p>
+      <div class="ob-big"><button class="ob-primary" id="obTour">Show me around ✦</button><button class="ob-ghost" id="obExplore">I'll explore on my own</button></div>
+      <p class="ob-small">Everything here lives in Settings (the ⚙ next to Mochiboard), including this tour.</p>
+    </section>
+    <footer class="ob-foot"><button class="ob-ghost" id="obBack">Back</button><div class="ob-dots" id="obDots"></div><button class="ob-primary" id="obNext">Let's go</button></footer>
+    <button class="ob-skip" id="obSkip">Skip setup</button>
+  </div>
+</div>
+<div class="coach" id="coach"><div class="coach-ring" id="coachRing"></div>
+  <div class="coach-card" id="coachCard"><div class="coach-top"><canvas id="coachGoo" width="40" height="36"></canvas><b>Mochi</b><span id="coachStep"></span></div><p id="coachText"></p><div class="coach-try" id="coachTry"></div>
+    <div class="coach-acts"><button class="ob-ghost" id="coachSkip">End tour</button><button class="ob-primary" id="coachNext">Next</button></div></div>
+</div>
 <div class="settings" id="settings">
   <div class="set-panel">
     <div class="set-head"><h2>Settings</h2><button class="dv-btn" id="setClose" title="Close">×</button></div>
@@ -189,6 +241,7 @@
         <div class="set-row"><div><b>Remember chats</b><small>Chats are saved in your board files on this Mac. Off forgets each chat as you go.</small></div><div class="seg" data-seg="chatKeep"><button data-v="off">Off</button><button data-v="session">Until I quit</button><button data-v="board">On each board</button></div></div>
         <div class="set-row"><div><b>How many messages to keep</b><small>Older messages fall off the top</small></div><div class="seg" data-seg="chatMax"><button data-v="20">20</button><button data-v="60">60</button><button data-v="200">200</button></div></div>
         <div class="set-row"><div><b>Saved chats</b><small>Deletes Mochi's chat history from every board</small></div><button class="set-btn" id="clearChats">Clear all chats</button></div>
+        <div class="set-row"><div><b>Setup and tour</b><small>Go through setup again, or let Mochi show you around</small></div><div class="set-btns"><button class="set-btn" id="redoSetup">Setup</button><button class="set-btn" id="redoTour">Tour</button></div></div>
         <label class="set-row"><div><b>Say hi when I open the app</b><small>Mochi's little welcome bubble</small></div><input type="checkbox" class="tgl" data-set="greet"></label>
         <label class="set-row"><div><b>Mochi's thinking (AI)</b><small>Uses Claude Code on your Mac to sort, write and edit for you. Off: Mochiboard works fully on its own, no AI, no accounts, no internet.</small></div><input type="checkbox" class="tgl" data-set="ai"></label>
       </section>
