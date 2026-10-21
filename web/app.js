@@ -611,7 +611,7 @@
       if (d.moved) {
         const w = toWorld(e.clientX, e.clientY), skip = new Set(d.start.filter(s => s.c.type === 'coll').map(s => s.c.id));
         const dt = !skip.size && docTarget(e, w, d.start); $('docview').classList.remove('drop');
-        if (dt) { dropIntoDoc(dt, d.start.map(s => s.c), e); return; }
+        if (dt) { d.start.forEach(s2 => { s2.c.x = s2.x; s2.c.y = s2.y; renderCard(s2.c); }); dropIntoDoc(dt, d.start.map(s2 => s2.c), e); return; }   // the card slides home; its words go into the doc
         if (!skip.size) {
           const ids = d.start.map(s => s.c.id), t = collAt(w, skip);
           if (t) dropInto(t, ids, w);
@@ -993,12 +993,9 @@
       else body.innerText = (body.innerText.trim() ? body.innerText.replace(/\s+$/, '') + '\n\n' : '') + words;
       doc.body = body.innerText;
     } else doc.body = (before.trim() ? before.replace(/\s+$/, '') + '\n\n' : '') + words;
-    const gone = cs.map(c => ({ c, from: parentOf(c.id) }));
-    sel = new Set(cs.map(c => c.id)); removeSelected(); renderCard(doc); save();
-    say(`Added ${cs.length === 1 ? 'that' : cs.length + ' cards'} to “${doc.text || 'Untitled'}” ✦`, 7000, [{ label: 'Undo', run: () => {
-      doc.body = before; if (docCard === doc) $('dvBody').innerText = before;
-      gone.forEach(({ c, from }) => { board.cards.push(c); renderCard(c, true); if (from && board.cards.includes(from)) from.kids.push(c.id); });
-      renderCard(doc); save(); } }, { label: 'Keep', ghost: true, run: () => {} }]);
+    selectOnly(cs.map(c => c.id)); renderCard(doc); renderWires(); save();
+    say(`Copied ${cs.length === 1 ? 'that' : cs.length + ' cards'} into “${doc.text || 'Untitled'}” ✦`, 6000, [{ label: 'Undo', run: () => {
+      doc.body = before; if (docCard === doc) $('dvBody').innerText = before; renderCard(doc); save(); } }]);
   }
 
   // ---------- canvases: a board inside this board, like a folder you can open ----------
