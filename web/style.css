@@ -791,3 +791,29 @@ body.calm #goo.hopping { animation: none; }
 .node-head:hover > .f-btn, .tile:hover .f-btn { display: grid; }
 .f-btn[data-a="del"]:hover { color: #d6455d; }
 .tile .f-btn { width: 30px; height: 30px; } .tile .f-btn svg { width: 17px; height: 17px; }
+
+.board-row .f-btn { margin-left: auto; }
+.board-row:hover > .f-btn { display: grid; }
+.board-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Move to… picker */
+.row-menu.mv { width: 260px; max-width: 260px; padding: 6px; }
+.mv-head { padding: 8px 10px 6px; font: 700 12px/1.3 var(--font); color: var(--ink-soft); }
+.mv-list { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 1px; }
+.mv-row, .mv-group { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; font: 600 13px/1.2 var(--font); color: var(--ink); text-align: left; }
+.mv-group { font-weight: 700; color: var(--ink-soft); font-size: 12px; padding-top: 10px; }
+.mv-row { border: 0; background: none; cursor: pointer; }
+.mv-row:hover { background: var(--blush); }
+.mv-row.here { color: var(--ink-soft); cursor: default; }
+.mv-row.here:hover { background: none; }
+.mv-row em { margin-left: auto; font: 600 10px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; font-style: normal; color: var(--ink-faint); }
+.mv-row span, .mv-group span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-row i, .mv-group i { flex: none; }
+.mv-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-faint); margin: 0 4px; }
+.mv-none { padding: 4px 10px 6px 40px; font: 400 12px/1.3 var(--font); color: var(--ink-faint); }
+.row-menu .mv-list button { border: 0; flex: none; text-align: left; justify-content: flex-start; }
+/* the boards inside a folder fan out so each one's preview shows; hovering spreads them like flipping through */
+.tile.folder .tile-art .front { height: 104px; }
+.tile.folder .peek { left: 16%; right: 16%; top: 26px; bottom: 40px; }
+.tile.folder .paper { transform: translate(calc((var(--i) - var(--mid, 1)) * 38px), calc(var(--i) * 3px)) rotate(calc((var(--i) - var(--mid, 1)) * 7deg)); transform-origin: 50% 120%; }
+.tile.folder:hover .paper { transform: translate(calc((var(--i) - var(--mid, 1)) * 46px), calc(-16px + var(--i) * 2px)) rotate(calc((var(--i) - var(--mid, 1)) * 9deg)); }
+.tile.folder .paper svg { width: 100%; height: 100%; }

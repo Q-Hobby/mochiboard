@@ -105,18 +105,37 @@
     await saveLib(); await refreshBoards();
     if (board && ids.includes(board.id)) { let list = await MB.list(); if (!list.length) { const b = newBoard('My first board'); await MB.save(b); list = await MB.list(); } await openBoard(list[0].id); }
   }
+  // Move to…: a little map of projects and folders; pick where it goes
+  function moveMenu(m, kind, obj) {
+    const here = kind === 'board' ? obj.folder || null : obj.project || null, row = (id, label, depth, icon) =>
+      `<button class="mv-row${id === here ? ' here' : ''}" data-to="${id ?? ''}" style="padding-left:${12 + depth * 16}px">${icon}<span>${esc(label)}</span>${id === here ? '<em>here</em>' : ''}</button>`;
+    const FIC = '<i class="fic"></i>', PIC = c => `<i class="pic" style="background:${tint(c)}"></i>`;
+    let h = `<div class="mv-head">Move “${esc(obj.name)}” to…</div><div class="mv-list">`;
+    if (kind === 'board') {
+      projects.forEach(p => { h += `<div class="mv-group" style="padding-left:12px">${PIC(p.color)}<span>${esc(p.name)}</span></div>`; foldersIn(p.id).forEach(f => h += row(f.id, f.name, 1, FIC)); if (!foldersIn(p.id).length) h += '<div class="mv-none">no folders yet</div>'; });
+      looseFolders().forEach(f => h += row(f.id, f.name, 0, FIC));
+      h += row(null, 'Not in a folder', 0, '<i class="mv-dot"></i>');
+    } else { projects.forEach(p => h += row(p.id, p.name, 0, PIC(p.color))); h += row(null, 'Not in a project', 0, '<i class="mv-dot"></i>'); }
+    m.innerHTML = h + '</div>'; m.classList.add('mv');
+    const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = Math.max(10, innerHeight - r.height - 10) + 'px';
+    m.onclick = async ev => { const b = ev.target.closest('[data-to]'); if (!b) return; const to = b.dataset.to || null; m.remove(); if (to === here) return;
+      if (kind === 'board') { await moveBoard(obj.id, to); const f = folders.find(x => x.id === to); if (f) { f.open = true; const p = projects.find(x => x.id === f.project); if (p) p.open = true; } }
+      else { const live = folders.find(x => x.id === obj.id); if (live) live.project = to; const p = projects.find(x => x.id === to); if (p) p.open = true; }
+      await saveLib(); await refreshBoards(); const dest = folders.find(x => x.id === to) || projects.find(x => x.id === to); chirp(`Moved “${obj.name}” ${dest ? 'to “' + dest.name + '”' : kind === 'board' ? 'out of its folder' : 'out of its project'} ✦`, 3500); };
+  }
   async function renameBoard(b, v) { if (!v) return; if (board && board.id === b.id) { board.name = v; $('boardName').value = v; save(); } else { const bb = await MB.load(b.id); if (bb) { bb.name = v; await MB.save(bb); } } }
   function rowMenu(e, kind, obj, nameEl) {
     e.preventDefault(); e.stopPropagation(); $('rowMenu')?.remove();
     const n = kind === 'board' ? 1 + boardList.filter(x => x.parent === obj.id).length : kind === 'folder' ? boardsIn(obj.id).length : foldersIn(obj.id).reduce((t, f) => t + boardsIn(f.id).length, 0);
     const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
-    m.innerHTML = `${nameEl ? '<button data-m="ren">Rename</button>' : ''}<button data-m="dup">Duplicate</button><span class="rm-sep"></span><button data-m="del" class="danger">Delete</button>`;
+    m.innerHTML = `${nameEl ? '<button data-m="ren">Rename</button>' : ''}${kind !== 'project' ? '<button data-m="move">Move to…</button>' : ''}<button data-m="dup">Duplicate</button><span class="rm-sep"></span><button data-m="del" class="danger">Delete</button>`;
     document.body.appendChild(m);
     const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     m.onclick = async ev => {
       const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return;
       if (a === 'ren') { m.remove(); return inlineRename(nameEl, obj, kind === 'board' ? v => renameBoard(obj, v) : undefined); }
       if (a === 'dup') { m.remove(); return duplicate(kind, obj); }
+      if (a === 'move') return moveMenu(m, kind, obj);
       if (a === 'del') { // ask first: deleting can't be undone
         const what = kind === 'board' ? (n > 1 ? `and the ${n - 1} canvas${n > 2 ? 'es' : ''} inside it` : '') : n ? `and the ${n} board${n === 1 ? '' : 's'} inside it` : '';
         m.innerHTML = `<p>Delete “${esc(obj.name)}” ${what}? This can't be undone.</p><div><button data-m="yes" class="danger solid">Delete</button><button data-m="no">Cancel</button></div>`; return; }
@@ -137,6 +156,8 @@
     let tap = 0; const name = r.querySelector('span');
     r.onclick = () => { if (name.isContentEditable) return; clearTimeout(tap); tap = setTimeout(() => { closeHome(); openBoard(b.id); }, 230); };
     r.ondblclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, v => renameBoard(b, v)); };
+    const pen = document.createElement('button'); pen.className = 'f-btn'; pen.title = 'Rename'; pen.innerHTML = FBTN.ren; r.appendChild(pen);
+    pen.onclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, v => renameBoard(b, v)); };
     draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b, name);
     const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
     const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
@@ -278,13 +299,15 @@
     const folderTile = ff => {
       const bs = boardsIn(ff.id), t = tile('folder', ff, plural(bs.length, 'board'), () => openHome('folder:' + ff.id), [['ren', 'Rename', '✎']]);
       const art = t.querySelector('.tile-art'); art.innerHTML = '<div class="back"></div><div class="tab"></div><div class="peek"></div><div class="front"><span class="face"><b></b><i></i><b></b></span></div>';
-      bs.slice(0, 3).forEach(async (b, i) => { const d = document.createElement('div'); d.className = 'paper'; d.style.setProperty('--i', i); d.innerHTML = await mini(b.id); art.querySelector('.peek').appendChild(d); });
+      const shown = bs.slice(0, 3); art.querySelector('.peek').style.setProperty('--mid', (shown.length - 1) / 2);
+      shown.forEach(async (b, i) => { const d = document.createElement('div'); d.className = 'paper'; d.style.setProperty('--i', i); d.style.zIndex = i === Math.floor((shown.length - 1) / 2) ? 3 : 1; d.innerHTML = await mini(b.id); art.querySelector('.peek').appendChild(d); });
       t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('.tile-meta b'), ff); t.oncontextmenu = e => rowMenu(e, 'folder', ff, t.querySelector('.tile-meta b'));
       draggable(t, 'folder', ff.id); dropZone(t, 'board', bid => moveBoard(bid, ff.id));
       return t;
     };
     const boardTile = b => {
-      const t = tile('board', b, b.updated ? 'edited ' + ago(b.updated) : '', () => { closeHome(); openBoard(b.id); });
+      const t = tile('board', b, b.updated ? 'edited ' + ago(b.updated) : '', () => { closeHome(); openBoard(b.id); }, [['ren', 'Rename', '✎']]);
+      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('.tile-meta b'), b, v => renameBoard(b, v));
       mini(b.id).then(svg => t.querySelector('.tile-art').innerHTML = svg || '<em>empty board</em>');
       draggable(t, 'board', b.id); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('.tile-meta b')); return t;
     };
