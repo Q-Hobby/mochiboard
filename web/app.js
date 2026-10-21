@@ -502,7 +502,10 @@
       Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.type === 'title' ? 'auto' : c.h + 'px' }); el.classList.add('inside');
     });
     s.h = top + CPAD * 2 + Math.max(90, Math.max(...colH) - CGAP);
-    const el = cardsEl.querySelector(`[data-id="${s.id}"]`); if (el) { Object.assign(el.style, { left: s.x + 'px', top: s.y + 'px', width: s.w + 'px', height: s.h + 'px' }); el.querySelector('.coll-empty')?.remove(); if (!s.kids.length) el.querySelector('.body').insertAdjacentHTML('beforeend', '<div class="coll-empty">Drop cards here</div>'); }
+    const el = cardsEl.querySelector(`[data-id="${s.id}"]`);
+    // cards inside always sit on top of their collection (a card made before the collection would otherwise hide under it)
+    if (el) { let after = el; s.kids.forEach(id => { const k = cardsEl.querySelector(`[data-id="${id}"]`); if (k && (k.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) { after.after(k); after = k; } }); }
+    if (el) { Object.assign(el.style, { left: s.x + 'px', top: s.y + 'px', width: s.w + 'px', height: s.h + 'px' }); el.querySelector('.coll-empty')?.remove(); if (!s.kids.length) el.querySelector('.body').insertAdjacentHTML('beforeend', '<div class="coll-empty">Drop cards here</div>'); }
   }
   function layoutAll() { if (!board) return; colls().forEach(layoutColl); cardsEl.querySelectorAll('.card.inside').forEach(el => { if (!parentOf(el.dataset.id)) el.classList.remove('inside'); }); }
   // which collection is under a point (or just to its right: dropping there adds a column)
