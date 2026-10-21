@@ -156,8 +156,13 @@
   <div class="set-panel">
     <div class="set-head"><h2>Settings</h2><button class="dv-btn" id="setClose" title="Close">×</button></div>
     <div class="set-body">
+      <section><h3>Look</h3>
+        <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
+      </section>
       <section><h3>Mochi</h3>
         <div class="set-row"><div><b>Her color</b><small>Mochi in the dock and the logo</small></div><div class="mochi-colors" id="mochiColors"></div></div>
+        <div class="set-row"><div><b>How chatty she is</b><small>Quiet only talks when you ask. Chatty adds little tips and cheers.</small></div><div class="seg" data-seg="chat"><button data-v="quiet">Quiet</button><button data-v="normal">Normal</button><button data-v="chatty">Chatty</button></div></div>
+        <label class="set-row"><div><b>Emojis in her replies</b><small>A few ✨ 🌸 here and there</small></div><input type="checkbox" class="tgl" data-set="emoji"></label>
         <label class="set-row"><div><b>Say hi when I open the app</b><small>Mochi's little welcome bubble</small></div><input type="checkbox" class="tgl" data-set="greet"></label>
         <div class="set-row"><div><b>Spending credits</b><small>Mochi always asks before making anything with Higgsfield</small></div><span class="set-lock">Always on</span></div>
       </section>
@@ -166,6 +171,8 @@
         <div class="set-note">Helpers are the connections in your Claude account. Connect one in Claude's settings, then come back and tap <button class="set-link" id="recheck">check again</button>.</div>
       </section>
       <section><h3>The board</h3>
+        <div class="set-row"><div><b>New note color</b><small>What a fresh note starts as</small></div><div class="mochi-colors" id="noteColors"></div></div>
+        <label class="set-row"><div><b>Snap to the dots</b><small>Cards line up with the grid when you drop them</small></div><input type="checkbox" class="tgl" data-set="snap"></label>
         <label class="set-row"><div><b>Dot grid</b><small>The soft dots behind your cards</small></div><input type="checkbox" class="tgl" data-set="grid"></label>
         <label class="set-row"><div><b>Loose, tilted cards</b><small>Off makes every card sit perfectly straight</small></div><input type="checkbox" class="tgl" data-set="tilt"></label>
         <label class="set-row"><div><b>Moving stamps and wiggles</b><small>Turn off for a calmer board</small></div><input type="checkbox" class="tgl" data-set="motion"></label>

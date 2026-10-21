@@ -186,7 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         The person asked you: \(request)
 
         Here is their board as JSON. Positions are in pixels (x grows right, y grows down). A note card is about 220 x 140, a checklist about 240 x 180, a color swatch 120 x 150, a title is one line of big text. \
-        "unsorted" holds ideas waiting in the side tray, not yet on the board. Cards marked "selected" are what they have selected right now. \
+        "unsorted" holds ideas waiting in the side tray, not yet on the board. Cards marked "selected" are what they have selected right now. Follow "mochiStyle" in the board JSON for your tone. \
         When they say "this", "these" or "it", they mean the selected cards. They can ask you to change ANY words, labels, colors or list items on any card, \
         including cards you made: use "edit" for that (only send the fields that change), and "remove" only when they ask to delete something.
         \(boardJSON)

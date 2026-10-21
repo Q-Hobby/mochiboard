@@ -88,11 +88,11 @@
   }
   async function dropBoard(id) { for (const k of boardList.filter(x => x.parent === id)) await dropBoard(k.id); await MB.remove(id); }
   async function duplicate(kind, obj) {
-    if (kind === 'board') { const c = await copyBoard(obj.id, { name: obj.name + ' copy' }); await refreshBoards(); if (c) say(`Made “${c.name}” ✦`, 3500); return; }
+    if (kind === 'board') { const c = await copyBoard(obj.id, { name: obj.name + ' copy' }); await refreshBoards(); if (c) chirp(`Made “${c.name}” ✦`, 3500); return; }
     if (kind === 'folder') { const f = { id: uid(), name: obj.name + ' copy', project: obj.project || null, open: true }; folders.push(f); await saveLib(); for (const b of boardsIn(obj.id)) await copyBoard(b.id, { folder: f.id }); }
     if (kind === 'project') { const p = { id: uid(), name: obj.name + ' copy', color: obj.color, open: true }; projects.push(p); await saveLib();
       for (const f0 of foldersIn(obj.id)) { const f = { id: uid(), name: f0.name, project: p.id, open: true }; folders.push(f); await saveLib(); for (const b of boardsIn(f0.id)) await copyBoard(b.id, { folder: f.id }); } }
-    await refreshBoards(); say(`Made “${obj.name} copy” ✦`, 3500);
+    await refreshBoards(); chirp(`Made “${obj.name} copy” ✦`, 3500);
   }
   async function destroy(kind, obj) {
     const ids = kind === 'board' ? [obj.id] : kind === 'folder' ? boardsIn(obj.id).map(b => b.id) : foldersIn(obj.id).flatMap(f => boardsIn(f.id).map(b => b.id));
@@ -369,7 +369,11 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
-      case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
+      case 'image': {
+        // a crop shows a window onto the picture: the picture is scaled up and shifted so only the kept part shows
+        const k = !c.cropEdit && c.crop, st = k ? `position:absolute;width:${100 / k.w}%;height:${100 / k.h}%;left:${-k.x / k.w * 100}%;top:${-k.y / k.h * 100}%;object-fit:fill;border-radius:0` : '';
+        const ui = c.cropEdit && cropping ? `<div class="crop-ui"><div class="crop-box" style="left:${cropping.box.x * 100}%;top:${cropping.box.y * 100}%;width:${cropping.box.w * 100}%;height:${cropping.box.h * 100}%">${['nw', 'ne', 'sw', 'se'].map(h => `<i data-h="${h}"></i>`).join('')}</div></div>` : '';
+        return `<div class="imgwrap"><img src="${esc(c.src)}" alt="" style="${st}">${ui}</div>${c.cropEdit ? '' : '<button class="chip" data-act="colors">pull colors ✦</button>'}`; }
       case 'link': return !c.url ? `<div class="link-in${c.loading ? ' loading' : ''}">${CIC.link}<input placeholder="Add a link…" value="${esc(c.draft || '')}" spellcheck="false"></div>`
         : `<div class="thumb" style="${c.image ? `background-image:url('${esc(c.image)}')` : ''}"></div><div class="meta"><i class="fav" style="background-image:url('https://www.google.com/s2/favicons?sz=64&domain=${esc(host(c.url))}')"></i><div><b>${esc(c.title || c.url)}</b><span>${esc(c.desc || host(c.url))}</span></div></div>`;
       case 'todo': return `<div class="head">${esc(c.text)}</div><ul>${(c.items || []).map((it, i) => `<li class="${it.done ? 'done' : ''}" data-i="${i}"><input type="checkbox" ${it.done ? 'checked' : ''}><span>${esc(it.t)}</span></li>`).join('')}</ul><button class="add-item" data-act="item">+ add</button>`;
@@ -382,7 +386,7 @@
     if (!el) { el = document.createElement('div'); el.dataset.id = c.id; cardsEl.appendChild(el); if (pop) el.classList.add('pop'); }
     el.className = `card ${c.type}` + (sel.has(c.id) ? ' sel' : '') + (focusSet && !focusSet.has(c.id) ? ' dim' : '') + (pop ? ' pop' : '');
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.type === 'title' ? 'auto' : c.h + 'px' });
-    el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff');
+    el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff'); el.classList.add('c-' + (COLORS[c.color] && c.color !== 'white' ? c.color : 'white'));
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     el.style.setProperty('--fs', FS[c.fs] || 1);
     ['bold', 'italic', 'under', 'strike'].forEach(k => { el.classList.toggle('t-' + k, c[k] === true); el.classList.toggle('t-no' + k, c[k] === false); });
@@ -599,6 +603,7 @@
     if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
     if (board) { clearTimeout(snapT); remember(); }   // lock in the last change before a new one starts, so undo steps stay separate
     if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
+    if (cropping && e.target.closest('.crop-ui')) { e.preventDefault(); cropDown(e); return; }
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
     const wireEl = e.target.closest('[data-wire]');
     if (wireEl && !space) {
@@ -669,6 +674,7 @@
       }
       cardsEl.querySelectorAll('.drop-in, .drop-col').forEach(n => n.classList.remove('drop-in', 'drop-col'));
       if (d.moved) {
+        if (settings.snap) { const lead = d.start[0].c, dx = snapTo(lead.x) - lead.x, dy = snapTo(lead.y) - lead.y; d.start.forEach(s2 => { s2.c.x += dx; s2.c.y += dy; renderCard(s2.c); }); }   // snap the group together, keeping its shape
         const w = toWorld(e.clientX, e.clientY), skip = new Set(d.start.filter(s => s.c.type === 'coll').map(s => s.c.id));
         const dt = !skip.size && docTarget(e, w, d.start); $('docview').classList.remove('drop');
         if (dt) { d.start.forEach(s2 => { s2.c.x = s2.x; s2.c.y = s2.y; renderCard(s2.c); }); dropIntoDoc(dt, d.start.map(s2 => s2.c), e); return; }   // the card slides home; its words go into the doc
@@ -701,7 +707,7 @@
   stage.addEventListener('dblclick', e => {
     if (document.elementFromPoint(e.clientX, e.clientY)?.closest('.card, .selbar')) return;
     if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar')) return;
-    const w = toWorld(e.clientX, e.clientY), c = card('note', { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] }); c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; addCard(c); selectOnly([c.id]); startEdit(c.id);
+    const w = toWorld(e.clientX, e.clientY), c = card('note', { color: newNoteColor() }); c.x = snapTo(w.x - c.w / 2); c.y = snapTo(w.y - c.h / 2); addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
   // card buttons: pull colours, checklist items
   cardsEl.addEventListener('click', e => {
@@ -756,6 +762,8 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
+    if (e.key === 'Escape' && cropping) { endCrop('cancel'); return; }
+    if (e.key === 'Enter' && cropping && !e.target.closest('input, [contenteditable="true"]')) { endCrop('done'); return; }
     if (e.key === 'Escape' && drawOn) { exitDraw(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
@@ -833,10 +841,14 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   function applySettings() {
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
+    const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.body.classList.toggle('dark', dark); document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    document.querySelectorAll('[data-seg]').forEach(g => g.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', settings[g.dataset.seg] === b.dataset.v)));
+    $('noteColors').innerHTML = `<button data-nc="random" class="rand ${settings.noteColor === 'random' ? 'on' : ''}" title="A random pastel"></button>` + COLOR_NAMES.map(n => `<button data-nc="${n}" title="${n}" style="background:${COLORS[n]}" class="${settings.noteColor === n ? 'on' : ''}"></button>`).join('');
     document.body.classList.toggle('no-grid', !settings.grid); document.body.classList.toggle('neat', !settings.tilt); document.body.classList.toggle('calm', !settings.motion);
     $('keys').classList.toggle('hide', !settings.keys);
     $('mochiColors').innerHTML = Object.entries(MOCHI_COLORS).map(([n, c]) => `<button data-mc="${n}" title="${n}" style="background:${c.B}" class="${settings.mochi === n ? 'on' : ''}"></button>`).join('');
@@ -850,8 +862,16 @@
   $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); goo.hop(); } };
   document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
   $('recheck').onclick = () => showConnections(true);
+  document.querySelectorAll('[data-seg]').forEach(g => g.onclick = e => { const b = e.target.closest('[data-v]'); if (b) { settings[g.dataset.seg] = b.dataset.v; applySettings(); } });
+  $('noteColors').onclick = e => { const b = e.target.closest('[data-nc]'); if (b) { settings.noteColor = b.dataset.nc; applySettings(); } };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => settings.theme === 'system' && applySettings());
+  const newNoteColor = () => settings.noteColor === 'random' ? COLOR_NAMES[1 + Math.floor(Math.random() * 6)] : settings.noteColor;
+  const snapTo = v => settings.snap ? Math.round(v / 26) * 26 : v;
   $('revealBoards').onclick = () => MB.reveal();
   let sayT = 0;
+  // the little extras: skipped when she's set to Quiet
+  function chirp(text, ms, acts) { if (settings.chat !== 'quiet') say(text, ms, acts); }
+  function tip(text) { if (settings.chat === 'chatty') say(text, 6000); }
   function say(text, ms = 6000, acts = []) {
     $('mSay').textContent = text; $('mActs').innerHTML = '';
     acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; if (a.ghost) b.className = 'ghost'; b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
@@ -865,6 +885,7 @@
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
       text: (c.text || c.title || c.label || '').slice(0, 300), name: c.name, kids: c.kids, desc: c.desc, body: c.body ? c.body.slice(0, 600) : undefined, shape: c.shape, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
+      mochiStyle: ({ quiet: 'Keep "say" to one short sentence.', normal: 'Keep "say" short and warm.', chatty: 'Be warm, playful and encouraging in "say" (2 to 3 sentences, a little cheer is welcome).' }[settings.chat] || '') + (settings.emoji ? ' A couple of fitting emojis in "say" are welcome.' : ' Never use emojis.'),
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
   async function ask(q, confirmed = false) {
@@ -981,15 +1002,16 @@
   function placeAt(w) {
     if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
     const type = placing.type, more = placing.extra || {}; stopPlacing();
-    const extra = type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
+    const extra = type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: newNoteColor() } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
-    const c = card(type, extra); c.x = w.x - 14 / view.z; c.y = w.y - 14 / view.z;
+    const c = card(type, extra); c.x = snapTo(w.x - 14 / view.z); c.y = snapTo(w.y - 14 / view.z);
     if (type === 'coll') c.r = 0;
     if (type === 'link') c.h = 52;
     if (type === 'shape' && more.shape === 'line') { c.w = 200; c.h = 24; }
     if (type === 'swatch') { c.label = colorName(c.hex); c.autoName = true; }
     if (type === 'canvas') { const child = newBoard('Untitled canvas'); child.parent = board.id; child.folder = board.folder || null; c.board = child.id; MB.save(child).then(refreshBoards); }
     addCard(c); selectOnly([c.id]);
+    if (type === 'note' && board.cards.filter(x => x.type === 'note' && !parentOf(x.id)).length === 6) tip('That\'s a lot of loose notes! Want me to sort them into collections? Just ask ✦');
     const t = type !== 'coll' && collAt(w, new Set([c.id])); if (t) { dropInto(t, [c.id], w); save(); }
     if (['note', 'todo', 'title', 'doc', 'canvas'].includes(type)) setTimeout(() => startEdit(c.id), 30);
     if (type === 'coll') setTimeout(() => startEdit(c.id), 30);
@@ -1009,7 +1031,7 @@
     await nextFrame(); await new Promise(res => setTimeout(res, 150));
     try {
       const saved = await MB.exportRect({ x: r.left + (r.width - bw * z) / 2, y: r.top + (r.height - bh * z) / 2, w: bw * z, h: bh * z, name, pdf, scale: Math.min(4, 2 / Math.min(z, 1)) });
-      if (saved) say(`Saved “${saved}” ✦`, 3500);
+      if (saved) chirp(`Saved “${saved}” ✦`, 3500);
     } catch (e) { say(e.message, 4000); }
     finally { document.body.classList.remove('exporting'); view = keep; applyView(); selectOnly(keepSel); }
   }
@@ -1110,6 +1132,37 @@
     }
   }
 
+  // ---------- crop an image: see the whole picture, drag the box or its corners, then Done ----------
+  let cropping = null, cropDrag = null;
+  function startCrop(c) {
+    const img = cardsEl.querySelector(`[data-id="${c.id}"] img`), nw = img?.naturalWidth || c.w, nh = img?.naturalHeight || c.h;
+    cropping = { c, nw, nh, prevH: c.h, prevCrop: c.crop, box: Object.assign({ x: 0, y: 0, w: 1, h: 1 }, c.crop) };
+    c.cropEdit = true; c.h = Math.round((c.w - 16) * nh / nw + 16); renderCard(c); selectOnly([c.id]); $('selbar').dataset.key = ''; renderWires();
+  }
+  function endCrop(how) {
+    if (!cropping) return; const { c, nw, nh, prevH, prevCrop, box } = cropping;
+    if (how === 'reset') { cropping.box = { x: 0, y: 0, w: 1, h: 1 }; renderCard(c); selectOnly([c.id]); return; }
+    if (how === 'done') { const full = box.w > .995 && box.h > .995; if (full) delete c.crop; else c.crop = { ...box }; c.h = Math.round((c.w - 16) * (nh * box.h) / (nw * box.w) + 16); }
+    else { c.h = prevH; if (prevCrop) c.crop = prevCrop; else delete c.crop; }
+    delete c.cropEdit; cropping = null; renderCard(c); selectOnly([c.id]); $('selbar').dataset.key = ''; renderWires(); if (how === 'done') save();
+  }
+  function cropDown(e) {
+    const img = cardsEl.querySelector(`[data-id="${cropping.c.id}"] img`); if (!img) return;
+    cropDrag = { h: e.target.closest('[data-h]')?.dataset.h || 'move', r: img.getBoundingClientRect(), sx: e.clientX, sy: e.clientY, b0: { ...cropping.box } }; stage.setPointerCapture(e.pointerId);
+  }
+  addEventListener('pointermove', e => {
+    if (!cropDrag || !cropping) return;
+    const { h, r, b0 } = cropDrag, dx = (e.clientX - cropDrag.sx) / r.width, dy = (e.clientY - cropDrag.sy) / r.height, MIN = .08, b = { ...b0 };
+    if (h === 'move') { b.x = clamp(b0.x + dx, 0, 1 - b0.w); b.y = clamp(b0.y + dy, 0, 1 - b0.h); }
+    if (h.includes('w')) { b.x = clamp(b0.x + dx, 0, b0.x + b0.w - MIN); b.w = b0.x + b0.w - b.x; }
+    if (h.includes('e')) b.w = clamp(b0.w + dx, MIN, 1 - b0.x);
+    if (h.includes('n')) { b.y = clamp(b0.y + dy, 0, b0.y + b0.h - MIN); b.h = b0.y + b0.h - b.y; }
+    if (h.includes('s')) b.h = clamp(b0.h + dy, MIN, 1 - b0.y);
+    cropping.box = b; const box = cardsEl.querySelector(`[data-id="${cropping.c.id}"] .crop-box`);
+    if (box) Object.assign(box.style, { left: b.x * 100 + '%', top: b.y * 100 + '%', width: b.w * 100 + '%', height: b.h * 100 + '%' });
+  });
+  addEventListener('pointerup', () => { cropDrag = null; });
+
   // ---------- drawing: the same soft ink as jessa.art (it swells when you slow down and tapers at the ends), plus a marker, a highlighter and an easy eraser ----------
   const INKS = { ink: '#494848', pink: '#f27aa8', coral: '#ff7f6b', butter: '#f3c84a', mint: '#3fbf86', sky: '#4aa3f0', lilac: '#9b7bff', white: '#ffffff' };
   const PEN_SIZE = { pen: { s: 5, m: 9, l: 16 }, marker: { s: 4, m: 8, l: 14 }, hi: { s: 14, m: 24, l: 38 } };
@@ -1146,9 +1199,9 @@
     return d + ` L${p[p.length - 1][0].toFixed(1)} ${p[p.length - 1][1].toFixed(1)}`;
   }
   function inkPath(pts, tool, size, color, finished) {
-    const col = INKS[color] || color || INKS.ink, w = (PEN_SIZE[tool] || PEN_SIZE.pen)[size] || 9;
-    if (tool === 'pen') { if (pts.length < 2) { const [x, y] = pts[0]; return `<path fill="${col}" d="M${x - w / 3} ${y} a${w / 3} ${w / 3} 0 1 0 ${w / 1.5} 0 a${w / 3} ${w / 3} 0 1 0 ${-w / 1.5} 0"/>`; } return `<path fill="${col}" d="${butter(pts, finished, w)}"/>`; }
-    return `<path fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${tool === 'hi' ? ' opacity=".38" style="mix-blend-mode:multiply"' : ''} d="${centerline(pts)}"/>`;
+    const col = color === 'ink' || !color ? 'var(--pen-ink)' : INKS[color] || color, w = (PEN_SIZE[tool] || PEN_SIZE.pen)[size] || 9;
+    if (tool === 'pen') { if (pts.length < 2) { const [x, y] = pts[0]; return `<path style="fill:${col}" d="M${x - w / 3} ${y} a${w / 3} ${w / 3} 0 1 0 ${w / 1.5} 0 a${w / 3} ${w / 3} 0 1 0 ${-w / 1.5} 0"/>`; } return `<path style="fill:${col}" d="${butter(pts, finished, w)}"/>`; }
+    return `<path fill="none" style="stroke:${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${tool === 'hi' ? ' opacity=".38" style="mix-blend-mode:multiply"' : ''} d="${centerline(pts)}"/>`;
   }
   function renderDrawbar() {
     $('dbColors').innerHTML = Object.entries(INKS).map(([n, c]) => `<button data-ink="${n}" title="${n}" style="background:${c}" class="${pen.color === n ? 'on' : ''}"></button>`).join('');
@@ -1337,6 +1390,7 @@
     color: I('<path d="M10 3a7 7 0 1 0 0 14c1 0 1.6-.7 1.6-1.5 0-.9-.6-1.2-.6-2 0-.9.7-1.5 1.6-1.5H15a2 2 0 0 0 2-2C17 6 13.9 3 10 3z"/>'),
     name: I('<path d="M4 6V4.5h12V6M10 4.5v11M7.5 15.5h5"/>'),
     hex: I('<path d="M7 3.5l-1.5 13M14.5 3.5L13 16.5M3.5 7.5h13M3 12.5h13"/>'),
+    crop: I('<path d="M5.5 2.5v11a1 1 0 0 0 1 1h11M2.5 5.5h11a1 1 0 0 1 1 1v11"/>'),
     open: I('<path d="M11 3.5h5.5V9M16.5 3.5L9 11M14 12v3.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1H8"/>'),
     link: I('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
   };
@@ -1349,7 +1403,7 @@
       return; }
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { bar.dataset.key = ''; return; }
-    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike).join();
+    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
     let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
@@ -1357,7 +1411,8 @@
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
-    if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
+    if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
+    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
@@ -1395,6 +1450,8 @@
       list.forEach(c => c[k] = to); redraw(); }
     const fz = e.target.closest('[data-fs]'); if (fz) { cs.filter(c => SIZED.includes(c.type)).forEach(c => { if (fz.dataset.fs === 'm') delete c.fs; else c.fs = fz.dataset.fs;
       if (c.type === 'note' && !parentOf(c.id)) { renderCard(c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`), b2 = el.querySelector('.body'); b2.style.height = 'auto'; c.h = Math.max(80, b2.offsetHeight); b2.style.height = ''; } }); redraw(); }
+    if (a === 'crop') return startCrop(one);
+    const cr = e.target.closest('[data-crop]')?.dataset.crop; if (cr) return endCrop(cr);
     if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
     if (a === 'visit') MB.openURL(one.url);
     if (a === 'relink') { one.draft = one.url; one.url = ''; one.image = ''; one.h = 52; redraw(); }
@@ -1467,7 +1524,7 @@
     if (!colorCard) return; const name = (colorCard.label || '').trim() || colorCard.hex.toUpperCase(), hit = board.palette.find(p => p.hex === colorCard.hex);
     if (hit) hit.name = name; else board.palette.push({ hex: colorCard.hex, name });
     colorCard.label = name; renderCard(colorCard); selectOnly([colorCard.id]); renderPalette(); save(); openColor(colorCard);
-    $('cpSave').textContent = 'Saved ✓'; $('cpSave').classList.add('saved-ok'); say(`Saved “${name}” to this board's colors ✦`, 3500);
+    $('cpSave').textContent = 'Saved ✓'; $('cpSave').classList.add('saved-ok'); chirp(`Saved “${name}” to this board's colors ✦`, 3500);
   };
   $('cpDone').onclick = closeColor;
   addEventListener('pointerdown', e => { if ($('cpop').classList.contains('on') && !e.target.closest('.cpop, .card.swatch')) closeColor(); }, true);
@@ -1506,7 +1563,7 @@
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
     applySettings();
-    setTimeout(() => { fit(board.cards); if (settings.greet) say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
+    setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
     showConnections(true);
   })();
   window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing

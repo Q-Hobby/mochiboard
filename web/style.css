@@ -656,3 +656,67 @@ body.exporting .card.sel::after { display: none; }
 /* play/pause icons for voice memos (drawn, so they sit dead center) */
 .au-play svg { width: 13px; height: 13px; fill: #fff; display: block; }
 .au-play, .au-play.on { padding: 0; }
+
+/* segmented choices in settings */
+.seg { display: flex; flex: none; padding: 3px; border-radius: 999px; background: #f3edf4; }
+.seg button { padding: 7px 12px; border: 0; border-radius: 999px; background: none; font: 600 12px/1 var(--font); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+#noteColors button.rand { background: conic-gradient(#ffb8d2, #f8e08a, #a8e6c3, #aed3ff, #cdb8ff, #ffb8d2); }
+
+/* Mochi's chat: white in light mode, dark in dark mode */
+.m-pill { background: #fff; color: var(--ink); box-shadow: 0 12px 30px rgba(120, 80, 120, .2), 0 0 0 1px rgba(120, 80, 120, .06); }
+.m-bubble { background: #fff; color: var(--ink); box-shadow: 0 12px 30px rgba(120, 80, 120, .2), 0 0 0 1px rgba(120, 80, 120, .06); }
+.m-bubble small { color: var(--pink-deep); }
+.m-form input { color: var(--ink); } .m-form input::placeholder { color: var(--ink-faint); }
+.mochi.thinking .m-name::after { color: var(--pink-deep); }
+.m-acts button { border-color: var(--ink); background: var(--ink); color: #fff; }
+.m-acts button.ghost { background: none; color: var(--ink); }
+
+/* ---------- dark mode ---------- */
+body.dark { --ink: #ece8f0; --ink-soft: #a9a1b1; --ink-faint: #6f6877; --blush: #3a2c37; --dot: #35303c; --surface: #26222b; --surface-2: #302b35; color-scheme: dark; }
+body.dark, body.dark .stage { background: #1c1920; }
+body.dark .box, body.dark .tools, body.dark .tray, body.dark .selbar, body.dark .drawbar, body.dark .cpop, body.dark .capture, body.dark .linkbox, body.dark .shapepick, body.dark .wheel-stamps,
+body.dark .stamp-pick, body.dark .row-menu, body.dark .cover-menu, body.dark .set-panel, body.dark .docview, body.dark .tile, body.dark .tile.folder .paper, body.dark .tile.project .mf,
+body.dark .tray-item, body.dark .ghost, body.dark kbd, body.dark .home-back, body.dark .sc-mark { background: var(--surface) !important; color: var(--ink); }
+body.dark .box { background: rgba(38, 34, 43, .92) !important; }
+body.dark .board-row:hover, body.dark .node-head:hover, body.dark .brand:hover, body.dark .pal:hover, body.dark .home-row, body.dark .dv-btn, body.dark .tile-art, body.dark .seg,
+body.dark .card.canvas .cv-prev, body.dark .au-tx, body.dark .tile.folder .tile-art .back, body.dark .tile.folder .tile-art .tab, body.dark .b-url { background: var(--surface-2) !important; }
+body.dark .tile.folder .tile-art .tab::after { background: radial-gradient(circle at 100% 0, transparent 17px, var(--surface-2) 17.5px); }
+body.dark .tile.folder .tile-art .front, body.dark .seg button.on, body.dark .au-acts button, body.dark .card .tag, body.dark .crumbs button:hover, body.dark .home-crumbs button:hover { background: #3a3540 !important; color: var(--ink); }
+body.dark .home { background-color: #1c1920; background-image: radial-gradient(#35303c 1.2px, transparent 1.2px); }
+body.dark .settings { background: rgba(0, 0, 0, .45); }
+body.dark .set-body section, body.dark .row-menu .rm-sep { border-color: #36313c; }
+body.dark .pill-btn, body.dark .tile.add { border-color: #4a4452; }
+body.dark .dv-back, body.dark .db-done { background: #ece8f0; color: #1c1920; }
+body.dark .tgl { background: #3e3846; }
+body.dark .cp-fields input, body.dark .linkbox input, body.dark .capture input { background: var(--surface-2); color: var(--ink); border-color: #3e3846; }
+/* cards: white cards turn dark; pastel cards stay pastel with dark words */
+body.dark .card > .frame { box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+body.dark .card.c-white > .frame, body.dark .card.link > .frame, body.dark .card.doc > .frame, body.dark .card.canvas > .frame, body.dark .card.audio > .frame, body.dark .card.swatch > .frame, body.dark .card.image > .frame { background: #322d38 !important; }
+body.dark .card:not(.c-white):is(.note, .todo) .body { color: #39343f; }
+body.dark .card:not(.c-white):is(.note, .todo) .nname:empty::before, body.dark .card:not(.c-white):is(.note, .todo) .text:empty::before { color: rgba(57, 52, 63, .45); }
+body.dark .card.shape .text { color: #39343f; }
+body.dark .coll-head { color: #39343f; }
+body.dark .coll-frame { background: color-mix(in srgb, var(--cframe) 16%, #221e26); }
+body.dark .card.link .meta span, body.dark .au-time { color: var(--ink-soft); }
+body.dark .au-play { background: #ece8f0; } body.dark .au-play svg { fill: #1c1920; }
+body.dark .wires path.w { stroke: #8d8596; }
+/* Mochi's chat goes dark with the room */
+body.dark .m-pill, body.dark .m-bubble { background: rgba(40, 37, 46, .97); color: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06); }
+body.dark .m-bubble small { color: #7fd8ff; }
+body.dark .m-form input { color: #fff; } body.dark .m-form input::placeholder { color: rgba(255, 255, 255, .45); }
+body.dark .m-acts button { background: #fff; color: #222; border-color: #fff; } body.dark .m-acts button.ghost { background: none; color: #fff; }
+body { --pen-ink: #494848; } body.dark { --pen-ink: #ece8f0; }
+body.dark .tray-head b, body.dark .sb-dots button, body.dark .tile .mf { color: #39343f; } body.dark .tile.project .mf { color: var(--ink); }
+
+/* images keep their crop inside a window; while cropping, the outside dims and the box has corner handles */
+.card.image .imgwrap { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 12px; }
+.card.image .imgwrap img { border-radius: 0; }
+.card.image.c-white:has(.crop-ui) { rotate: 0deg !important; }
+.crop-ui { position: absolute; inset: 0; z-index: 2; }
+.crop-box { position: absolute; box-shadow: 0 0 0 9999px rgba(20, 16, 24, .55); outline: 2px solid #fff; cursor: move; }
+.crop-box::before, .crop-box::after { content: ""; position: absolute; inset: 0; border: 0 dashed rgba(255, 255, 255, .55); pointer-events: none; }
+.crop-box::before { border-width: 0 1px; left: 33.3%; right: 33.3%; } .crop-box::after { border-width: 1px 0; top: 33.3%; bottom: 33.3%; }
+.crop-box i { position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.crop-box i[data-h="nw"] { left: -2px; top: -2px; cursor: nwse-resize; border-radius: 2px 6px 6px 6px; } .crop-box i[data-h="ne"] { right: -2px; top: -2px; cursor: nesw-resize; border-radius: 6px 2px 6px 6px; }
+.crop-box i[data-h="sw"] { left: -2px; bottom: -2px; cursor: nesw-resize; border-radius: 6px 6px 6px 2px; } .crop-box i[data-h="se"] { right: -2px; bottom: -2px; cursor: nwse-resize; border-radius: 6px 6px 2px 6px; }
