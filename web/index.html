@@ -17,20 +17,22 @@
 </svg>
 
 <aside class="side" id="side">
-  <div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div>
-  <div class="side-label">Boards</div>
-  <div class="boards" id="boards"></div>
-  <button class="pill-btn" id="newBoard">+ New board</button>
-  <div class="side-label">Start from</div>
-  <div class="templates" id="templates"></div>
-  <div class="side-label">Mochi's helpers</div>
-  <div class="conns" id="conns"></div>
-  <div class="side-foot">
-    <div><kbd>⌘K</kbd> quick capture</div>
-    <div><kbd>double-click</kbd> new note</div>
-    <div><kbd>F</kbd> focus selection</div>
-    <div><kbd>space</kbd>+drag to pan</div>
-  </div>
+  <section class="box" data-box="boards">
+    <header><div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div><button class="mini" title="Minimize">–</button></header>
+    <div class="box-body">
+      <div class="label">Boards</div>
+      <div class="boards" id="boards"></div>
+      <button class="pill-btn" id="newBoard">+ New board</button>
+    </div>
+  </section>
+  <section class="box" data-box="start">
+    <header><div class="label">Start from</div><button class="mini" title="Minimize">–</button></header>
+    <div class="box-body"><div class="templates" id="templates"></div></div>
+  </section>
+  <section class="box" data-box="helpers">
+    <header><div class="label">Mochi's helpers</div><button class="mini" title="Minimize">–</button></header>
+    <div class="box-body"><div class="conns" id="conns"></div></div>
+  </section>
 </aside>
 
 <main class="stage" id="stage">
@@ -58,7 +60,7 @@
   </div>
 
   <aside class="tray" id="tray">
-    <div class="tray-head"><span>Unsorted</span><b id="trayCount">0</b></div>
+    <div class="tray-head"><span class="label">Unsorted</span><b id="trayCount">0</b></div>
     <div class="tray-hint">ideas waiting for a spot. drag one onto the board ✦</div>
     <div class="tray-list" id="trayList"></div>
   </aside>
@@ -76,6 +78,7 @@
   <div class="capture" id="capture">
     <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
   </div>
+  <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> + drag to pan</span><button id="keysX" title="Hide">×</button></div>
   <input type="file" id="filePick" accept="image/*" multiple hidden>
 </main>
 

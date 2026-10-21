@@ -70,8 +70,9 @@
   function fit(cards, pad = 120) {
     if (!cards.length) return; const r = stage.getBoundingClientRect();
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y)), x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
-    view.z = clamp(Math.min((r.width - pad * 2 - 250) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, 1.4);
-    view.x = (r.width - 250 - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (y1 - y0) * view.z) / 2 - y0 * view.z;
+    const L = 270, R = 260;   // the open space between the left boxes and the tray
+    view.z = clamp(Math.min((r.width - L - R - pad) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, 1.4);
+    view.x = L + (r.width - L - R - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (y1 - y0) * view.z) / 2 - y0 * view.z;
     world.style.transition = 'transform .5s cubic-bezier(.2,.8,.3,1)'; applyView(); setTimeout(() => world.style.transition = '', 520);
   }
 
@@ -117,7 +118,7 @@
 
   // ---------- adding things ----------
   function addCard(c, pop = true) { board.cards.push(c); renderCard(c, pop); save(); return c; }
-  function centerWorld() { const r = stage.getBoundingClientRect(); return toWorld(r.left + (r.width - 250) / 2, r.top + r.height / 2); }
+  function centerWorld() { const r = stage.getBoundingClientRect(); return toWorld(r.left + 270 + (r.width - 530) / 2, r.top + r.height / 2); }
   function addAtCenter(type, extra = {}) {
     const p = centerWorld(), c = card(type, extra); c.x = p.x - c.w / 2 + (Math.random() * 60 - 30); c.y = p.y - c.h / 2 + (Math.random() * 60 - 30);
     addCard(c); selectOnly([c.id]); if (['note', 'title', 'todo'].includes(type)) startEdit(c.id); return c;
@@ -171,7 +172,7 @@
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.tools, .tray, .mochi, .top, .capture')) return;
+    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
@@ -231,7 +232,7 @@
     }
   });
   stage.addEventListener('dblclick', e => {
-    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture')) return;
+    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys')) return;
     const w = toWorld(e.clientX, e.clientY), c = card('note', { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] }); c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
   // card buttons: pull colours, checklist items
@@ -261,7 +262,7 @@
     document.body.appendChild(ghost); it.style.opacity = .3;
     const mv = ev => { ghost.style.left = ev.clientX - 40 + 'px'; ghost.style.top = ev.clientY - 20 + 'px'; };
     const up = ev => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); ghost.remove(); it.style.opacity = '';
-      if (!overTray(ev) && !ev.target.closest('.side')) { const w = toWorld(ev.clientX, ev.clientY); c.x = w.x - c.w / 2; c.y = w.y - 20; board.tray = board.tray.filter(x => x !== c); addCard(c); renderTray(); } };
+      if (!overTray(ev) && !ev.target.closest('.side, .box')) { const w = toWorld(ev.clientX, ev.clientY); c.x = w.x - c.w / 2; c.y = w.y - 20; board.tray = board.tray.filter(x => x !== c); addCard(c); renderTray(); } };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   });
 
@@ -395,6 +396,16 @@
       el.appendChild(r); });
   }
   addEventListener('focus', () => showConnections());
+
+  // ---------- the floating boxes: minimize to their title, remembered between launches ----------
+  const boxState = (() => { try { return JSON.parse(localStorage.getItem('mochiboard:boxes') || '{}'); } catch (e) { return {}; } })();
+  document.querySelectorAll('.box').forEach(b => {
+    const k = b.dataset.box, btn = b.querySelector('.mini');
+    const set = min => { b.classList.toggle('min', min); btn.textContent = min ? '+' : '–'; btn.title = min ? 'Open' : 'Minimize'; boxState[k] = min; try { localStorage.setItem('mochiboard:boxes', JSON.stringify(boxState)); } catch (e) {} };
+    set(!!boxState[k]); btn.onclick = () => set(!b.classList.contains('min'));
+  });
+  try { if (localStorage.getItem('mochiboard:keys') === 'hide') $('keys').classList.add('hide'); } catch (e) {}
+  $('keysX').onclick = () => { $('keys').classList.add('hide'); try { localStorage.setItem('mochiboard:keys', 'hide'); } catch (e) {} };
 
   // ---------- start ----------
   (async () => {
