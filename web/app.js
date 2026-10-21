@@ -401,34 +401,63 @@
   addEventListener('focus', () => showConnections());
 
   // ---------- colors: the editor beside a color card, and the board's own palette ----------
-  const QUICK = ['#ff9ec4', '#f27aa8', '#ff9a7b', '#fff5c8', '#f3d96a', '#7ad3a3', '#dcf5e7', '#8cc1ff', '#dcedff', '#b89bff', '#eadfff', '#494848', '#ffffff'];
-  let colorCard = null;
+  // the wheel works in HSV: hue = angle, saturation = distance from the middle, value = the brightness slider
+  let colorCard = null, hsv = { h: 330, s: .4, v: 1 };
   const normHex = v => { let h = String(v || '').trim().replace(/^#/, ''); if (/^[0-9a-f]{3}$/i.test(h)) h = [...h].map(x => x + x).join(''); return /^[0-9a-f]{6}$/i.test(h) ? '#' + h.toLowerCase() : null; };
+  const hsv2rgb = (h, s, v) => { const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); }; return [f(5), f(3), f(1)].map(x => Math.round(x * 255)); };
+  const rgb2hex = c3 => '#' + c3.map(x => x.toString(16).padStart(2, '0')).join('');
+  const hex2hsv = hex => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0; if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return { h: (h * 60 + 360) % 360, s: mx ? d / mx : 0, v: mx }; };
+  const wheelCv = $('wheelCv'), wg = wheelCv.getContext('2d');
+  function drawWheel() {
+    const N = wheelCv.width, R = N / 2, img = wg.createImageData(N, N), d = img.data;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const dx = x - R + .5, dy = y - R + .5, r = Math.hypot(dx, dy), i = (y * N + x) * 4; if (r > R) continue;
+      const [cr, cg, cb] = hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, r / R), hsv.v);
+      d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = r > R - 1 ? Math.round((R - r) * 255) : 255;
+    }
+    wg.putImageData(img, 0, 0);
+  }
+  function showHSV() {
+    const W = 220, a = hsv.h * Math.PI / 180, rr = hsv.s * W / 2;
+    Object.assign($('wheelRing').style, { left: W / 2 + Math.cos(a) * rr + 'px', top: W / 2 + Math.sin(a) * rr + 'px', background: rgb2hex(hsv2rgb(hsv.h, hsv.s, hsv.v)) });
+    $('bright').style.background = `linear-gradient(to right, #000, ${rgb2hex(hsv2rgb(hsv.h, hsv.s, 1))})`;
+    Object.assign($('brightRing').style, { left: hsv.v * 100 + '%', background: rgb2hex(hsv2rgb(hsv.h, hsv.s, hsv.v)) });
+  }
+  function dragOn(el, fn) {
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); el.setPointerCapture(e.pointerId); fn(e); const mv = ev => fn(ev), up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); save(); }; el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); });
+  }
+  dragOn($('wheel'), e => { const r = $('wheel').getBoundingClientRect(), dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
+    hsv.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360; hsv.s = Math.min(1, Math.hypot(dx, dy) / (r.width / 2)); if (hsv.v < .05) hsv.v = 1; drawIfV(); setColor(rgb2hex(hsv2rgb(hsv.h, hsv.s, hsv.v)), 'wheel'); });
+  dragOn($('bright'), e => { const r = $('bright').getBoundingClientRect(); hsv.v = clamp((e.clientX - r.left) / r.width, 0, 1); drawIfV(); setColor(rgb2hex(hsv2rgb(hsv.h, hsv.s, hsv.v)), 'wheel'); });
+  let drawnV = -1; function drawIfV() { if (Math.abs(drawnV - hsv.v) > .004) { drawnV = hsv.v; drawWheel(); } showHSV(); }
   function placeColorPop(c) {
     const el = cardsEl.querySelector(`[data-id="${c.id}"]`), r = el.getBoundingClientRect(), s = stage.getBoundingClientRect(), pop = $('cpop');
-    let x = r.right + 14 - s.left, y = r.top - s.top; if (x + 280 > s.width - 250) x = r.left - 284 - s.left; pop.style.left = Math.max(260, x) + 'px'; pop.style.top = clamp(y, 70, s.height - 260) + 'px';
+    let x = r.right + 14 - s.left, y = r.top - s.top; if (x + 270 > s.width - 250) x = r.left - 270 - s.left; pop.style.left = Math.max(260, x) + 'px'; pop.style.top = clamp(y, 70, s.height - 470) + 'px';
   }
   function openColor(c) {
-    colorCard = c; $('cpColor').value = c.hex; $('cpHex').value = c.hex.toUpperCase(); $('cpName').value = c.label || ''; $('cpWell').style.background = c.hex;
-    $('cpQuick').innerHTML = [...board.palette.map(p => p.hex), ...QUICK].filter((h, i, all) => all.indexOf(h) === i).slice(0, 18).map(h => `<button style="background:${h}" data-hex="${h}" title="${h}"></button>`).join('');
+    colorCard = c; hsv = hex2hsv(c.hex); drawIfV();
+    $('cpHex').value = c.hex.toUpperCase(); $('cpName').value = c.label || ''; $('cpDot').style.background = c.hex;
+    $('cpQuick').innerHTML = board.palette.map(p => `<button style="background:${p.hex}" data-hex="${p.hex}" title="${esc(p.name)}"></button>`).join('');
     $('cpSave').textContent = board.palette.some(p => p.hex === c.hex) ? 'Update board color' : 'Save to board colors'; $('cpSave').classList.remove('saved-ok');
     placeColorPop(c); $('cpop').classList.add('on');
   }
   function closeColor() { $('cpop').classList.remove('on'); colorCard = null; }
   function setColor(hex, from) {
-    if (!colorCard || !hex) return; colorCard.hex = hex; $('cpWell').style.background = hex;
-    if (from !== 'picker') $('cpColor').value = hex; if (from !== 'hex') $('cpHex').value = hex.toUpperCase();
+    if (!colorCard || !hex) return; colorCard.hex = hex; $('cpDot').style.background = hex;
+    if (from !== 'hex') $('cpHex').value = hex.toUpperCase();
+    if (from !== 'wheel') { hsv = hex2hsv(hex); drawIfV(); }
     const named = board.palette.find(p => p.hex === hex); if (named && from !== 'name') { colorCard.label = named.name; $('cpName').value = named.name; }
-    renderCard(colorCard); selectOnly([colorCard.id]); save();
+    $('cpSave').textContent = named ? 'Update board color' : 'Save to board colors'; $('cpSave').classList.remove('saved-ok');
+    renderCard(colorCard); selectOnly([colorCard.id]); if (from !== 'wheel') save();
   }
-  $('cpColor').oninput = e => setColor(e.target.value, 'picker');
   $('cpHex').oninput = e => { const h = normHex(e.target.value); if (h) setColor(h, 'hex'); };
   $('cpName').oninput = e => { if (!colorCard) return; colorCard.label = e.target.value; renderCard(colorCard); selectOnly([colorCard.id]); save(); };
   $('cpQuick').onclick = e => { const b = e.target.closest('[data-hex]'); if (b) setColor(b.dataset.hex, 'quick'); };
   $('cpSave').onclick = () => {
     if (!colorCard) return; const name = (colorCard.label || '').trim() || colorCard.hex.toUpperCase(), hit = board.palette.find(p => p.hex === colorCard.hex);
     if (hit) hit.name = name; else board.palette.push({ hex: colorCard.hex, name });
-    colorCard.label = name; renderCard(colorCard); selectOnly([colorCard.id]); renderPalette(); save();
+    colorCard.label = name; renderCard(colorCard); selectOnly([colorCard.id]); renderPalette(); save(); openColor(colorCard);
     $('cpSave').textContent = 'Saved ✓'; $('cpSave').classList.add('saved-ok'); say(`Saved “${name}” to this board's colors ✦`, 3500);
   };
   $('cpDone').onclick = closeColor;
