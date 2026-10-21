@@ -722,3 +722,4 @@ body.dark .tray-head b, body.dark .sb-dots button, body.dark .tile .mf { color: 
 .crop-box i[data-h="sw"] { left: -2px; bottom: -2px; cursor: nesw-resize; border-radius: 6px 6px 6px 2px; } .crop-box i[data-h="se"] { right: -2px; bottom: -2px; cursor: nwse-resize; border-radius: 6px 6px 2px 6px; }
 .card.image .imgwrap:has(.crop-ui) { border-radius: 0; }
 .conns + .set-row { margin-top: 6px; }
+.au-count { height: 34px; display: grid; place-items: center; font: 800 30px/1 var(--font); color: var(--pink-deep); animation: pop .5s cubic-bezier(.2, .9, .3, 1.4); }

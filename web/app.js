@@ -363,7 +363,7 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
-      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot"></span><b>${c.starting ? 'Getting ready…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div><canvas class="au-live" width="520" height="68"></canvas><div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
+      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot"></span><b>${c.count ? 'Start talking in…' : c.starting ? 'Waking up the mic…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count ? `<div class="au-count">${c.count}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
@@ -1111,7 +1111,14 @@
       Object.assign(c, { rec: false, paused: false, src: url, dur, wave, text: '', txNote: '', title: c.title || `Voice memo · ${when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` });
       renderCard(c); save(); transcribe(c);
     };
-    recorder.start(250);
+    // wait until real sound is coming in from the mic (it can take a few seconds to wake up), then count 3·2·1 and start on "go"
+    (async () => {
+      const buf = new Uint8Array(an.fftSize), t0 = Date.now();
+      while (Date.now() - t0 < 8000) { an.getByteTimeDomainData(buf); if (buf.some(v => Math.abs(v - 128) > 1)) break; await new Promise(r => setTimeout(r, 80)); }
+      if (!live.has(c.id)) return;
+      for (const n of [3, 2, 1]) { c.count = n; renderCard(c); await new Promise(r => setTimeout(r, 700)); if (!live.has(c.id)) return; }
+      c.count = 0; recorder.start(250);
+    })();
     const cv = () => cardsEl.querySelector(`[data-id="${c.id}"] .au-live`), data = new Uint8Array(an.frequencyBinCount);
     (function draw() {
       if (!live.has(c.id)) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`), canvas = cv();
@@ -1129,7 +1136,9 @@
   }
   function audioAct(c, act, e) {
     const L = live.get(c.id), el = cardsEl.querySelector(`[data-id="${c.id}"]`);
-    if (act === 'au-stop' && L) L.recorder.stop();
+    if (act === 'au-stop' && L) { if (L.recorder.state !== 'inactive') L.recorder.stop();
+      else { L.stream.getTracks().forEach(t => t.stop()); L.ac.close(); live.delete(c.id); c.rec = false; c.count = 0; c.starting = false; if (!c.src) { sel = new Set([c.id]); removeSelected(); } else renderCard(c); } }   // stopped before it began
+    if (act === 'au-pause' && L && L.recorder.state === 'inactive') return;
     if (act === 'au-pause' && L) { if (c.paused) { L.recorder.resume(); L.paused += Date.now() - L.pausedAt; } else { L.recorder.pause(); L.pausedAt = Date.now(); } c.paused = !c.paused; renderCard(c); }
     if (act === 'au-replace') { players.get(c.id)?.pause(); players.delete(c.id); record(c); }
     if (act === 'au-notes') ask(`This is a voice memo I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
