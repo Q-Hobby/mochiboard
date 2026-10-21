@@ -18,11 +18,11 @@
 
 <aside class="side" id="side">
   <section class="box" data-box="boards">
-    <header><div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div><button class="mini" title="Minimize">–</button></header>
+    <header><div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div><button class="mini home-btn" id="homeBtn" title="All projects">⌂</button><button class="mini" title="Minimize">–</button></header>
     <div class="box-body">
       <div class="label">Boards</div>
       <div class="boards" id="boards"></div>
-      <div class="new-row"><button class="pill-btn" id="newBoard">+ New board</button><button class="pill-btn" id="newFolder">+ Folder</button></div>
+      <div class="new-row"><button class="pill-btn" id="newBoard">+ Board</button><button class="pill-btn" id="newFolder">+ Folder</button><button class="pill-btn" id="newProject">+ Project</button></div>
     </div>
   </section>
   <section class="box" data-box="start">
@@ -49,6 +49,7 @@
   <div class="focus-veil" id="veil"></div>
 
   <header class="top">
+    <nav class="crumbs" id="crumbs"></nav>
     <input class="board-name" id="boardName" spellcheck="false" aria-label="Board name">
     <span class="saved" id="saved">saved</span>
   </header>
@@ -68,6 +69,15 @@
     <div class="tray-hint">ideas waiting for a spot. drag one onto the board ✦</div>
     <div class="tray-list" id="trayList"></div>
   </aside>
+
+  <!-- home: zoomed all the way out, every project → its folders → its boards -->
+  <section class="home" id="home">
+    <div class="home-in">
+      <nav class="home-crumbs" id="homeCrumbs"></nav>
+      <div class="home-head"><div><h1 id="homeTitle">Your projects</h1><p id="homeSub"></p></div><button class="home-close" id="homeClose">Back to board</button></div>
+      <div class="home-grid" id="homeGrid"></div>
+    </div>
+  </section>
 
   <!-- Mochi: her pill, her bar, her bubble -->
   <div class="mochi" id="mochi">

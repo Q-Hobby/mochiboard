@@ -167,9 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
          "place": [{"id": "an unsorted card id", "x": 0, "y": 0}],
          "connect": [["card id", "card id"]],
-         "folders": {"create": ["folder name"], "rename": [{"from": "old folder name", "to": "new name"}], "move": [{"board": "board id", "folder": "folder name, or null to take it out of its folder"}]}}
-        "library" lists ALL their boards and folders (not just this board). Use "folders" when they ask to organize, group, file or move boards into folders. \
-        Moving a board into a folder that doesn't exist yet creates it. Never invent board ids: only use ids from "library".
+         "projects": {"create": ["project name"], "rename": [{"from": "old name", "to": "new name"}]},
+         "folders": {"create": [{"name": "folder name", "project": "project name or null"}], "rename": [{"from": "old folder name", "to": "new name"}],
+                     "file": [{"folder": "folder name", "project": "project name, or null to take it out of its project"}],
+                     "move": [{"board": "board id", "folder": "folder name, or null to take it out of its folder"}]}}
+        "library" is their whole Mochiboard: projects hold folders, folders hold boards. Use "projects"/"folders" when they ask to organize, group, file or move boards, folders or projects. \
+        Moving a board into a folder that doesn't exist yet creates it; filing a folder into a project that doesn't exist yet creates the project. Never invent board ids: only use ids from "library".
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 
