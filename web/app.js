@@ -825,8 +825,9 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
+    if (e.key === 'Enter' && $('coach').classList.contains('on') && !editing && !document.activeElement?.closest?.('input, textarea, [contenteditable="true"]') && !$('capture').classList.contains('on')) { e.preventDefault(); $('coachNext').click(); return; }
     if (e.key === 'Escape' && $('coach').classList.contains('on') && !editing && !document.activeElement?.closest?.('input, textarea, [contenteditable="true"]') && !$('capture').classList.contains('on')) { endTour(); return; }
-    if ($('onboard').classList.contains('on')) return;   // setup handles its own keys
+    if ($('onboard').classList.contains('on')) return obKeys(e);   // setup has its own keys
     if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
     if (e.key === 'Escape' && cropping) { endCrop('cancel'); return; }
     if (e.key === 'Enter' && cropping && !e.target.closest('input, textarea, [contenteditable="true"]')) { endCrop('done'); return; }
@@ -907,7 +908,7 @@
   // ---------- Mochi on the board ----------
   // her hop: she jumps right up out of her pill, then squishes a little as she lands
   function hopMochi() { goo.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
-  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo'))];
+  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo')), Goo($('setGoo'))];
 
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
@@ -2054,8 +2055,11 @@
   $('obExplore').onclick = () => finishSetup(false);
   $('obRecheck').onclick = () => showConnections(true);
   $('obName').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('obNext').click(); } e.stopPropagation(); };
-  $('onboard').addEventListener('keydown', e => { e.stopPropagation(); if (e.target.closest('input')) return;
-    if (e.key === 'ArrowRight') obGo(obAt + 1); if (e.key === 'ArrowLeft') obGo(obAt - 1); });
+  function obKeys(e) {
+    if (e.target.closest?.('input')) return;
+    if (e.key === 'ArrowRight') obGo(obAt + 1); if (e.key === 'ArrowLeft') obGo(obAt - 1);
+    if (e.key === 'Enter' && !e.target.closest?.('button')) { e.preventDefault(); obAt < OB_N - 1 ? $('obNext').click() : $('obTour').click(); }
+  }
   $('redoSetup').onclick = openSetup;
   $('redoTour').onclick = () => { closeSettings(); setTimeout(startTour, 250); };
 
@@ -2080,10 +2084,10 @@
     tourAt = i; const st = TOUR[i], start = { cards: board.cards.length, tray: board.tray.length };
     $('coachStep').textContent = `${i + 1} of ${TOUR.length}`; $('coachText').textContent = st.text;
     $('coachTry').textContent = st.try || ''; $('coachTry').classList.remove('yay'); $('coachTry').style.display = st.try ? '' : 'none';
-    $('coachNext').textContent = i === TOUR.length - 1 ? 'Done ✦' : st.try ? 'Skip this' : 'Next';
+    $('coachNext').textContent = i === TOUR.length - 1 ? 'Done ✦' : 'Continue';
     placeCoach(); goos[6].hop();
     if (st.done) tourPoll = setInterval(() => { if (tourAt !== i || !st.done(start)) return; clearInterval(tourPoll);
-      $('coachTry').textContent = 'Nice! ✦'; $('coachTry').classList.add('yay'); hopMochi(); $('coachNext').textContent = 'Next'; setTimeout(() => tourAt === i && tourGo(i + 1), 1200); }, 250);
+      $('coachTry').textContent = 'Nice! ✦'; $('coachTry').classList.add('yay'); hopMochi(); setTimeout(() => tourAt === i && tourGo(i + 1), 1200); }, 250);
   }
   function placeCoach() {
     if (tourAt < 0) return; const st = TOUR[tourAt], t = st.el && document.querySelector(st.el), card = $('coachCard'), ring = $('coachRing');

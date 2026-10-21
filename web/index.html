@@ -231,6 +231,7 @@
   <div class="set-panel">
     <div class="set-head"><h2>Settings</h2><button class="dv-btn" id="setClose" title="Close">×</button></div>
     <div class="set-body">
+      <section class="set-start"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section><h3>Look</h3>
         <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
       </section>
@@ -241,7 +242,6 @@
         <div class="set-row"><div><b>Remember chats</b><small>Chats are saved in your board files on this Mac. Off forgets each chat as you go.</small></div><div class="seg" data-seg="chatKeep"><button data-v="off">Off</button><button data-v="session">Until I quit</button><button data-v="board">On each board</button></div></div>
         <div class="set-row"><div><b>How many messages to keep</b><small>Older messages fall off the top</small></div><div class="seg" data-seg="chatMax"><button data-v="20">20</button><button data-v="60">60</button><button data-v="200">200</button></div></div>
         <div class="set-row"><div><b>Saved chats</b><small>Deletes Mochi's chat history from every board</small></div><button class="set-btn" id="clearChats">Clear all chats</button></div>
-        <div class="set-row"><div><b>Setup and tour</b><small>Go through setup again, or let Mochi show you around</small></div><div class="set-btns"><button class="set-btn" id="redoSetup">Setup</button><button class="set-btn" id="redoTour">Tour</button></div></div>
         <label class="set-row"><div><b>Say hi when I open the app</b><small>Mochi's little welcome bubble</small></div><input type="checkbox" class="tgl" data-set="greet"></label>
         <label class="set-row"><div><b>Mochi's thinking (AI)</b><small>Uses Claude Code on your Mac to sort, write and edit for you. Off: Mochiboard works fully on its own, no AI, no accounts, no internet.</small></div><input type="checkbox" class="tgl" data-set="ai"></label>
       </section>

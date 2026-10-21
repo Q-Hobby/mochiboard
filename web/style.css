@@ -1037,3 +1037,14 @@ body.dark .m-acts button.next { background: #3a2a34; border-color: #5a3a4c; colo
 body.dark .tgl:checked { background: var(--mint-deep, #3fc48a); }
 body.dark .tgl::after { background: #d9d3de; }
 body.dark .tgl:checked::after { background: #fff; }
+
+/* the tour, always at the top of Settings */
+.set-start { display: flex; align-items: center; gap: 12px; padding: 14px 16px !important; border-radius: 18px; background: #fff0f6; border: 0 !important; margin-bottom: 6px; }
+.set-start canvas { width: 34px; height: 30px; image-rendering: pixelated; flex: none; margin-top: -4px; }
+.set-start > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.set-start b { font: 700 14px/1.2 var(--font); color: var(--ink); } .set-start small { font: 500 12px/1.35 var(--font); color: var(--ink-soft); }
+.set-btn.hot { background: var(--ink); color: #fff; border-color: var(--ink); }
+body.dark .set-start { background: #3a2a34; } body.dark .set-btn.hot { background: #ece8f0; color: #1c1920; border-color: #ece8f0; }
+@media (max-width: 560px) { .set-start { flex-wrap: wrap; } }
+.set-start > .set-btns { flex: none; display: grid; gap: 6px; }
+.set-start .set-btn { padding: 9px 16px; white-space: nowrap; }
