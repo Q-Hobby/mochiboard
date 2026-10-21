@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let list: [[String: Any]] = files.filter { $0.pathExtension == "json" }.compactMap { f in
                 guard let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
                 let mod = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return ["id": j["id"] ?? "", "name": j["name"] ?? "Untitled", "color": j["color"] ?? "pink", "folder": j["folder"] ?? NSNull(), "updated": mod.timeIntervalSince1970]
+                return ["id": j["id"] ?? "", "name": j["name"] ?? "Untitled", "color": j["color"] ?? "pink", "folder": j["folder"] ?? NSNull(), "parent": j["parent"] ?? NSNull(), "updated": mod.timeIntervalSince1970]
             }.sorted { ($0["updated"] as! Double) > ($1["updated"] as! Double) }
             reply(true, list)
         case "load":
@@ -164,8 +164,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         Reply with ONLY one JSON object, no other words before or after it. Use only the keys you need:
         {"say": "a short, friendly reply in first person (1 to 3 sentences, no em dashes)",
-         "add": [{"type": "note" | "todo" | "title" | "swatch", "text": "...", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
-                  "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label",
+         "add": [{"type": "note" | "todo" | "title" | "swatch" | "doc", "text": "... (a doc's title)", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
+                  "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label", "body": "for a doc: its full text",
                   "name": "optional bold name above a note's words", "in": "optional: a collection id, or the name of a collection in this reply, to stack it inside"}],
          "titles": [{"text": "group name", "x": 0, "y": 0}],
          "collections": [{"name": "Loading", "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0}],

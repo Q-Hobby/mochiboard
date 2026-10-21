@@ -395,3 +395,59 @@ html.native .home-in { padding-top: 40px; }
 .card.coll.sel::after { inset: -6px; }
 .card.inside { rotate: 0deg !important; }
 .card.inside.dragging { rotate: -1.5deg !important; }
+
+/* ---------- round 2: docs, canvases, links you type into, shapes ---------- */
+/* a doc is a little pill with a page icon */
+.card.doc .body, .card.canvas .body { padding: 0; }
+.card.doc .pill { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 16px; }
+.card .cic { width: 20px; height: 20px; flex: none; color: var(--ink-soft); }
+.card.doc .text, .card.canvas .text { font: 600 14px/1.25 var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; min-width: 2em; }
+.card.doc .text:empty::before { content: "Untitled"; color: var(--ink-faint); }
+.card.doc.has-body .pill::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pink); margin-left: auto; flex: none; }
+/* a canvas card: a board inside this board */
+.card.canvas .cv-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
+.card.canvas .text:empty::before { content: "Untitled canvas"; color: var(--ink-faint); }
+.card.canvas .cv-prev { position: absolute; left: 12px; right: 12px; top: 48px; bottom: 12px; border-radius: 12px; background: #faf5fb; display: grid; place-items: center; overflow: hidden; }
+.card.canvas .cv-prev svg { width: 100%; height: 100%; }
+.card.canvas .cv-prev em { font: 600 12px/1 var(--font); color: var(--ink-faint); font-style: normal; }
+/* a link you type right into */
+.card.link .link-in { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 14px; }
+.card.link .link-in input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: 500 14px/1 var(--font); color: var(--ink); user-select: text; -webkit-user-select: text; }
+.card.link .link-in.loading input { color: var(--ink-faint); }
+.card.link .meta { display: flex; align-items: center; gap: 10px; }
+.card.link .meta .fav { width: 20px; height: 20px; border-radius: 5px; flex: none; background: #f2ecf3 center / cover; }
+.card.link .meta > div { min-width: 0; flex: 1; }
+.card.link.compact .thumb { display: none; }
+.card.link.compact .meta { height: 100%; padding: 0 14px; }
+/* shapes */
+.card.shape > .frame { display: none; }
+.card.shape .body { padding: 0; overflow: visible; display: grid; place-items: center; }
+.card.shape svg.sh { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: url(#wob); }
+.card.shape .text { position: relative; max-width: 80%; text-align: center; font: 600 15px/1.3 var(--font); outline: none; white-space: pre-wrap; }
+.shapepick { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%) translateY(6px); z-index: 16; display: flex; gap: 2px; padding: 6px; border-radius: 999px; background: #fff; box-shadow: 0 10px 28px rgba(120, 80, 120, .18); opacity: 0; pointer-events: none; transition: opacity .15s, transform .2s cubic-bezier(.2, .8, .3, 1); }
+.shapepick.on { opacity: 1; pointer-events: auto; transform: translateX(-50%); }
+.shapepick button { width: 38px; height: 38px; border: 0; border-radius: 999px; background: none; display: grid; place-items: center; cursor: pointer; color: var(--ink-soft); }
+.shapepick button:hover, .shapepick button.on { background: var(--blush); color: var(--ink); }
+.shapepick svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
+.ghost.shape { background: rgba(228, 223, 231, .8); }
+.ghost.doc span, .ghost.link span { top: 50%; transform: translateY(-50%); }
+/* the doc viewer: half the window beside the board, or the full page */
+.docview { position: absolute; top: 0; right: 0; bottom: 0; width: 50%; z-index: 22; display: flex; flex-direction: column; background: #fff; box-shadow: -18px 0 50px rgba(120, 80, 120, .14); transform: translateX(104%); transition: transform .35s cubic-bezier(.2, .8, .3, 1), width .35s cubic-bezier(.2, .8, .3, 1); }
+.docview.on { transform: none; }
+.docview.wide { width: 100%; }
+.dv-bar { display: flex; align-items: center; gap: 8px; padding: 14px 16px; }
+html.native .dv-bar { padding-top: 14px; }
+.dv-back { padding: 9px 15px 9px 12px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font: 600 12.5px/1 var(--font); cursor: pointer; }
+.dv-back:hover { background: #2f2f2f; }
+.dv-where { flex: 1; min-width: 0; font: 600 12px/1 var(--font); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-btn { width: 34px; height: 34px; border: 0; border-radius: 999px; background: #f6f1f7; font: 500 17px/1 var(--font); color: var(--ink); cursor: pointer; }
+.dv-btn:hover { background: var(--blush); }
+.dv-page { flex: 1; overflow: auto; padding: 40px 12% 120px; }
+.docview.wide .dv-page { padding-left: calc(var(--side) + 12%); }
+.dv-title { width: 100%; border: 0; outline: none; background: none; font: 800 36px/1.1 var(--font); letter-spacing: -.035em; color: var(--ink); margin-bottom: 18px; user-select: text; -webkit-user-select: text; }
+.dv-title::placeholder { color: var(--ink-faint); }
+.dv-body { min-height: 60vh; outline: none; font: 400 16px/1.7 var(--font); color: var(--ink); white-space: pre-wrap; user-select: text; -webkit-user-select: text; cursor: text; }
+.dv-body:empty::before { content: attr(data-ph); color: var(--ink-faint); }
+.stage.doc-open .dock, .stage.doc-open .shapepick { opacity: 0; pointer-events: none; }
+.sub-boards { margin-left: 16px; padding-left: 8px; border-left: 1.5px dashed #eadfee; display: flex; flex-direction: column; gap: 1px; }
+.sub-boards .board-row { font-size: 13px; }

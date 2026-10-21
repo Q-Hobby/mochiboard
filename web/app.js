@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200] }[type];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -47,10 +47,12 @@
   const findFolder = name => byName(folders, name);
   function makeProject(name) { const p = byName(projects, name) || { id: uid(), name: String(name).trim() || 'New project', color: COLOR_NAMES[1 + projects.length % 6], open: true }; if (!projects.includes(p)) projects.push(p); return p; }
   function makeFolder(name, projectId = null) { const f = findFolder(name) || { id: uid(), name: String(name).trim() || 'New folder', project: projectId, open: true }; if (!folders.includes(f)) folders.push(f); return f; }
-  const boardsIn = fid => boardList.filter(b => b.folder === fid);
+  // canvases (boards inside boards) live under their parent board, not loose in a folder
+  const topLevel = b => !b.parent || !boardList.some(x => x.id === b.parent);
+  const boardsIn = fid => boardList.filter(b => b.folder === fid && topLevel(b));
   const foldersIn = pid => folders.filter(f => (f.project || null) === pid && (pid === null || projects.some(p => p.id === pid)));
   const looseFolders = () => folders.filter(f => !f.project || !projects.some(p => p.id === f.project));
-  const looseBoards = () => boardList.filter(b => !b.folder || !folders.some(f => f.id === b.folder));
+  const looseBoards = () => boardList.filter(b => (!b.folder || !folders.some(f => f.id === b.folder)) && topLevel(b));
   const tint = c => COLORS[c] && c !== 'white' ? `var(--${c === 'pink' ? 'pink' : c + '-deep'})` : 'var(--pink)';
   async function moveBoard(id, folderId) {
     if (board && board.id === id) { board.folder = folderId; await MB.save(board); return; }
@@ -80,7 +82,10 @@
   function boardRow(b) {
     const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : '');
     r.innerHTML = `<i style="background:${tint(b.color)}"></i><span></span>`; r.querySelector('span').textContent = b.name;
-    r.onclick = () => { closeHome(); openBoard(b.id); }; draggable(r, 'board', b.id); return r;
+    r.onclick = () => { closeHome(); openBoard(b.id); }; draggable(r, 'board', b.id);
+    const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
+    const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
+    kids.forEach(k => sub.appendChild(boardRow(k))); frag.appendChild(r); frag.appendChild(sub); return frag;
   }
   function treeNode(obj, kind, count, kids, btns) {
     const wrap = document.createElement('div'); wrap.className = 'node ' + kind + (obj.open ? ' open' : '');
@@ -150,8 +155,11 @@
     if (!board) return; const { f, p } = where(), el = $('crumbs');
     el.innerHTML = `<button data-go="all" title="All projects">⌂</button>` + (p ? `<i>/</i><button data-go="project:${p.id}"></button>` : '') + (f ? `<i>/</i><button data-go="folder:${f.id}"></button>` : '');
     const btns = el.querySelectorAll('button'); if (p) { btns[1].textContent = p.name; btns[1].title = p.name; } if (f) { btns[btns.length - 1].textContent = f.name; btns[btns.length - 1].title = f.name; }
+    // inside a canvas: the boards it lives in, so you can climb back out
+    const chain = []; let up = board.parent; while (up && chain.length < 4) { const pb = boardList.find(x => x.id === up); if (!pb) break; chain.unshift(pb); up = pb.parent; }
+    chain.forEach(pb => { el.insertAdjacentHTML('beforeend', `<i>/</i><button data-board="${pb.id}"></button>`); const bt = el.lastElementChild; bt.textContent = pb.name; bt.title = 'Back to ' + pb.name; });
   }
-  $('crumbs').onclick = e => { const g = e.target.closest('[data-go]')?.dataset.go; if (g) openHome(g); };
+  $('crumbs').onclick = async e => { const pb = e.target.closest('[data-board]')?.dataset.board; if (pb) { board.view = view; await MB.save(board); return openBoard(pb); } const g = e.target.closest('[data-go]')?.dataset.go; if (g) openHome(g); };
   $('homeBtn').onclick = () => openHome('all');
   $('brand').onclick = () => openHome('all');
   $('homeBack').onclick = () => { if (!homeAt) return; const f = homeAt.level === 'folder' && folders.find(x => x.id === homeAt.id); openHome(f && f.project && projects.some(p => p.id === f.project) ? 'project:' + f.project : 'all'); };
@@ -250,7 +258,8 @@
 
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
-    board = b; board.palette = board.palette || []; view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
+    miniCache.clear(); board = b; board.palette = board.palette || []; view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
+    board.cards.forEach(c => { if (c.type === 'canvas' && c.board) { const kb = boardList.find(x => x.id === c.board); if (kb && kb.name !== c.text) c.text = kb.name; } });
     $('boardName').value = board.name; renderAll(); refreshBoards(); try { localStorage.setItem('mochiboard:last', id); } catch (e) {}
   }
   let saveT = 0;
@@ -285,10 +294,14 @@
   function inner(c) {
     switch (c.type) {
       case 'note': return `${c.name !== undefined ? `<div class="nname">${esc(c.name)}</div>` : ''}<div class="text">${esc(c.text)}</div>`;
+      case 'doc': return `<div class="pill">${CIC.doc}<span class="text">${esc(c.text)}</span></div>`;
+      case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
+      case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
       case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
-      case 'link': return `<div class="thumb" style="${c.image ? `background-image:url('${esc(c.image)}')` : ''}"></div><div class="meta"><b>${esc(c.title || c.url)}</b><span>${esc(c.desc || c.url)}</span></div>`;
+      case 'link': return !c.url ? `<div class="link-in${c.loading ? ' loading' : ''}">${CIC.link}<input placeholder="Add a link…" value="${esc(c.draft || '')}" spellcheck="false"></div>`
+        : `<div class="thumb" style="${c.image ? `background-image:url('${esc(c.image)}')` : ''}"></div><div class="meta"><i class="fav" style="background-image:url('https://www.google.com/s2/favicons?sz=64&domain=${esc(host(c.url))}')"></i><div><b>${esc(c.title || c.url)}</b><span>${esc(c.desc || host(c.url))}</span></div></div>`;
       case 'todo': return `<div class="head">${esc(c.text)}</div><ul>${(c.items || []).map((it, i) => `<li class="${it.done ? 'done' : ''}" data-i="${i}"><input type="checkbox" ${it.done ? 'checked' : ''}><span>${esc(it.t)}</span></li>`).join('')}</ul><button class="add-item" data-act="item">+ add</button>`;
       case 'swatch': return `<div class="chipcol"></div><div class="hex">${c.hideName ? '' : `<b>${esc(c.label || c.hex.toUpperCase())}</b>`}${c.hideHex ? '' : `<span>${esc(c.hex.toUpperCase())}</span>`}</div>`;
     }
@@ -301,12 +314,39 @@
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.type === 'title' ? 'auto' : c.h + 'px' });
     el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff');
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
+    if (c.type === 'doc') el.classList.toggle('has-body', !!(c.body || '').trim());
+    if (c.type === 'link') el.classList.toggle('compact', !c.url || !c.image);
+    if (c.type === 'canvas' && c.board) mini(c.board).then(svg => { const p = el.querySelector('.cv-prev'); if (p && svg) p.innerHTML = svg; });
+    if (c.type === 'link' && !c.url) setTimeout(() => wireLinkInput(c), 0);
     if (c.type === 'coll') { const t = COLL[c.color] || COLL.pink; el.style.setProperty('--chead', t[0]); el.style.setProperty('--cframe', t[1]); el.classList.toggle('nohead', c.head === false); el.style.height = c.h + 'px'; }
     else if (parentOf(c.id)) el.classList.add('inside');
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>`;
     return el;
   }
   function renderAll() { cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
+
+  // ---------- round 2 pieces: icons, shapes, link hosts ----------
+  const CI = d => `<svg class="cic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const CIC = {
+    doc: CI('<path d="M5.5 2.5h6l3.5 3.5v10.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/><path d="M11.5 2.5V6H15M7.5 10h5M7.5 13h5"/>'),
+    canvas: CI([5, 10, 15].map(y => [5, 10, 15].map(x => `<circle cx="${x}" cy="${y}" r="1.1" fill="currentColor" stroke="none"/>`).join('')).join('')),
+    link: CI('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
+  };
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
+  const SHAPE_FILL = { gray: '#e4dfe7', pink: '#ffb8d2', butter: '#f8e08a', mint: '#a8e6c3', sky: '#aed3ff', lilac: '#cdb8ff', peach: '#ffc8a6', ink: '#494848' };
+  function shapeSVG(c) {
+    const f = SHAPE_FILL[c.fill] || c.fill || SHAPE_FILL.gray, P = { stroke: 'none', fill: f };
+    const attrs = o => Object.entries(o).map(([k, v]) => `${k}="${v}"`).join(' ');
+    const body = {
+      rect: `<rect x="0" y="0" width="100" height="100" rx="10" ${attrs(P)}/>`,
+      circle: `<ellipse cx="50" cy="50" rx="50" ry="50" ${attrs(P)}/>`,
+      tri: `<path d="M50 2 L98 98 L2 98 Z" stroke-linejoin="round" ${attrs(P)}/>`,
+      star: `<path d="M50 3 L62 36 L97 37 L69 58 L79 93 L50 72 L21 93 L31 58 L3 37 L38 36 Z" ${attrs(P)}/>`,
+      heart: `<path d="M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z" ${attrs(P)}/>`,
+      line: `<line x1="0" y1="50" x2="100" y2="50" stroke="${f === SHAPE_FILL.gray ? '#494848' : f}" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`,
+    }[c.shape || 'rect'];
+    return `<svg class="sh" viewBox="0 0 100 100" preserveAspectRatio="none">${body}</svg>`;
+  }
 
   // ---------- collections: a named header over a frame; cards inside stack in columns and the frame grows to fit ----------
   const COLL = { pink: ['#ffb8d2', '#ffe3ee'], butter: ['#f8e08a', '#fff6cf'], mint: ['#a8e6c3', '#dff6ea'], lilac: ['#cdb8ff', '#eee6ff'], sky: ['#aed3ff', '#e2efff'], peach: ['#ffc8a6', '#ffeee0'], white: ['#e7e1ea', '#f5f1f6'] };
@@ -434,6 +474,10 @@
     if (target && target.closest('.tag')) return editTag(c);
     if (target && target.closest('.nname')) return editField(el, el.querySelector('.nname'), v => c.name = v);
     if (c.type === 'coll') return editField(el, el.querySelector('.coll-head .text'), v => c.text = v);
+    if ((c.type === 'doc' || c.type === 'canvas') && target && !target.closest('.text')) return c.type === 'doc' ? openDoc(c) : openCanvas(c);
+    if (c.type === 'doc') return editField(el, el.querySelector('.text'), v => c.text = v);
+    if (c.type === 'canvas') return editField(el, el.querySelector('.text'), v => c.text = v, () => renameChild(c));
+    if (c.type === 'link' && !c.url) return wireLinkInput(c);
     const li = target && target.closest('li');
     if (li && c.type === 'todo') { const i = +li.dataset.i; return editField(el, li.querySelector('span'), v => c.items[i].t = v, () => { if (!c.items[i]?.t.trim()) { c.items.splice(i, 1); renderCard(c); save(); } }); }
     if (c.type === 'link') { const desc = target && target.closest('.meta span'); return editField(el, el.querySelector(desc ? '.meta span' : '.meta b'), v => desc ? c.desc = v : c.title = v); }
@@ -453,14 +497,14 @@
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock')) return;
+    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
       const id = el.dataset.id, c = byId(id);
       if (editing === id && !e.target.closest('.handle, .knob')) return;      // clicking inside text you're editing
-      if (e.target.closest('input[type=checkbox]')) return;
+      if (e.target.closest('input[type=checkbox], .link-in input')) return;
       if (e.target.closest('[data-act]')) return;
       if (e.target.classList.contains('handle')) { drag = { mode: 'resize', id, sx: w.x, sy: w.y, w0: c.w, h0: c.h }; }
       else if (e.target.classList.contains('knob')) { drag = { mode: 'wire', id, a: { x: c.x + c.w, y: c.y + c.h / 2 } }; }
@@ -587,7 +631,8 @@
     const typing = e.target.closest('input, [contenteditable="true"]');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
-    if (e.key === 'Escape' && placing) { stopPlacing(); return; }
+    if (e.key === 'Escape' && docCard) { closeDoc(); return; }
+    if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing || homeAt) return;
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
@@ -601,7 +646,9 @@
     if (k === 't') startPlacing('title');
     if (k === 'c') startPlacing('todo');
     if (k === 'g') startPlacing('coll');
-    if (k === 'l') addLinkPrompt();
+    if (k === 'd') startPlacing('doc');
+    if (k === 's') { $('shapePick').classList.add('on'); }
+    if (k === 'l') startPlacing('link');
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
     if (k === 'm') { e.preventDefault(); mochiOpen(true); }
@@ -616,7 +663,8 @@
 
   // ---------- toolbar ----------
   $('tools').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; const t = b.dataset.add;
-    if (t === 'image') return $('filePick').click(); if (t === 'link') return addLinkPrompt();
+    if (t === 'image') return $('filePick').click();
+    if (t === 'shape') { const on = !$('shapePick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('shapePick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('shapePick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     startPlacing(t); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
@@ -658,7 +706,7 @@
   // what Mochi sees: the cards (trimmed), where they are, what's selected, and what's in Unsorted
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
-      text: (c.text || c.title || c.label || '').slice(0, 300), name: c.name, kids: c.kids, desc: c.desc, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
+      text: (c.text || c.title || c.label || '').slice(0, 300), name: c.name, kids: c.kids, desc: c.desc, body: c.body ? c.body.slice(0, 600) : undefined, shape: c.shape, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
@@ -687,7 +735,7 @@
     }
     const center = centerWorld(), added = []; let i = 0;
     const place = o => { if (o.x == null || o.y == null) { o.x = center.x - 300 + (i % 3) * 250; o.y = center.y - 100 + Math.floor(i / 3) * 170; i++; } };
-    (r.add || []).forEach(o => { place(o); const c = card(o.type === 'todo' || o.type === 'title' || o.type === 'swatch' ? o.type : 'note', {
+    (r.add || []).forEach(o => { place(o); const c = card(['todo', 'title', 'swatch', 'doc'].includes(o.type) ? o.type : 'note', { body: o.type === 'doc' ? (o.body || '') : undefined,
       x: o.x, y: o.y, text: o.text || '', color: COLOR_NAMES.includes(o.color) ? o.color : 'white', hex: o.hex, label: o.label,
       items: o.items ? o.items.map(t => ({ t: typeof t === 'string' ? t : t.t, done: false })) : undefined, tagText: o.tag, name: o.name }); addCard(c); added.push(c); if (o.in) file(c, o.in); });
     // collections Mochi makes, and cards she files into them (by collection id, or by the name of one she just made)
@@ -702,6 +750,7 @@
     (r.edit || []).forEach(o => { const c = byId(o.id) || board.tray.find(x => x.id === o.id); if (!c) return;
       if (o.text != null) { if (c.type === 'link') c.title = o.text; else c.text = o.text; }
       if (o.desc != null) c.desc = o.desc;
+      if (o.body != null && c.type === 'doc') c.body = o.body;
       if (o.items) c.items = o.items.map((t, k) => ({ t: typeof t === 'string' ? t : t.t, done: (typeof t === 'object' && t.done) || (c.items?.[k]?.t === t && c.items[k].done) || false }));
       if (o.color && COLOR_NAMES.includes(o.color)) c.color = o.color;
       if (o.tag !== undefined) { if (o.tag) c.tagText = o.tag; else delete c.tagText; }
@@ -758,28 +807,82 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]] };
-  function startPlacing(type) {
-    if (placing?.type === type) return stopPlacing();
-    stopPlacing(); placing = { type }; selectOnly([]);
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]] };
+  function startPlacing(type, extra = {}) {
+    if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
+    stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
-    g.style.width = w + 'px'; g.style.height = h + 'px'; moveGhost(); stage.classList.add('placing');
+    g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape }); moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
-  function stopPlacing() { placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
+  function stopPlacing() { $('shapePick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
   function moveGhost() { if (!placing) return; const r = stage.getBoundingClientRect(), g = $('ghost'); g.style.left = mouse.x - r.left - 14 + 'px'; g.style.top = mouse.y - r.top - 14 + 'px'; g.style.transform = `scale(${view.z})`; }
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
-    const type = placing.type; stopPlacing();
-    const extra = type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
+    const type = placing.type, more = placing.extra || {}; stopPlacing();
+    const extra = type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
     const c = card(type, extra); c.x = w.x - 14 / view.z; c.y = w.y - 14 / view.z;
     if (type === 'coll') c.r = 0;
+    if (type === 'link') c.h = 52;
+    if (type === 'shape' && more.shape === 'line') { c.w = 200; c.h = 24; }
+    if (type === 'swatch') { c.label = colorName(c.hex); c.autoName = true; }
+    if (type === 'canvas') { const child = newBoard('Untitled canvas'); child.parent = board.id; child.folder = board.folder || null; c.board = child.id; MB.save(child).then(refreshBoards); }
     addCard(c); selectOnly([c.id]);
     const t = type !== 'coll' && collAt(w, new Set([c.id])); if (t) { dropInto(t, [c.id], w); save(); }
-    if (['note', 'todo', 'title'].includes(type)) setTimeout(() => startEdit(c.id), 30);
+    if (['note', 'todo', 'title', 'doc', 'canvas'].includes(type)) setTimeout(() => startEdit(c.id), 30);
     if (type === 'coll') setTimeout(() => startEdit(c.id), 30);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
+  }
+
+  // ---------- shapes: pick one from the little row, then place it ----------
+  $('shapePick').onclick = e => { const b = e.target.closest('[data-shape]'); if (!b) return; startPlacing('shape', { shape: b.dataset.shape }); $('tools').querySelector('[data-add="shape"]').classList.add('on'); };
+
+  // ---------- links: type or paste right into the card, then it fills in the site's name and picture ----------
+  function wireLinkInput(c) {
+    const el = cardsEl.querySelector(`[data-id="${c.id}"]`), inp = el?.querySelector('.link-in input'); if (!inp || inp.dataset.wired) return; inp.dataset.wired = 1;
+    if (!c.loading) setTimeout(() => { inp.focus(); inp.select(); }, 20);
+    inp.oninput = () => { c.draft = inp.value; };
+    inp.onkeydown = async ev => {
+      ev.stopPropagation();
+      if (ev.key === 'Escape') { inp.blur(); if (!inp.value.trim() && !c.title) { sel = new Set([c.id]); removeSelected(); } return; }
+      if (ev.key !== 'Enter' || !inp.value.trim()) return;
+      const u = inp.value.trim(), url = /^https?:/i.test(u) ? u : 'https://' + u;
+      c.loading = true; renderCard(c); selectOnly([c.id]);
+      let p = {}; try { p = await MB.linkPreview(url); } catch (e2) {}
+      Object.assign(c, { url, title: p.title || host(url), desc: p.desc || host(url), image: p.image || '', loading: false, draft: '' });
+      c.h = c.image ? 210 : 52; renderCard(c); selectOnly([c.id]); save();
+    };
+  }
+
+  // ---------- docs: open beside the board (or full page); back is always one click ----------
+  let docCard = null;
+  function openDoc(c) {
+    docCard = c; $('dvTitle').value = c.text || ''; $('dvBody').innerText = c.body || '';
+    $('dvWhere').textContent = `${board.name} › ${c.text || 'Untitled'}`;
+    $('docview').classList.add('on'); stage.classList.add('doc-open'); selectOnly([]);
+    setTimeout(() => (c.text ? $('dvBody') : $('dvTitle')).focus(), 250);
+  }
+  function closeDoc() { if (!docCard) return; const c = docCard; docCard = null; $('docview').classList.remove('on', 'wide'); stage.classList.remove('doc-open'); document.activeElement.blur(); renderCard(c); selectOnly([c.id]); save(); }
+  $('dvTitle').oninput = () => { if (!docCard) return; docCard.text = $('dvTitle').value; $('dvWhere').textContent = `${board.name} › ${docCard.text || 'Untitled'}`; renderCard(docCard); save(); };
+  $('dvTitle').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('dvBody').focus(); } };
+  $('dvBody').oninput = () => { if (!docCard) return; docCard.body = $('dvBody').innerText; save(); };
+  $('dvBack').onclick = closeDoc; $('dvClose').onclick = closeDoc;
+  $('dvWide').onclick = () => { const w = $('docview').classList.toggle('wide'); $('dvWide').textContent = w ? '⤡' : '⤢'; $('dvWide').title = w ? 'Half page' : 'Full page'; };
+
+  // ---------- canvases: a board inside this board, like a folder you can open ----------
+  async function openCanvas(c) {
+    if (!c.board) { const child = newBoard(c.text || 'Untitled canvas'); child.parent = board.id; child.folder = board.folder || null; c.board = child.id; await MB.save(child); }
+    board.view = view; await MB.save(board); miniCache.delete(c.board); await openBoard(c.board); fit(board.cards);
+  }
+  async function renameChild(c) { if (!c.board) return; const b = await MB.load(c.board); if (b && c.text && b.name !== c.text) { b.name = c.text; await MB.save(b); refreshBoards(); } }
+
+  // ---------- colors name themselves (until you name one yourself) ----------
+  const NAMED = { 'Black': '#000000', 'Charcoal': '#36454f', 'Slate': '#708090', 'Gray': '#808080', 'Silver': '#c0c0c0', 'Cloud': '#ecebef', 'White': '#ffffff', 'Ivory': '#fffff0', 'Cream': '#fff5c8', 'Butter': '#f3d96a', 'Lemon': '#fff44f', 'Gold': '#ffd700', 'Mustard': '#e1ad01', 'Amber': '#ffbf00', 'Tangerine': '#f28500', 'Orange': '#ff8c00', 'Peach': '#ffcba4', 'Apricot': '#fbceb1', 'Coral': '#ff7f50', 'Salmon': '#fa8072', 'Tomato': '#ff6347', 'Red': '#e0303a', 'Cherry': '#c2185b', 'Crimson': '#dc143c', 'Brick': '#b22222', 'Maroon': '#800000', 'Wine': '#722f37', 'Rose': '#ff66a3', 'Bubblegum': '#ff9ec4', 'Blush': '#ffd1dc', 'Pink': '#ffc0cb', 'Hot Pink': '#ff69b4', 'Magenta': '#ff00ff', 'Fuchsia': '#c154c1', 'Orchid': '#da70d6', 'Lilac': '#c8a2c8', 'Lavender': '#e6e6fa', 'Periwinkle': '#ccccff', 'Violet': '#8f00ff', 'Purple': '#800080', 'Plum': '#8e4585', 'Grape': '#6f2da8', 'Indigo': '#4b0082', 'Navy': '#000080', 'Midnight': '#191970', 'Royal Blue': '#4169e1', 'Cobalt': '#0047ab', 'Blue': '#1e6fff', 'Steel Blue': '#4682b4', 'Cornflower': '#6495ed', 'Sky': '#87ceeb', 'Baby Blue': '#bfdfff', 'Ice': '#dcedff', 'Powder': '#b0e0e6', 'Teal': '#008080', 'Turquoise': '#40e0d0', 'Aqua': '#00e5e5', 'Mint': '#98ff98', 'Seafoam': '#9fe2bf', 'Sage': '#9caf88', 'Pistachio': '#93c572', 'Lime': '#a4de02', 'Green': '#2e9e4f', 'Emerald': '#50c878', 'Forest': '#228b22', 'Olive': '#808000', 'Khaki': '#c3b091', 'Sand': '#e2c290', 'Tan': '#d2b48c', 'Camel': '#c19a6b', 'Caramel': '#af6f09', 'Brown': '#8b4513', 'Chocolate': '#5c3317', 'Espresso': '#3b2219' };
+  function colorName(hex) {
+    const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), [r, g, b] = rgb(hex); let best = 'Color', d = Infinity;
+    for (const [n, h] of Object.entries(NAMED)) { const [r2, g2, b2] = rgb(h), rm = (r + r2) / 2, dd = (2 + rm / 256) * (r - r2) ** 2 + 4 * (g - g2) ** 2 + (2 + (255 - rm) / 256) * (b - b2) ** 2; if (dd < d) { d = dd; best = n; } }
+    return best;
   }
 
   // ---------- the dock swaps to tools for whatever is selected ----------
@@ -796,22 +899,28 @@
     color: I('<path d="M10 3a7 7 0 1 0 0 14c1 0 1.6-.7 1.6-1.5 0-.9-.6-1.2-.6-2 0-.9.7-1.5 1.6-1.5H15a2 2 0 0 0 2-2C17 6 13.9 3 10 3z"/>'),
     name: I('<path d="M4 6V4.5h12V6M10 4.5v11M7.5 15.5h5"/>'),
     hex: I('<path d="M7 3.5l-1.5 13M14.5 3.5L13 16.5M3.5 7.5h13M3 12.5h13"/>'),
+    open: I('<path d="M11 3.5h5.5V9M16.5 3.5L9 11M14 12v3.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1H8"/>'),
+    link: I('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
   };
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards();
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { bar.dataset.key = ''; return; }
-    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex).join();
+    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Edit the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Edit the label' : 'Add a little label (like “step 1”)', !!one.tagText);
-    if (one && ['note', 'todo', 'title', 'link', 'coll'].includes(one.type)) h += btn('edit', 'edit', 'Edit the words');
+    if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
+    if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
+    if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
+    if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:${SHAPE_FILL[n]}" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
+    if (one && ['note', 'todo', 'title', 'link', 'coll', 'doc', 'canvas', 'shape'].includes(one.type) && !(one.type === 'link' && !one.url)) h += btn('edit', 'edit', 'Edit the words');
     h += `<span class="sb-sep"></span>` + btn('mochi', 'mochi', 'Ask Mochi to change ' + (one ? 'this' : 'these')) + btn('del', 'del', 'Delete');
     bar.innerHTML = h;
   }
@@ -822,6 +931,10 @@
     const redraw = () => { cs.forEach(c => renderCard(c)); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); };
     if (dot) { cs.filter(c => FILLABLE.includes(c.type)).forEach(c => c.color = dot.dataset.c); redraw(); }
     if (cdot) { one.color = cdot.dataset.cc; redraw(); }
+    const sf = e.target.closest('[data-sf]'); if (sf) { one.fill = sf.dataset.sf; redraw(); }
+    if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
+    if (a === 'visit') MB.openURL(one.url);
+    if (a === 'relink') { one.draft = one.url; one.url = ''; one.image = ''; one.h = 52; redraw(); }
     if (a === 'head') { one.head = one.head === false ? true : false; redraw(); }
     if (a === 'hidename') { one.hideName = !one.hideName; redraw(); }
     if (a === 'hidehex') { one.hideHex = !one.hideHex; redraw(); }
@@ -880,11 +993,12 @@
     if (from !== 'hex') $('cpHex').value = hex.toUpperCase();
     if (from !== 'wheel') { hsv = hex2hsv(hex); drawIfV(); }
     const named = board.palette.find(p => p.hex === hex); if (named && from !== 'name') { colorCard.label = named.name; $('cpName').value = named.name; }
+    else if (colorCard.autoName !== false && from !== 'name') { colorCard.label = colorName(hex); colorCard.autoName = true; $('cpName').value = colorCard.label; }
     $('cpSave').textContent = named ? 'Update board color' : 'Save to board colors'; $('cpSave').classList.remove('saved-ok');
     renderCard(colorCard); selectOnly([colorCard.id]); if (from !== 'wheel') save();
   }
   $('cpHex').oninput = e => { const h = normHex(e.target.value); if (h) setColor(h, 'hex'); };
-  $('cpName').oninput = e => { if (!colorCard) return; colorCard.label = e.target.value; renderCard(colorCard); selectOnly([colorCard.id]); save(); };
+  $('cpName').oninput = e => { if (!colorCard) return; colorCard.autoName = false; colorCard.label = e.target.value; renderCard(colorCard); selectOnly([colorCard.id]); save(); };
   $('cpQuick').onclick = e => { const b = e.target.closest('[data-hex]'); if (b) setColor(b.dataset.hex, 'quick'); };
   $('cpSave').onclick = () => {
     if (!colorCard) return; const name = (colorCard.label || '').trim() || colorCard.hex.toUpperCase(), hit = board.palette.find(p => p.hex === colorCard.hex);

@@ -15,7 +15,7 @@
     async save(board) {
       localStorage.setItem(LS + 'board:' + board.id, JSON.stringify(board));
       const idx = JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== board.id);
-      idx.unshift({ id: board.id, name: board.name, color: board.color, folder: board.folder || null, updated: Date.now() });
+      idx.unshift({ id: board.id, name: board.name, color: board.color, folder: board.folder || null, parent: board.parent || null, updated: Date.now() });
       localStorage.setItem(LS + 'index', JSON.stringify(idx)); return true;
     },
     async folders() { return JSON.parse(localStorage.getItem(LS + 'folders') || '[]'); },
