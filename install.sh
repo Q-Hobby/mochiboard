@@ -51,7 +51,7 @@ if ! security find-certificate -c "$CERT" >/dev/null 2>&1; then
   rm -rf "$T"
 fi
 codesign --force --deep --sign "$CERT" build/Mochiboard.app >/dev/null 2>&1 || codesign --force --deep --sign - build/Mochiboard.app >/dev/null 2>&1 || true
-pkill -x Mochiboard 2>/dev/null || true
+pkill -x Mochiboard 2>/dev/null && sleep 1.5 || true   # let the old one finish quitting before opening the new one
 mkdir -p "$HOME/Applications" && rm -rf "$APP" && cp -R build/Mochiboard.app "$APP"
 open "$APP"
 echo "  ✓ Mochiboard is in ~/Applications and open."
