@@ -74,7 +74,10 @@
   function inlineRename(el, obj, after) {
     el.contentEditable = 'true'; el.focus(); getSelection().selectAllChildren(el);
     el.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); } if (ev.key === 'Escape') { el.textContent = obj.name; el.blur(); } ev.stopPropagation(); };
-    el.onblur = async () => { el.contentEditable = 'false'; const v = el.textContent.trim(); if (v) obj.name = v; await (after ? after(v) : saveLib()); refreshBoards(); };
+    el.onblur = async () => { el.contentEditable = 'false'; const v = el.textContent.trim();
+      // the list may have reloaded while you typed, so rename the current copy (found by id), not the one we started with
+      const liveObj = [...projects, ...folders].find(x => x.id === obj.id) || obj; if (v) { liveObj.name = v; obj.name = v; }
+      await (after ? after(v) : saveLib()); renamingNow = false; refreshBoards(); };
   }
   async function newBoardIn(folderId) { const b = newBoard(); b.folder = folderId; await MB.save(b); closeHome(); await openBoard(b.id); $('boardName').focus(); $('boardName').select(); }
 
@@ -178,7 +181,9 @@
   }
   const uniqueName = (arr, base) => { let n = base, k = 2; while (byName(arr, n)) n = base + ' ' + k++; return n; };
   function renameNewest(sel, obj) { const el = [...document.querySelectorAll(`#boards ${sel}`)].find(n => n.querySelector('.fname').textContent === obj.name); if (el) inlineRename(el.querySelector('.fname'), obj); }
+  let renamingNow = false;
   async function refreshBoards() {
+    if (document.querySelector('#boards [contenteditable="true"], .home [contenteditable="true"]')) { renamingNow = true; return; }   // don't redraw under someone typing a name
     await loadLib();
     const el = $('boards'); el.innerHTML = '';
     // inside a project (on Home or on one of its boards) the left box shows just that project; in All projects it shows everything
