@@ -1033,3 +1033,7 @@ body.dark .coach-try { background: #3a2a34; } body.dark .coach-try.yay { backgro
 .m-acts button.next::before { content: "↳ "; opacity: .6; }
 .m-acts button.next:hover { background: #ffe0ee; }
 body.dark .m-acts button.next { background: #3a2a34; border-color: #5a3a4c; color: #ffb3d4; }
+/* dark mode: "on" toggles stay green (the dark gray was winning over it) */
+body.dark .tgl:checked { background: var(--mint-deep, #3fc48a); }
+body.dark .tgl::after { background: #d9d3de; }
+body.dark .tgl:checked::after { background: #fff; }
