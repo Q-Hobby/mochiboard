@@ -365,6 +365,16 @@
     saveT = setTimeout(async () => { board.view = view; await MB.save(board); $('saved').textContent = 'saved'; refreshBoards(); }, 400);
   }
 
+  // after Mochi works: glide to what she made (unless it's already in view) and let it glow for a moment
+  function showWhatMochiMade(cs) {
+    cs = [...new Set(cs)].filter(c => board.cards.includes(c)); if (!cs.length) return;
+    const r = stage.getBoundingClientRect(), L = 270, R = 260, a = toWorld(r.left + L, r.top + 60), b = toWorld(r.right - R, r.bottom - 110);
+    const inView = cs.every(c => c.x >= a.x && c.y >= a.y && c.x + c.w <= b.x && c.y + c.h <= b.y) && view.z > .45;
+    if (!inView) fit(cs, 140, 1);
+    const glow = cs.filter(c => !WF.includes(c.type) || c.type === 'frame' || !c.onFrame);   // whole screens glow, not every word on them
+    setTimeout(() => glow.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; el.classList.remove('just-made'); void el.offsetWidth; el.classList.add('just-made'); setTimeout(() => el.classList.remove('just-made'), 1900); }), inView ? 0 : 450);
+  }
+
   // ---------- view ----------
   let movingT = 0;
   function applyView() {
@@ -378,11 +388,11 @@
     const r = stage.getBoundingClientRect(), p = toWorld(cx, cy); view.z = clamp(z, .15, 3);
     view.x = cx - r.left - p.x * view.z; view.y = cy - r.top - p.y * view.z; applyView();
   }
-  function fit(cards, pad = 120) {
+  function fit(cards, pad = 120, maxZ = 1.4) {
     if (!cards.length) return; const r = stage.getBoundingClientRect();
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y)), x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
     const L = 270, R = 260;   // the open space between the left boxes and the tray
-    view.z = clamp(Math.min((r.width - L - R - pad) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, 1.4);
+    view.z = clamp(Math.min((r.width - L - R - pad) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, maxZ);
     view.x = L + (r.width - L - R - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (y1 - y0) * view.z) / 2 - y0 * view.z;
     world.style.transition = 'transform .5s cubic-bezier(.2,.8,.3,1)'; applyView(); setTimeout(() => world.style.transition = '', 520);
   }
@@ -1074,7 +1084,7 @@
     }
     layoutAll();
     renderTray(); renderWires(); save();
-    if (added.length && (r.add || r.titles || r.place || r.move || r.screens || imgs.length)) setTimeout(() => fit(board.cards), 300);
+    if (added.length) setTimeout(() => showWhatMochiMade(added), 250);
     const acts = r.confirm ? [{ label: (r.confirm || 'Yes, make it') + ' ✦', run: () => ask(q, true) }, { label: 'Not now', ghost: true, run: () => {} }] : [];
     say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), acts.length ? 0 : 9000, acts);
   }
