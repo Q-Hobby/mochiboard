@@ -342,3 +342,56 @@ html.native .home-in { padding-top: 40px; }
 .tools button::after { content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 10px); transform: translate(-50%, -3px); padding: 6px 10px; border-radius: 999px; background: var(--ink); color: #fff; font: 600 11px/1 var(--font); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; }
 .tools button:hover::after { opacity: 1; transform: translate(-50%, 0); }
 .tools .zoom { padding: 0 10px 0 6px; }
+
+/* ---------- the dock at the bottom: tools + Mochi ---------- */
+.dock { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 15; display: flex; align-items: flex-end; gap: 10px; }
+.dock .tools { position: static; transform: none; left: auto; top: auto; }
+.dock .tools button::after { top: auto; bottom: calc(100% + 12px); transform: translate(-50%, 3px); }
+.dock .tools button:hover::after { transform: translate(-50%, 0); }
+.dock .tools button.on { background: var(--blush); }
+.dock .tools button.on .ic { color: var(--ink); }
+.dock.ctx .tools { display: none; }
+.dock .mochi { position: relative; left: auto; bottom: auto; transform: none; }
+.dock .m-bubble { position: absolute; right: 0; bottom: calc(100% + 12px); margin: 0; width: max-content; }
+.dock .selbar { position: static; transform: none; height: 50px; padding: 6px; box-shadow: 0 8px 26px rgba(120, 80, 120, .14); }
+.selbar .sb-ic { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; }
+.selbar .sb-ic svg { width: 18px; height: 18px; }
+.selbar button.on { background: var(--blush); }
+.selbar .sb-label { font: 600 12px/1 var(--font); color: var(--ink-soft); padding: 0 8px 0 10px; }
+.linkbox { top: auto; bottom: 84px; }
+.top { max-width: calc(100% - var(--side) - 340px); }
+.side { bottom: 84px; }
+.keys { left: 22px; bottom: 14px; width: var(--side); flex-wrap: wrap; white-space: normal; gap: 4px 10px; }
+/* placing: the new thing rides on the cursor until you click */
+.stage.placing, .stage.placing * { cursor: copy !important; }
+.ghost { position: absolute; z-index: 40; pointer-events: none; display: none; border-radius: 16px; background: rgba(255, 255, 255, .85); box-shadow: 0 14px 34px rgba(120, 80, 120, .22), 0 0 0 1.5px var(--select); transform-origin: 0 0; }
+.ghost.on { display: block; }
+.ghost span { position: absolute; left: 14px; top: 12px; font: 600 13px/1 var(--font); color: var(--ink-soft); }
+.ghost.coll { background: none; box-shadow: none; }
+.ghost.coll::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 40px; border-radius: 14px; background: #ffb8d2; opacity: .9; }
+.ghost.coll::after { content: ""; position: absolute; left: 0; right: 0; top: 52px; bottom: 0; border-radius: 18px; background: #ffe3ee; opacity: .9; box-shadow: 0 14px 34px rgba(120, 80, 120, .18); }
+.ghost.coll span { top: 13px; left: 50%; transform: translateX(-50%); z-index: 1; color: var(--ink); }
+/* notes have a name above the words */
+.card.note .nname { font: 700 15px/1.3 var(--font); margin-bottom: 6px; outline: none; min-height: 1em; }
+.card.note .nname:empty { display: none; }
+.card.note.sel .nname:empty, .card.note.editing .nname:empty { display: block; }
+.card.note .nname:empty::before { content: "Card name"; color: var(--ink-faint); font-weight: 600; }
+.card.note .text:empty::before { content: "Type something…"; }
+/* ---------- collections: a named header over a frame that stacks its cards ---------- */
+.card.coll { z-index: 0 !important; rotate: 0deg !important; }
+.card.coll > .frame { display: none; }
+.card.coll > .body { padding: 0; overflow: visible; }
+.coll-head { position: absolute; left: 0; right: 0; top: 0; height: 40px; border-radius: 14px; background: var(--chead); display: grid; place-items: center; padding: 0 16px; cursor: grab; }
+.coll-head .text { font: 700 15px/1.2 var(--font); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; outline: none; min-width: 2em; }
+.coll-head .text:empty::before { content: "Name…"; color: rgba(73, 72, 72, .45); }
+.coll-frame { position: absolute; left: 0; right: 0; top: 52px; bottom: 0; border-radius: 22px; background: var(--cframe); }
+.coll-frame::before { content: ""; position: absolute; inset: 0; border-radius: inherit; filter: url(#wob); background: inherit; }
+.card.coll.nohead .coll-head { display: none; }
+.card.coll.nohead .coll-frame { top: 0; }
+.coll-empty { position: absolute; left: 0; right: 0; top: 52px; bottom: 0; display: grid; place-items: center; font: 600 12px/1 var(--font); color: rgba(73, 72, 72, .45); pointer-events: none; }
+.card.coll.nohead .coll-empty { top: 0; }
+.card.coll.drop-in .coll-frame { box-shadow: 0 0 0 3px var(--select); }
+.card.coll.drop-col .coll-frame { box-shadow: 6px 0 0 0 var(--select); }
+.card.coll.sel::after { inset: -6px; }
+.card.inside { rotate: 0deg !important; }
+.card.inside.dragging { rotate: -1.5deg !important; }

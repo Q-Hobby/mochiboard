@@ -165,11 +165,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         Reply with ONLY one JSON object, no other words before or after it. Use only the keys you need:
         {"say": "a short, friendly reply in first person (1 to 3 sentences, no em dashes)",
          "add": [{"type": "note" | "todo" | "title" | "swatch", "text": "...", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
-                  "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label"}],
+                  "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label",
+                  "name": "optional bold name above a note's words", "in": "optional: a collection id, or the name of a collection in this reply, to stack it inside"}],
          "titles": [{"text": "group name", "x": 0, "y": 0}],
+         "collections": [{"name": "Loading", "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0}],
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
          "edit": [{"id": "existing card id", "text": "new words (a note, title, list heading, or a link's title)", "items": ["the full new list, for a todo"], "desc": "a link's note",
-                   "color": "white|pink|butter|mint|lilac|sky|peach", "tag": "the little handwritten label above a card (\"\" removes it)", "hex": "#rrggbb", "label": "swatch name"}],
+                   "color": "white|pink|butter|mint|lilac|sky|peach", "tag": "the little handwritten label above a card (\"\" removes it)", "hex": "#rrggbb", "label": "swatch name",
+                   "name": "a note's bold name", "in": "a collection id to move it into (null takes it out)"}],
          "remove": ["card id"],
          "place": [{"id": "an unsorted card id", "x": 0, "y": 0}],
          "connect": [["card id", "card id"]],
@@ -179,6 +182,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                      "move": [{"board": "board id", "folder": "folder name, or null to take it out of its folder"}]}}
         "library" is their whole Mochiboard: projects hold folders, folders hold boards. Use "projects"/"folders" when they ask to organize, group, file or move boards, folders or projects. \
         Moving a board into a folder that doesn't exist yet creates it; filing a folder into a project that doesn't exist yet creates the project. Never invent board ids: only use ids from "library".
+        A "coll" card is a COLLECTION: a named column whose "kids" stack inside it automatically (you never position its kids). \
+        Prefer collections for grouping (screen states, themes, steps): make them with "collections" and put cards in with "in". \
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 

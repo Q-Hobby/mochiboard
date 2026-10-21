@@ -55,15 +55,7 @@
     <span class="saved" id="saved">saved</span>
   </header>
 
-  <div class="tools" id="tools">
-    <button data-add="note" aria-label="Note · N" data-tip="Note · N"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5h11a1 1 0 0 1 1 1v7.5l-4.5 4.5H4.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"/><path d="M16.5 12h-3.5a1 1 0 0 0-1 1v3.5"/></svg></button>
-    <button data-add="todo" aria-label="Checklist · C" data-tip="Checklist · C"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="4" rx="1.2"/><path d="m3.9 13.2 1.1 1.1 2-2.2"/><path d="M10 6h7M10 13.5h7"/></svg></button>
-    <button data-add="title" aria-label="Big title · T" data-tip="Big title · T"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5V4h12v1.5M10 4v12M7.5 16h5"/></svg></button>
-    <button data-add="link" aria-label="Link · L" data-tip="Link · L"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/></svg></button>
-    <button data-add="image" aria-label="Image · I" data-tip="Image · I"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2.5"/><circle cx="7.5" cy="8" r="1.5"/><path d="m17 13-3.8-3.6L5 16.5"/></svg></button>
-    <button data-add="swatch" aria-label="Color" data-tip="Color"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a7 7 0 1 0 0 14c1 0 1.6-.7 1.6-1.5 0-.9-.6-1.2-.6-2 0-.9.7-1.5 1.6-1.5H15a2 2 0 0 0 2-2C17 6 13.9 3 10 3z"/><circle cx="6.8" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="6.3" r=".9" fill="currentColor" stroke="none"/><circle cx="12.4" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></button>
-    <span class="zoom" id="zoom">100%</span>
-  </div>
+
 
   <aside class="tray" id="tray">
     <div class="tray-head"><span class="label">Unsorted</span><b id="trayCount">0</b></div>
@@ -80,30 +72,38 @@
     </div>
   </section>
 
-  <!-- Mochi: her pill, her bar, her bubble -->
-  <div class="mochi" id="mochi">
-    <div class="m-bubble" id="mBubble"><small>mochi</small><p id="mSay"></p><div class="m-acts" id="mActs"></div></div>
-    <div class="m-pill" id="mPill">
-      <canvas id="goo" width="64" height="56"></canvas>
-      <span class="m-name" id="mName">Mochi</span>
-      <form id="mForm" class="m-form"><input id="mInput" placeholder="Ask Mochi… “group these by theme”" autocomplete="off"></form>
+  <!-- the dock: tools (or tools for what's selected) and Mochi, together at the bottom -->
+  <div class="dock" id="dock">
+  <div class="tools" id="tools">
+      <button data-add="note" aria-label="Note · N" data-tip="Note · N"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5h11a1 1 0 0 1 1 1v7.5l-4.5 4.5H4.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z"/><path d="M16.5 12h-3.5a1 1 0 0 0-1 1v3.5"/></svg></button>
+      <button data-add="todo" aria-label="Checklist · C" data-tip="Checklist · C"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="4" rx="1.2"/><path d="m3.9 13.2 1.1 1.1 2-2.2"/><path d="M10 6h7M10 13.5h7"/></svg></button>
+      <button data-add="title" aria-label="Big title · T" data-tip="Big title · T"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5V4h12v1.5M10 4v12M7.5 16h5"/></svg></button>
+      <button data-add="coll" aria-label="Collection · G" data-tip="Collection · G"><svg class="ic" viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="4" rx="1.5"/><rect x="3" y="9.5" width="6" height="7.5" rx="1.5"/><rect x="11" y="9.5" width="6" height="7.5" rx="1.5"/></svg></button>
+      <button data-add="link" aria-label="Link · L" data-tip="Link · L"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/></svg></button>
+      <button data-add="image" aria-label="Image · I" data-tip="Image · I"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2.5"/><circle cx="7.5" cy="8" r="1.5"/><path d="m17 13-3.8-3.6L5 16.5"/></svg></button>
+      <button data-add="swatch" aria-label="Color" data-tip="Color"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a7 7 0 1 0 0 14c1 0 1.6-.7 1.6-1.5 0-.9-.6-1.2-.6-2 0-.9.7-1.5 1.6-1.5H15a2 2 0 0 0 2-2C17 6 13.9 3 10 3z"/><circle cx="6.8" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="6.3" r=".9" fill="currentColor" stroke="none"/><circle cx="12.4" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></button>
+      <span class="zoom" id="zoom">100%</span>
     </div>
+    <div class="selbar" id="selbar"></div>
+  <!-- Mochi: her pill, her bar, her bubble -->
+    <div class="mochi" id="mochi">
+      <div class="m-bubble" id="mBubble"><small>mochi</small><p id="mSay"></p><div class="m-acts" id="mActs"></div></div>
+      <div class="m-pill" id="mPill">
+        <canvas id="goo" width="64" height="56"></canvas>
+        <span class="m-name" id="mName">Mochi</span>
+        <form id="mForm" class="m-form"><input id="mInput" placeholder="Ask Mochi… “group these by theme”" autocomplete="off"></form>
+      </div>
+    </div>
+  
+    <!-- paste a link: drops under the toolbar -->
+    <form class="linkbox" id="linkbox"><input id="linkInput" placeholder="Paste a link… (a site, a Figma file, a video)" autocomplete="off" spellcheck="false"><button>Add</button></form>
   </div>
+  <div class="ghost" id="ghost"></div>
 
-  <!-- paste a link: drops under the toolbar -->
-  <form class="linkbox" id="linkbox"><input id="linkInput" placeholder="Paste a link… (a site, a Figma file, a video)" autocomplete="off" spellcheck="false"><button>Add</button></form>
   <div class="capture" id="capture">
     <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
   </div>
   <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> drag to pan</span><button id="keysX" title="Hide">×</button></div>
-  <!-- the little bar above whatever is selected: fill color, a label, edit, ask Mochi, delete -->
-  <div class="selbar" id="selbar">
-    <div class="sb-dots" id="sbDots"></div><span class="sb-sep"></span>
-    <button data-sb="tag" title="Add or edit the little label above the card">+ Label</button>
-    <button data-sb="edit" title="Edit the words">Edit</button>
-    <button data-sb="mochi" title="Ask Mochi to change this">✦ Ask Mochi</button>
-    <button data-sb="del" class="sb-del" title="Delete">×</button>
-  </div>
   <!-- the color editor: pops up beside a color card -->
   <div class="cpop" id="cpop">
     <div class="wheel" id="wheel"><canvas id="wheelCv" width="440" height="440"></canvas><i class="ring" id="wheelRing"></i></div>
