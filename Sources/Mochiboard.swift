@@ -86,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             connections { reply(true, $0) }
         case "fetchImage":
             fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
+        case "speechAuth":
+            SFSpeechRecognizer.requestAuthorization { st in reply(true, st == .authorized ? "ok" : st == .notDetermined ? "ask" : "off") }
         case "transcribe":
             transcribe(args["audio"] as? String ?? "") { ok, text in reply(ok, text) }
         case "reveal":

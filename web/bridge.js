@@ -24,6 +24,7 @@
     async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true }; },
     async fetchImage(url) { return url; },
     async openURL(url) { window.open(url, '_blank'); },
+    async speechAuth() { return 'ok'; },
     async transcribe() { throw new Error('Mochi writes out voice memos in the Mac app'); },
     async reveal() { alert('Your boards live in this browser while you try Mochiboard here. In the Mac app this opens their folder.'); },
     async linkPreview(url) { let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {} return { title: host, desc: url, image: '' }; },
@@ -45,6 +46,6 @@
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false) => call('ask', { prompt, board, confirmed }),
-    connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }),
+    connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'),
   } : Object.assign({ native: false }, browser);
 })();

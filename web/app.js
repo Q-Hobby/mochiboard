@@ -774,7 +774,7 @@
     if (k === 's') $('tools').querySelector('[data-add="shape"]').click();
     if (k === 'e') $('tools').querySelector('[data-add="stamp"]').click();
     if (k === 'l') startPlacing('link');
-    if (k === 'a') startPlacing('audio');
+    if (k === 'a') readyToRecord().then(ok => ok && startPlacing('audio'));
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
     if (k === 'm') { e.preventDefault(); mochiOpen(true); }
@@ -792,6 +792,7 @@
     if (t === 'image') return $('filePick').click();
     if (t === 'stamp') { const on = !$('stampWheel').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); ['stampWheel', 'stampPick'].forEach(id => $(id).style.left = (r.left + r.width / 2 - sr.left) + 'px'); renderWheel(); $('stampWheel').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'shape') { const on = !$('shapePick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('shapePick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('shapePick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
+    if (t === 'audio') return readyToRecord().then(ok => ok && startPlacing('audio'));
     startPlacing(t); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
@@ -994,6 +995,17 @@
   const live = new Map();     // card id → { recorder, stream, timer, ... } while recording
   const players = new Map();  // card id → Audio
   function fitAudio(c, el) { const b = el.querySelector('.body'); if (!b) return; b.style.height = 'auto'; const h = Math.max(150, b.offsetHeight); b.style.height = ''; if (Math.abs(h - c.h) > 2) { c.h = h; el.style.height = h + 'px'; renderWires(); } }
+  // the first time someone picks the voice memo tool, ask for the mic (and speech) right then; macOS remembers the answer
+  let micOK = false;
+  async function readyToRecord() {
+    if (micOK) return true;
+    try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach(t => t.stop()); }
+    catch (e) { say("Mochiboard needs the microphone for voice memos. Turn it on in System Settings → Privacy & Security → Microphone, then try again ✦", 10000); return false; }
+    micOK = true;
+    const sp = await MB.speechAuth().catch(() => 'off');
+    if (sp === 'off') say("Recording works! To have me write memos out, turn on Speech Recognition for Mochiboard in System Settings → Privacy & Security.", 9000);
+    return true;
+  }
   async function record(c) {
     let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch (e) { say("I can't hear you yet. Let Mochiboard use the microphone (System Settings → Privacy & Security → Microphone), then try again.", 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
