@@ -78,11 +78,54 @@
   }
   async function newBoardIn(folderId) { const b = newBoard(); b.folder = folderId; await MB.save(b); closeHome(); await openBoard(b.id); $('boardName').focus(); $('boardName').select(); }
 
+  // ---------- right-click in the left box: duplicate or delete a board, folder or project ----------
+  // copying a board also copies the canvases inside it, so the copy doesn't share them
+  async function copyBoard(id, into = {}) {
+    const b = await MB.load(id); if (!b) return null;
+    const c = JSON.parse(JSON.stringify(b)); c.id = uid(); Object.assign(c, into);
+    for (const k of c.cards) if (k.type === 'canvas' && k.board) { const kid = await copyBoard(k.board, { parent: c.id, folder: c.folder || null }); if (kid) k.board = kid.id; }
+    await MB.save(c); return c;
+  }
+  async function dropBoard(id) { for (const k of boardList.filter(x => x.parent === id)) await dropBoard(k.id); await MB.remove(id); }
+  async function duplicate(kind, obj) {
+    if (kind === 'board') { const c = await copyBoard(obj.id, { name: obj.name + ' copy' }); await refreshBoards(); if (c) say(`Made “${c.name}” ✦`, 3500); return; }
+    if (kind === 'folder') { const f = { id: uid(), name: obj.name + ' copy', project: obj.project || null, open: true }; folders.push(f); await saveLib(); for (const b of boardsIn(obj.id)) await copyBoard(b.id, { folder: f.id }); }
+    if (kind === 'project') { const p = { id: uid(), name: obj.name + ' copy', color: obj.color, open: true }; projects.push(p); await saveLib();
+      for (const f0 of foldersIn(obj.id)) { const f = { id: uid(), name: f0.name, project: p.id, open: true }; folders.push(f); await saveLib(); for (const b of boardsIn(f0.id)) await copyBoard(b.id, { folder: f.id }); } }
+    await refreshBoards(); say(`Made “${obj.name} copy” ✦`, 3500);
+  }
+  async function destroy(kind, obj) {
+    const ids = kind === 'board' ? [obj.id] : kind === 'folder' ? boardsIn(obj.id).map(b => b.id) : foldersIn(obj.id).flatMap(f => boardsIn(f.id).map(b => b.id));
+    for (const id of ids) await dropBoard(id);
+    if (kind === 'folder') folders = folders.filter(f => f !== obj);
+    if (kind === 'project') { const fs = foldersIn(obj.id); folders = folders.filter(f => !fs.includes(f)); projects = projects.filter(p => p !== obj); }
+    await saveLib(); await refreshBoards();
+    if (board && ids.includes(board.id)) { let list = await MB.list(); if (!list.length) { const b = newBoard('My first board'); await MB.save(b); list = await MB.list(); } await openBoard(list[0].id); }
+  }
+  function rowMenu(e, kind, obj) {
+    e.preventDefault(); e.stopPropagation(); $('rowMenu')?.remove();
+    const n = kind === 'board' ? 1 + boardList.filter(x => x.parent === obj.id).length : kind === 'folder' ? boardsIn(obj.id).length : foldersIn(obj.id).reduce((t, f) => t + boardsIn(f.id).length, 0);
+    const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
+    m.innerHTML = `<button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+    document.body.appendChild(m);
+    const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
+    m.onclick = async ev => {
+      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return;
+      if (a === 'dup') { m.remove(); return duplicate(kind, obj); }
+      if (a === 'del') { // ask first: deleting can't be undone
+        const what = kind === 'board' ? (n > 1 ? `and the ${n - 1} canvas${n > 2 ? 'es' : ''} inside it` : '') : n ? `and the ${n} board${n === 1 ? '' : 's'} inside it` : '';
+        m.innerHTML = `<p>Delete “${esc(obj.name)}” ${what}? This can't be undone.</p><div><button data-m="yes" class="danger solid">Delete</button><button data-m="no">Cancel</button></div>`; return; }
+      if (a === 'yes') { m.remove(); return destroy(kind, obj); }
+      if (a === 'no') m.remove();
+    };
+    setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true));
+  }
+
   // the left box: a small tree (projects ▸ folders ▸ boards)
   function boardRow(b) {
     const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : '');
     r.innerHTML = `<i style="background:${tint(b.color)}"></i><span></span>`; r.querySelector('span').textContent = b.name;
-    r.onclick = () => { closeHome(); openBoard(b.id); }; draggable(r, 'board', b.id);
+    r.onclick = () => { closeHome(); openBoard(b.id); }; draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b);
     const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
     const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
     kids.forEach(k => sub.appendChild(boardRow(k))); frag.appendChild(r); frag.appendChild(sub); return frag;
@@ -108,7 +151,7 @@
       if (name.isContentEditable) return;
       f.open = !f.open; wrap.classList.toggle('open', f.open); saveLib();
     };
-    draggable(wrap.querySelector('.node-head'), 'folder', f.id);
+    draggable(wrap.querySelector('.node-head'), 'folder', f.id); wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'folder', f);
     dropZone(wrap.querySelector('.node-head'), 'board', id => moveBoard(id, f.id).then(() => { f.open = true; }));
     return wrap;
   }
@@ -123,6 +166,7 @@
       if (name.isContentEditable) return;
       p.open = !p.open; wrap.classList.toggle('open', p.open); saveLib();
     };
+    wrap.querySelector('.node-head').oncontextmenu = e => rowMenu(e, 'project', p);
     dropZone(wrap.querySelector('.node-head'), 'folder', id => { const f = folders.find(x => x.id === id); if (f) { f.project = p.id; p.open = true; } });
     return wrap;
   }

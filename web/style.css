@@ -459,3 +459,13 @@ html.native .dv-bar { padding-top: 14px; }
 .docview.wide .dv-bar { padding-left: calc(var(--side) + 30px); }
 .card.doc.drop-in .frame { box-shadow: 0 0 0 3px var(--select), 0 10px 30px rgba(120, 80, 120, .1); }
 .docview.drop .dv-page { box-shadow: inset 0 0 0 3px var(--select); background: #f7fbff; }
+
+/* right-click menu in the left box */
+.row-menu { position: fixed; z-index: 100; min-width: 150px; max-width: 240px; padding: 5px; border-radius: 14px; background: #fff; box-shadow: 0 14px 36px rgba(120, 80, 120, .24), 0 0 0 1px rgba(120, 80, 120, .06); display: flex; flex-direction: column; }
+.row-menu button { padding: 9px 12px; border: 0; border-radius: 10px; background: none; text-align: left; font: 600 12.5px/1 var(--font); color: var(--ink); cursor: pointer; }
+.row-menu button:hover { background: var(--blush); }
+.row-menu .danger { color: #d6455d; }
+.row-menu p { margin: 6px 8px 10px; font: 500 12.5px/1.45 var(--font); color: var(--ink); }
+.row-menu div { display: flex; gap: 6px; padding: 0 4px 4px; }
+.row-menu div button { flex: 1; text-align: center; border: 1.5px solid #eee5f0; }
+.row-menu .danger.solid { background: #e0566d; border-color: #e0566d; color: #fff; }
