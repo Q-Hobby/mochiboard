@@ -43,7 +43,16 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 6px; border-radius: 6px; backgr
 .grid { position: absolute; inset: 0; background-image: radial-gradient(var(--dot) 1.4px, transparent 1.8px); background-size: 26px 26px; pointer-events: none; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .wires { position: absolute; left: -5000px; top: -5000px; width: 10000px; height: 10000px; overflow: visible; pointer-events: none; }
-.wires path { fill: none; stroke: var(--ink-faint); stroke-width: 2; stroke-dasharray: 6 6; stroke-linecap: round; }
+.wires path { fill: none; stroke: var(--ink-soft); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wires path.dash { stroke-dasharray: 6 7; }
+.wires path.on, .wires path.w-arrow.on { stroke: var(--select); }
+.wires path.w-hit { stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+.wires path.w-hit:hover + path, .wires path.w:hover { stroke: var(--ink); }
+.wires circle.w-end, .wires circle.w-bend { fill: #fff; stroke: var(--select); stroke-width: 2.5; pointer-events: all; cursor: grab; }
+.wires circle.w-bend { fill: var(--select); stroke: #fff; }
+.selbar .sb-txt { height: 34px; padding: 0 11px; border: 0; border-radius: 999px; background: none; font: 600 12px/1 var(--font); color: var(--ink-soft); cursor: pointer; }
+.selbar .sb-txt:hover { background: var(--blush); color: var(--ink); }
+.selbar .sb-txt.on { background: var(--ink); color: #fff; }
 .wires path.live { stroke: var(--select); stroke-dasharray: none; }
 .wires circle { fill: var(--ink-faint); }
 
@@ -530,3 +539,15 @@ html.native .dv-bar { padding-top: 14px; }
 .sb-sizes button { min-width: 30px; height: 34px; padding: 0 7px; border: 0; border-radius: 999px; background: none; font: 700 11.5px/1 var(--font); color: var(--ink-soft); cursor: pointer; }
 .sb-sizes button:hover { background: var(--blush); color: var(--ink); }
 .sb-sizes button.on { background: var(--ink); color: #fff; }
+
+/* bold / italic / underline / strikethrough, for the whole card's words */
+.card :is(.text, .nname, .head, li span) { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.card.t-bold :is(.text, .nname, .head, li span) { font-weight: 800; }
+.card.t-nobold :is(.text, .nname, .head, li span) { font-weight: 400; }
+.card.t-italic :is(.text, .nname, .head, li span) { font-style: italic; }
+.card.t-under :is(.text, .nname, .head, li span) { text-decoration-line: underline; }
+.card.t-strike :is(.text, .nname, .head, li span) { text-decoration-line: line-through; }
+.card.t-under.t-strike :is(.text, .nname, .head, li span) { text-decoration-line: underline line-through; }
+.sb-style button { font-family: Georgia, serif; font-size: 14px; min-width: 30px; }
+.sb-style button b { font-weight: 800; } .sb-style button i { font-style: italic; }
+.card .nname:empty, .card .text:empty { text-decoration-line: none !important; font-style: normal !important; }

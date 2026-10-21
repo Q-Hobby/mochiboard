@@ -366,6 +366,7 @@
     el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff');
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     el.style.setProperty('--fs', FS[c.fs] || 1);
+    ['bold', 'italic', 'under', 'strike'].forEach(k => { el.classList.toggle('t-' + k, c[k] === true); el.classList.toggle('t-no' + k, c[k] === false); });
     if (c.type === 'doc') el.classList.toggle('has-body', !!(c.body || '').trim());
     if (c.type === 'stamp') { el.style.setProperty('--sz', c.w + 'px'); if (c.mv) el.classList.add('mv-' + c.mv); }
     if (c.type === 'link') el.classList.toggle('compact', !c.url || !c.image);
@@ -447,21 +448,43 @@
     s.kids.splice(at, 0, ...ids); ids.forEach(id => s.colOf[id] = col);
   }
 
+  // ---------- connectors: curved lines from edge to edge; select one to bend it, re-attach it, or restyle it ----------
+  let selWire = null;
+  const center = c => ({ x: c.x + c.w / 2, y: c.y + (c.type === 'title' ? 25 : c.h / 2) });
+  function edgePoint(c, toward) {   // where the line from a card's center toward a point leaves the card
+    const m = center(c), dx = toward.x - m.x, dy = toward.y - m.y, hw = c.w / 2 + 6, hh = (c.type === 'title' ? 25 : c.h / 2) + 6;
+    const k = Math.min(Math.abs(dx) ? hw / Math.abs(dx) : Infinity, Math.abs(dy) ? hh / Math.abs(dy) : Infinity, 1);
+    return { x: m.x + dx * k, y: m.y + dy * k };
+  }
+  function wireGeom(l, a, b) {
+    const ca = center(a), cb = center(b), p0 = edgePoint(a, cb), p2 = edgePoint(b, ca);
+    const dx = p2.x - p0.x, dy = p2.y - p0.y, len = Math.hypot(dx, dy) || 1, n = { x: -dy / len, y: dx / len }, mid = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 };
+    const bend = l.bend ?? Math.min(80, len * .2);   // a gentle curve unless you've set your own
+    const c1 = { x: mid.x + n.x * bend, y: mid.y + n.y * bend }, handle = { x: mid.x + n.x * bend / 2, y: mid.y + n.y * bend / 2 };
+    return { p0, p2, c1, handle, mid, n };
+  }
   function renderWires(live) {
     const O = 5000; let h = '';
-    const mid = c => ({ x: c.x + c.w / 2 + O, y: c.y + (c.type === 'title' ? 25 : c.h / 2) + O });
-    const path = (a, b) => { const dx = Math.max(60, Math.abs(b.x - a.x) * .4); return `M${a.x} ${a.y} C${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`; };
-    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (a && b) h += `<path d="${path(mid(a), mid(b))}"/>`; });
-    if (live) h += `<path class="live" d="${path({ x: live.a.x + O, y: live.a.y + O }, { x: live.b.x + O, y: live.b.y + O })}"/>`;
+    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b);
+      const d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`, on = selWire === l.id;
+      let arrow = '';
+      if (l.arrow) { const ux = g.p2.x - g.c1.x, uy = g.p2.y - g.c1.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, tip = { x: g.p2.x + O, y: g.p2.y + O };
+        arrow = `<path class="w-arrow${on ? ' on' : ''}" d="M${tip.x - ax * 11 - ay * 7} ${tip.y - ay * 11 + ax * 7} L${tip.x} ${tip.y} L${tip.x - ax * 11 + ay * 7} ${tip.y - ay * 11 - ax * 7}"/>`; }
+      h += `<path class="w${l.dash ? ' dash' : ''}${on ? ' on' : ''}" d="${d}"/>${arrow}<path class="w-hit" data-wire="${l.id}" d="${d}"/>`;
+      if (on) h += `<circle class="w-end" data-end="a" data-wire="${l.id}" cx="${g.p0.x + O}" cy="${g.p0.y + O}" r="6"/><circle class="w-end" data-end="b" data-wire="${l.id}" cx="${g.p2.x + O}" cy="${g.p2.y + O}" r="6"/><circle class="w-bend" data-wire="${l.id}" cx="${g.handle.x + O}" cy="${g.handle.y + O}" r="7"/>`;
+    });
+    if (live) { const a = live.a, b = live.b; h += `<path class="live" d="M${a.x + O} ${a.y + O} Q${(a.x + b.x) / 2 + O} ${(a.y + b.y) / 2 - 30 + O} ${b.x + O} ${b.y + O}"/>`; }
     wires.innerHTML = h;
   }
+  const linkById = id => board.links.find(l => l.id === id);
+  function selectWire(id) { selWire = id; if (id) selectOnly([]); renderWires(); }
   const byId = id => board.cards.find(c => c.id === id);
   function renderTray() {
     const list = $('trayList'); list.innerHTML = ''; $('trayCount').textContent = board.tray.length;
     board.tray.forEach(c => { const d = document.createElement('div'); d.className = 'tray-item'; d.dataset.id = c.id; d.style.setProperty('--tilt', (c.r / 2) + 'deg');
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
   }
-  function selectOnly(ids) { sel = new Set(ids); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
+  function selectOnly(ids) { if (ids.length && selWire) { selWire = null; renderWires(); } sel = new Set(ids); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
 
   // ---------- adding things ----------
   function addCard(c, pop = true) { board.cards.push(c); renderCard(c, pop); save(); return c; }
@@ -553,6 +576,15 @@
     if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
+    const wireEl = e.target.closest('[data-wire]');
+    if (wireEl && !space) {
+      const l = linkById(wireEl.dataset.wire); if (!l) return;
+      if (wireEl.classList.contains('w-bend')) drag = { mode: 'bend', l };
+      else if (wireEl.dataset.end) drag = { mode: 'rewire', l, end: wireEl.dataset.end };
+      else { selectWire(l.id); return; }
+      stage.setPointerCapture(e.pointerId); return;
+    }
+    if (selWire && !el) selectWire(null);
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
       const id = el.dataset.id, c = byId(id);
@@ -592,6 +624,9 @@
     if (drag.mode === 'resize' && byId(drag.id).type === 'stamp') { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'bend') { const a = byId(drag.l.a), b = byId(drag.l.b); if (a && b) { drag.l.bend = 0; const g = wireGeom(drag.l, a, b), bend = 2 * ((w.x - g.mid.x) * g.n.x + (w.y - g.mid.y) * g.n.y);
+      drag.l.bend = Math.abs(bend) < 12 ? 0 : Math.round(bend); renderWires(); } }   // pull it flat and it snaps straight
+    if (drag.mode === 'rewire') { const keep = byId(drag.end === 'a' ? drag.l.b : drag.l.a); if (keep) renderWires({ a: center(keep), b: w }); }
     if (drag.mode === 'marquee') {
       const m = $('marquee'), r = stage.getBoundingClientRect(), x0 = Math.min(drag.sx, e.clientX), y0 = Math.min(drag.sy, e.clientY), x1 = Math.max(drag.sx, e.clientX), y1 = Math.max(drag.sy, e.clientY);
       Object.assign(m.style, { display: 'block', left: x0 - r.left + 'px', top: y0 - r.top + 'px', width: x1 - x0 + 'px', height: y1 - y0 + 'px' });
@@ -628,6 +663,11 @@
       }
     }
     if (d.mode === 'resize') save();
+    if (d.mode === 'bend') save();
+    if (d.mode === 'rewire') {
+      const w = toWorld(e.clientX, e.clientY), other = d.end === 'a' ? d.l.b : d.l.a, t = [...board.cards].reverse().find(c => c.id !== other && c.type !== 'coll' && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h);
+      if (t) { d.l[d.end] = t.id; save(); } renderWires();
+    }
     if (d.mode === 'wire') {
       const w = toWorld(e.clientX, e.clientY), t = [...board.cards].reverse().find(c => c.id !== d.id && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h);
       if (t && !board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id))) { board.links.push({ id: uid(), a: d.id, b: t.id }); save(); }
@@ -691,10 +731,13 @@
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
+    if (e.key === 'Escape' && selWire) { selectWire(null); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing || homeAt) return;
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && selWire) { board.links = board.links.filter(l => l.id !== selWire); selWire = null; renderWires(); save(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) removeSelected();
+    if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase()) && sel.size) { e.preventDefault(); $('selbar').querySelector(`[data-ts="${{ b: 'bold', i: 'italic', u: 'under' }[e.key.toLowerCase()]}"]`)?.click(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectOnly(board.cards.map(c => c.id)); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); const copies = [...sel].map(id => Object.assign(JSON.parse(JSON.stringify(byId(id))), { id: uid(), r: tilt() })); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -816,6 +859,7 @@
       if (o.tag !== undefined) { if (o.tag) c.tagText = o.tag; else delete c.tagText; }
       if (o.hex && /^#[0-9a-f]{6}$/i.test(o.hex)) c.hex = o.hex.toLowerCase();
       if (o.label != null) c.label = o.label;
+      ['bold', 'italic', 'under', 'strike'].forEach(k => { if (typeof o[k] === 'boolean') c[k] = o[k]; });
       if (o.size && FS[o.size]) { if (o.size === 'm') delete c.fs; else c.fs = o.size; }
       if (o.name != null && c.type === 'note') c.name = o.name;
       if (o.in !== undefined) { if (o.in) file(c, o.in); else { const from = parentOf(c.id); if (from) from.kids = from.kids.filter(x => x !== c.id); } }
@@ -1034,10 +1078,15 @@
     link: I('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
   };
   function placeSelbar() {
-    const bar = $('selbar'), dock = $('dock'), cs = selCards();
+    const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
+    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow; if (bar.dataset.key === key) return; bar.dataset.key = key;
+      const tb = (a, label, on, tip) => `<button class="sb-txt ${on ? 'on' : ''}" data-wb="${a}" title="${tip}">${label}</button>`;
+      bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0, 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0, 'Straight line')
+        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
+      return; }
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { bar.dataset.key = ''; return; }
-    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs).join();
+    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
     let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
@@ -1053,18 +1102,34 @@
     if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:${SHAPE_FILL[n]}" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     const sized = cs.filter(c => SIZED.includes(c.type));
     if (sized.length) { const cur = sized.every(c => (c.fs || 'm') === (sized[0].fs || 'm')) ? (sized[0].fs || 'm') : '';
+      // bold is on by default for titles and collection names, off for everything else
+      const isOn = (c, k) => c[k] ?? (k === 'bold' && ['title', 'coll'].includes(c.type));
+      const ST = [['bold', '<b>B</b>', 'Bold'], ['italic', '<i>I</i>', 'Italic'], ['under', '<u>U</u>', 'Underline'], ['strike', '<s>S</s>', 'Strikethrough']];
+      h += `<span class="sb-sep"></span><div class="sb-sizes sb-style">${ST.map(([k, l, t]) => `<button data-ts="${k}" title="${t}" class="${sized.every(c => isOn(c, k)) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
       h += `<span class="sb-sep"></span><div class="sb-sizes" title="Text size">${['s', 'm', 'l', 'xl'].map(z => `<button data-fs="${z}" class="${cur === z ? 'on' : ''}">${z.toUpperCase()}</button>`).join('')}</div>`; }
     h += `<span class="sb-sep"></span>` + btn('mochi', 'mochi', 'Ask Mochi to change ' + (one ? 'this' : 'these')) + btn('del', 'del', 'Delete');
     bar.innerHTML = h;
   }
   (function tick() { placeSelbar(); requestAnimationFrame(tick); })();
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
+  $('selbar').addEventListener('click', e => {
+    const a = e.target.closest('[data-wb]')?.dataset.wb, l = selWire && linkById(selWire); if (!a || !l) return; e.stopImmediatePropagation();
+    if (a === 'curve') l.bend = l.bend === 0 ? undefined : l.bend; if (a === 'curve' && l.bend === undefined) delete l.bend;
+    if (a === 'straight') l.bend = 0;
+    if (a === 'dash') l.dash = !l.dash;
+    if (a === 'arrow') l.arrow = !l.arrow;
+    if (a === 'flip') { [l.a, l.b] = [l.b, l.a]; if (l.bend) l.bend = -l.bend; }
+    if (a === 'del') { board.links = board.links.filter(x => x !== l); selWire = null; }
+    $('selbar').dataset.key = ''; renderWires(); save();
+  }, true);
   $('selbar').onclick = e => {
     const cs = selCards(), one = cs[0], dot = e.target.closest('[data-c]'), cdot = e.target.closest('[data-cc]'), a = e.target.closest('[data-sb]')?.dataset.sb;
     const redraw = () => { cs.forEach(c => renderCard(c)); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); };
     if (dot) { cs.filter(c => FILLABLE.includes(c.type)).forEach(c => c.color = dot.dataset.c); redraw(); }
     if (cdot) { one.color = cdot.dataset.cc; redraw(); }
     const sf = e.target.closest('[data-sf]'); if (sf) { one.fill = sf.dataset.sf; redraw(); }
+    const ts = e.target.closest('[data-ts]'); if (ts) { const k = ts.dataset.ts, list = cs.filter(c => SIZED.includes(c.type)), isOn = c => c[k] ?? (k === 'bold' && ['title', 'coll'].includes(c.type)), to = !list.every(isOn);
+      list.forEach(c => c[k] = to); redraw(); }
     const fz = e.target.closest('[data-fs]'); if (fz) { cs.filter(c => SIZED.includes(c.type)).forEach(c => { if (fz.dataset.fs === 'm') delete c.fs; else c.fs = fz.dataset.fs;
       if (c.type === 'note' && !parentOf(c.id)) { renderCard(c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`), b2 = el.querySelector('.body'); b2.style.height = 'auto'; c.h = Math.max(80, b2.offsetHeight); b2.style.height = ''; } }); redraw(); }
     if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
