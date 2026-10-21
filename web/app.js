@@ -398,7 +398,7 @@
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home')) return;
+    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
@@ -464,7 +464,7 @@
   });
   stage.addEventListener('dblclick', e => {
     if (document.elementFromPoint(e.clientX, e.clientY)?.closest('.card, .selbar')) return;
-    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home')) return;
+    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar')) return;
     const w = toWorld(e.clientX, e.clientY), c = card('note', { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] }); c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
   // card buttons: pull colours, checklist items
@@ -535,7 +535,12 @@
     if (k === 'm') { e.preventDefault(); mochiOpen(true); }
   });
   addEventListener('keyup', e => { if (e.key === ' ') { space = false; stage.classList.remove('space'); } });
-  function addLinkPrompt() { const u = prompt('Paste a link'); if (u) linkCard(/^https?:/.test(u) ? u : 'https://' + u, centerWorld()); }
+  // links get a little paste box under the toolbar (the app can't show the browser's prompt)
+  function addLinkPrompt() { $('linkbox').classList.add('on'); $('linkInput').value = ''; setTimeout(() => $('linkInput').focus(), 30); }
+  const closeLink = () => $('linkbox').classList.remove('on');
+  $('linkbox').onsubmit = e => { e.preventDefault(); const u = $('linkInput').value.trim(); closeLink(); if (u) linkCard(/^https?:/i.test(u) ? u : 'https://' + u, centerWorld()); };
+  $('linkInput').onkeydown = e => { if (e.key === 'Escape') { closeLink(); e.stopPropagation(); } };
+  addEventListener('pointerdown', e => { if ($('linkbox').classList.contains('on') && !e.target.closest('.linkbox, [data-add="link"]')) closeLink(); }, true);
 
   // ---------- toolbar ----------
   $('tools').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; const t = b.dataset.add;

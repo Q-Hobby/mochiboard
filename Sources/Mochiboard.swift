@@ -1,12 +1,13 @@
 // Mochiboard: a Mac app around the canvas in web/. Swift handles what a web page can't:
 // saving boards as files, fetching link previews, and asking Mochi (Claude Code, run locally with `claude -p`).
 import AppKit
+import UniformTypeIdentifiers
 @preconcurrency import WebKit
 
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
 let boardsDir = support.appendingPathComponent("boards")
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var web: WKWebView!
 
@@ -19,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         config.userContentController.addUserScript(WKUserScript(source: "document.documentElement.classList.add('native')", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         web = WKWebView(frame: .zero, configuration: config)
-        web.navigationDelegate = self
+        web.navigationDelegate = self; web.uiDelegate = self
         web.setValue(false, forKey: "drawsBackground")
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = "Mochiboard"
@@ -244,3 +245,12 @@ let delegate = AppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.regular)
 app.run()
+
+// the image button's file picker (a web page can't open one inside the app on its own)
+extension AppDelegate {
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        let panel = NSOpenPanel(); panel.allowsMultipleSelection = parameters.allowsMultipleSelection; panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image]
+        panel.beginSheetModal(for: window) { completionHandler($0 == .OK ? panel.urls : nil) }
+    }
+}
