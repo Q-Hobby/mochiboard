@@ -448,8 +448,14 @@ html.native .dv-bar { padding-top: 14px; }
 .dv-title::placeholder { color: var(--ink-faint); }
 .dv-body { min-height: 60vh; outline: none; font: 400 16px/1.7 var(--font); color: var(--ink); white-space: pre-wrap; user-select: text; -webkit-user-select: text; cursor: text; }
 .dv-body:empty::before { content: attr(data-ph); color: var(--ink-faint); }
-.stage.doc-open .dock, .stage.doc-open .shapepick { opacity: 0; pointer-events: none; }
+/* with a doc open, the tools step aside but Mochi's bubble (and its Undo) still shows on top */
+.stage.doc-open .dock { z-index: 24; }
+.stage.doc-open .dock .tools, .stage.doc-open .dock .selbar, .stage.doc-open .dock .m-pill, .stage.doc-open .shapepick { opacity: 0; pointer-events: none; }
+/* on the All projects pages the board tools hide; Mochi stays to help organize */
+.stage.at-home .dock .tools, .stage.at-home .dock .selbar, .stage.at-home .shapepick { display: none; }
 .sub-boards { margin-left: 16px; padding-left: 8px; border-left: 1.5px dashed #eadfee; display: flex; flex-direction: column; gap: 1px; }
 .sub-boards .board-row { font-size: 13px; }
 /* full-page docs: keep the bar clear of the floating boxes on the left */
 .docview.wide .dv-bar { padding-left: calc(var(--side) + 30px); }
+.card.doc.drop-in .frame { box-shadow: 0 0 0 3px var(--select), 0 10px 30px rgba(120, 80, 120, .1); }
+.docview.drop .dv-page { box-shadow: inset 0 0 0 3px var(--select); background: #f7fbff; }

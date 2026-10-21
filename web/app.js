@@ -163,8 +163,8 @@
   $('homeBtn').onclick = () => openHome('all');
   $('brand').onclick = () => openHome('all');
   $('homeBack').onclick = () => { if (!homeAt) return; const f = homeAt.level === 'folder' && folders.find(x => x.id === homeAt.id); openHome(f && f.project && projects.some(p => p.id === f.project) ? 'project:' + f.project : 'all'); };
-  function openHome(go = 'all') { const [level, id] = go.split(':'); homeAt = { level, id }; $('home').classList.add('on'); refreshBoards(); }
-  function closeHome() { if (!homeAt) return; homeAt = null; $('home').classList.remove('on'); refreshBoards(); }
+  function openHome(go = 'all') { const [level, id] = go.split(':'); homeAt = { level, id }; $('home').classList.add('on'); stage.classList.add('at-home'); stopPlacing(); refreshBoards(); }
+  function closeHome() { if (!homeAt) return; homeAt = null; $('home').classList.remove('on'); stage.classList.remove('at-home'); refreshBoards(); }
   const miniCache = new Map();
   async function mini(id) {
     // a tiny map of the board: every card as a little colored block
@@ -531,7 +531,9 @@
       $('tray').classList.toggle('drop', overTray(e));
       const loose = drag.start.filter(s => s.c.type !== 'coll'), skip = new Set(drag.start.filter(s => s.c.type === 'coll').map(s => s.c.id));
       cardsEl.querySelectorAll('.drop-in, .drop-col').forEach(n => n.classList.remove('drop-in', 'drop-col'));
-      if (loose.length && !skip.size) { const t = collAt(w, skip); if (t) cardsEl.querySelector(`[data-id="${t.s.id}"]`)?.classList.add(t.side ? 'drop-col' : 'drop-in'); }
+      const dt = loose.length && !skip.size && docTarget(e, w, loose); $('docview').classList.toggle('drop', dt === 'page');
+      if (dt && dt !== 'page') { cardsEl.querySelector(`[data-id="${dt.id}"]`)?.classList.add('drop-in'); }
+      else if (loose.length && !skip.size) { const t = collAt(w, skip); if (t) cardsEl.querySelector(`[data-id="${t.s.id}"]`)?.classList.add(t.side ? 'drop-col' : 'drop-in'); }
     }
     if (drag.mode === 'resize' && byId(drag.id).type === 'coll') { const c = byId(drag.id); c.cols = Math.max(1, Math.round((drag.w0 + w.x - drag.sx - CPAD * 2 + CGAP) / (CW + CGAP))); layoutColl(c); renderWires(); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
@@ -555,6 +557,8 @@
       cardsEl.querySelectorAll('.drop-in, .drop-col').forEach(n => n.classList.remove('drop-in', 'drop-col'));
       if (d.moved) {
         const w = toWorld(e.clientX, e.clientY), skip = new Set(d.start.filter(s => s.c.type === 'coll').map(s => s.c.id));
+        const dt = !skip.size && docTarget(e, w, d.start); $('docview').classList.remove('drop');
+        if (dt) { dropIntoDoc(dt, d.start.map(s => s.c), e); return; }
         if (!skip.size) {
           const ids = d.start.map(s => s.c.id), t = collAt(w, skip);
           if (t) dropInto(t, ids, w);
@@ -870,6 +874,39 @@
   $('dvBack').onclick = closeDoc; $('dvClose').onclick = closeDoc;
   $('dvWide').onclick = () => { const w = $('docview').classList.toggle('wide'); $('dvWide').textContent = w ? '⤡' : '⤢'; $('dvWide').title = w ? 'Half page' : 'Full page'; };
 
+  // ---------- dropping cards into a doc: their words join the doc ----------
+  const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape'];
+  function cardWords(c) {
+    if (c.type === 'note') return [c.name, c.text].filter(x => (x || '').trim()).join('\n');
+    if (c.type === 'todo') return [(c.text || '').trim(), ...(c.items || []).map(i => (i.done ? '☑ ' : '☐ ') + i.t)].filter(Boolean).join('\n');
+    if (c.type === 'link') return [c.title, c.url].filter(Boolean).join('\n');
+    if (c.type === 'swatch') return `${c.label || ''} ${c.hex.toUpperCase()}`.trim();
+    if (c.type === 'doc') return [c.text, c.body].filter(x => (x || '').trim()).join('\n');
+    return c.text || '';
+  }
+  // the open doc page, or a doc card on the board, under the pointer (only for cards that have words)
+  function docTarget(e, w, moving) {
+    const cs = moving.map(m => m.c || m); if (!cs.length || !cs.every(c => WORDY.includes(c.type))) return null;
+    if (docCard && !cs.includes(docCard)) { const r = $('docview').getBoundingClientRect(); if (e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom) return 'page'; }
+    return [...board.cards].reverse().find(c => c.type === 'doc' && !cs.includes(c) && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h) || null;
+  }
+  function dropIntoDoc(t, cs, e) {
+    const doc = t === 'page' ? docCard : t, before = doc.body || '', words = cs.map(cardWords).filter(Boolean).join('\n\n');
+    if (t === 'page') {
+      // drop the words right where you let go on the page
+      const body = $('dvBody'), r = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+      if (r && body.contains(r.startContainer)) { r.insertNode(document.createTextNode((r.startOffset ? '\n' : '') + words + '\n')); }
+      else body.innerText = (body.innerText.trim() ? body.innerText.replace(/\s+$/, '') + '\n\n' : '') + words;
+      doc.body = body.innerText;
+    } else doc.body = (before.trim() ? before.replace(/\s+$/, '') + '\n\n' : '') + words;
+    const gone = cs.map(c => ({ c, from: parentOf(c.id) }));
+    sel = new Set(cs.map(c => c.id)); removeSelected(); renderCard(doc); save();
+    say(`Added ${cs.length === 1 ? 'that' : cs.length + ' cards'} to “${doc.text || 'Untitled'}” ✦`, 7000, [{ label: 'Undo', run: () => {
+      doc.body = before; if (docCard === doc) $('dvBody').innerText = before;
+      gone.forEach(({ c, from }) => { board.cards.push(c); renderCard(c, true); if (from && board.cards.includes(from)) from.kids.push(c.id); });
+      renderCard(doc); save(); } }, { label: 'Keep', ghost: true, run: () => {} }]);
+  }
+
   // ---------- canvases: a board inside this board, like a folder you can open ----------
   async function openCanvas(c) {
     if (!c.board) { const child = newBoard(c.text || 'Untitled canvas'); child.parent = board.id; child.folder = board.folder || null; c.board = child.id; await MB.save(child); }
@@ -914,8 +951,8 @@
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
-    if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Edit the caption' : 'Add a caption', !!one.tagText);
-    else if (one && !['coll', 'swatch'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Edit the label' : 'Add a little label (like “step 1”)', !!one.tagText);
+    if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
+    else if (one && !['coll', 'swatch'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
@@ -939,7 +976,7 @@
     if (a === 'hidename') { one.hideName = !one.hideName; redraw(); }
     if (a === 'hidehex') { one.hideHex = !one.hideHex; redraw(); }
     if (a === 'pick') openColor(one);
-    if (a === 'tag') editTag(one);
+    if (a === 'tag') { if (one.tagText) { delete one.tagText; redraw(); } else editTag(one); }   // tap again to take the label off
     if (a === 'edit') startEdit(one.id);
     if (a === 'del') removeSelected();
     if (a === 'mochi') { mochiOpen(true); $('mInput').placeholder = cs.length === 1 ? 'Change this… “make it say…”, “turn it mint”' : `Change these ${cs.length}… “rename to step 1, 2, 3”`; }
