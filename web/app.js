@@ -762,13 +762,13 @@
 
   // ---------- keys ----------
   addEventListener('keydown', e => {
-    const typing = e.target.closest('input, [contenteditable="true"]');
+    const typing = e.target.closest('input, textarea, [contenteditable="true"]');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
     if (e.key === 'Escape' && cropping) { endCrop('cancel'); return; }
-    if (e.key === 'Enter' && cropping && !e.target.closest('input, [contenteditable="true"]')) { endCrop('done'); return; }
+    if (e.key === 'Enter' && cropping && !e.target.closest('input, textarea, [contenteditable="true"]')) { endCrop('done'); return; }
     if (e.key === 'Escape' && drawOn) { exitDraw(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
@@ -829,7 +829,7 @@
 
   // ---------- paste and drop ----------
   addEventListener('paste', e => {
-    if (e.target.closest('input, [contenteditable="true"]')) return;
+    if (e.target.closest('input, textarea, [contenteditable="true"]')) return;
     const files = [...(e.clipboardData.files || [])]; const intoTray = $('capture').classList.contains('on');
     if (files.length) { e.preventDefault(); addImages(files, null, intoTray); capture(false); return; }
     const t = e.clipboardData.getData('text/plain').trim(); if (!t) return; e.preventDefault();
