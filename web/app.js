@@ -336,6 +336,8 @@
       cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); p.cover = cv.toDataURL('image/jpeg', .86); saveLib().then(refreshBoards); }; im.src = rd.result; }; rd.readAsDataURL(file); };
 
   async function openBoard(id) {
+    // an edit still waiting to save belongs to the board you're leaving: save it first
+    if (saveT && board) { clearTimeout(saveT); saveT = 0; board.view = view; await MB.save(board); }
     const b = await MB.load(id); if (!b) return;
     miniCache.clear(); board = b; if (chatOpen()) setTimeout(renderChat, 0); board.palette = board.palette || []; setTimeout(resetHistory, 0); view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
     board.cards.forEach(c => { if (c.type === 'audio' && c.rec) { c.rec = false; c.paused = false; if (!c.src) c.txNote = 'This recording got interrupted. Tap Replace to record again.'; } });
@@ -368,7 +370,7 @@
   // after Mochi works: glide to what she made (unless it's already in view) and let it glow for a moment
   function showWhatMochiMade(cs) {
     cs = [...new Set(cs)].filter(c => board.cards.includes(c)); if (!cs.length) return;
-    const r = stage.getBoundingClientRect(), L = 270, R = 260, a = toWorld(r.left + L, r.top + 60), b = toWorld(r.right - R, r.bottom - 110);
+    const r = stage.getBoundingClientRect(), L = 270, ch = chatOpen() && $('mChat').getBoundingClientRect(), R = ch && ch.width ? Math.max(260, Math.min(r.right - ch.left + 30, r.width - L - 520)) : 260, a = toWorld(r.left + L, r.top + 60), b = toWorld(r.right - R, r.bottom - 110);
     const inView = cs.every(c => c.x >= a.x && c.y >= a.y && c.x + c.w <= b.x && c.y + c.h <= b.y) && view.z > .45;
     if (!inView) fit(cs, 140, 1);
     const glow = cs.filter(c => !WF.includes(c.type) || c.type === 'frame' || !c.onFrame);   // whole screens glow, not every word on them
@@ -391,7 +393,7 @@
   function fit(cards, pad = 120, maxZ = 1.4) {
     if (!cards.length) return; const r = stage.getBoundingClientRect();
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y)), x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
-    const L = 270, R = 260;   // the open space between the left boxes and the tray
+    const L = 270, ch = chatOpen() && $('mChat').getBoundingClientRect(), R = ch && ch.width ? Math.max(260, Math.min(r.right - ch.left + 30, r.width - L - 520)) : 260;   // the open space between the left boxes and the tray (or Mochi's chat, when it's open)
     view.z = clamp(Math.min((r.width - L - R - pad) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, maxZ);
     view.x = L + (r.width - L - R - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (y1 - y0) * view.z) / 2 - y0 * view.z;
     world.style.transition = 'transform .5s cubic-bezier(.2,.8,.3,1)'; applyView(); setTimeout(() => world.style.transition = '', 520);
@@ -1357,7 +1359,7 @@
       : [B(0, 0, 52, 30, { fill: '#27272a', radius: 15 }), B(25, 3, 24, 24, { fill: '#ffffff', radius: 12 })] },
     'Checkbox': { icon: 'check_box', w: 240, make: (W, o = {}) => [B(0, 0, 22, 22, { fill: o.on === false ? '#ffffff' : '#27272a', stroke: '#27272a', sw: 1.5, radius: 6 }), ...(o.on === false ? [] : [IC(1, 1, 'check', 20, { color: '#ffffff' })]), T(32, 2, W - 32, o.text || 'Remember me')] },
     'Avatar': { icon: 'account_circle', w: 56, make: (W, o = {}) => { const s = o.size || 56; return [B(0, 0, s, s, { radius: s / 2 }), IC(s / 4, s / 4, 'person', s / 2, { color: '#a1a1aa' })]; } },
-    'Image': { icon: 'image', w: 300, make: (W, o = {}) => { const h = o.h || 180; return [B(0, 0, W, h, { radius: 12 }), IC(W / 2 - 16, h / 2 - 16, o.icon || 'image', 32, { color: '#a1a1aa' })]; } },
+    'Image': { icon: 'image', w: 300, make: (W, o = {}) => { const h = o.h || 180; return o.img ? [PH(0, 0, W, h, o.img, { radius: 12 })] : [B(0, 0, W, h, { radius: 12 }), IC(W / 2 - 16, h / 2 - 16, o.icon || 'image', 32, { color: '#a1a1aa' })]; } },
     'Heading': { icon: 'title', w: 300, make: (W, o = {}) => [T(0, 0, W, o.text || o.title || 'Heading', { size: o.size || 28, weight: 800, align: o.align || 'left' }), ...(o.sub === '' ? [] : [T(0, (o.size || 28) * 1.3 + 6, W, o.sub || 'A little line underneath it.', { size: 15, color: '#71717a', align: o.align || 'left' })])] },
   };
   const PH = (x, y, w, h, label, o = {}) => ({ ...B(x, y, w, h, { radius: 16, ...o }), img: label || 'Image' });

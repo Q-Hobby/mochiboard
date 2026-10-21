@@ -1048,3 +1048,5 @@ body.dark .set-start { background: #3a2a34; } body.dark .set-btn.hot { backgroun
 @media (max-width: 560px) { .set-start { flex-wrap: wrap; } }
 .set-start > .set-btns { flex: none; display: grid; gap: 6px; }
 .set-start .set-btn { padding: 9px 16px; white-space: nowrap; }
+/* dark mode: names being renamed get a dark field, not white-on-white */
+body.dark [contenteditable="true"].fname, body.dark .tile b[contenteditable="true"], body.dark .board-row span[contenteditable="true"], body.dark .pal span[contenteditable="true"] { background: #3a3540; color: var(--ink); }
