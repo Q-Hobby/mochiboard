@@ -25,6 +25,9 @@
     async fetchImage(url) { return url; },
     async openURL(url) { window.open(url, '_blank'); },
     async speechAuth() { return 'ok'; },
+    async higgsQuote() { throw new Error('Higgsfield works in the Mac app'); },
+    async higgsMake() { throw new Error('Higgsfield works in the Mac app'); },
+    async drawFill() { throw new Error('Drawing illustrations works in the Mac app'); },
     async fonts() { return ['DM Sans', 'Caveat', 'Inter', 'Helvetica Neue', 'Arial', 'Georgia', 'Times New Roman', 'Courier New', 'SF Pro Display', 'Avenir Next', 'Futura', 'Menlo']; },
     async exportRect() { throw new Error('Exporting works in the Mac app'); },
     async transcribe() { throw new Error('Mochi writes out voice memos in the Mac app'); },
@@ -48,6 +51,6 @@
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
-    connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'),
+    connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'), higgsQuote: o => call('higgsQuote', o || {}), higgsMake: o => call('higgsMake', o), drawFill: o => call('drawFill', o),
   } : Object.assign({ native: false }, browser);
 })();

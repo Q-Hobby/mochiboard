@@ -116,6 +116,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
                 }
             }
+        // Higgsfield, two steps: look up the price and balance (never generates), then generate (only called after the person taps yes)
+        case "higgsQuote":
+            runClaude("""
+            Use the Higgsfield tools ONLY to look things up. Do NOT generate anything. Find my current credit balance, and the credit cost to generate ONE image with the \(args["model"] as? String ?? "nano_banana_2") model at standard quality.
+            Reply with ONLY one JSON object, no other words: {"balance": number, "perImage": number, "model": "the model's name"}. If you can't find a number, use null for it.
+            """, tools: ["mcp__claude_ai_higgsfield__balance", "mcp__claude_ai_higgsfield__models_explore", "mcp__claude_ai_higgsfield__show_plans_and_credits"], timeout: 180) { ok, t in reply(ok, t) }
+        case "higgsMake":
+            let jobs = (try? JSONSerialization.data(withJSONObject: jsonSafe(args["images"] ?? []))).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+            runClaude("""
+            The person has CONFIRMED spending Higgsfield credits on these images for a website/app mockup. Generate exactly one image for each item, using the \(args["model"] as? String ?? "nano_banana_2") model, \
+            with the aspect ratio given (or the closest one the model supports). Write a vivid, specific prompt from each item's "label" and the shared "style" (\(args["style"] as? String ?? "clean, modern, natural light")). \
+            No text or logos inside the images. Use one batch if you can, then wait for the jobs to finish.
+            Items: \(jobs)
+            Reply with ONLY one JSON object, no other words: {"images": [{"id": "the item's id", "url": "the finished image's direct url"}]}
+            """, tools: ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__generate_image", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore", "mcp__claude_ai_higgsfield__show_generation_by_ids"], timeout: 1200) { ok, t in reply(ok, t) }
+        // no Higgsfield? Claude can still draw simple flat illustrations as SVG (free, no credits)
+        case "drawFill":
+            let jobs = (try? JSONSerialization.data(withJSONObject: jsonSafe(args["images"] ?? []))).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+            runClaude("""
+            Draw a simple, friendly flat illustration as SVG for each item below (for a website/app mockup). Style: \(args["style"] as? String ?? "soft pastel, rounded shapes, minimal") . \
+            Each SVG must use viewBox "0 0 W H" matching the item's w and h, fill the whole frame with a background, use only basic shapes and paths, no text, no external images, under 3500 characters.
+            Items: \(jobs)
+            Reply with ONLY one JSON object, no other words: {"images": [{"id": "the item's id", "svg": "<svg ...>...</svg>"}]}
+            """, tools: [], timeout: 600) { ok, t in reply(ok, t) }
         case "fonts":
             reply(true, NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") }.sorted())
         case "speechAuth":
@@ -231,6 +255,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         Pieces and their words: "Nav bar" {title, icon}, "Tab bar" {tabs: [[material_icon_name, label]], active}, "Heading" {text, sub, align}, "Text" {text, size, weight, align}, \
         "Input" {label, text}, "Search" {text}, "Button" {text, style: "primary"|"secondary"}, "Card" {title, text}, "List row" {title, sub, icon} (use "rows": [{title, sub}] for several), \
         "Toggle" {text, on}, "Checkbox" {text, on}, "Avatar" {size, align}, "Image" {h}, "Icon" {name, size, align}, "Divider", "Space" {h}. Icons are Material Icons names (home, search, settings, favorite_border, person_outline, notifications_none, shopping_bag, add, close). \
+        WEBSITES: for a website or landing page use ONE screen with "device": "Desktop" and full-width sections top to bottom: "Header" {logo, links, cta}, "Hero" {title, text, cta, cta2, img}, \
+        "Logos" {title}, "Features" {title, items: [{icon, title, text}]}, "Stats" {items: [{value, label}]}, "Testimonials" {title, items: [{quote, name}]}, "Gallery" {title, imgs: ["label", ...]}, \
+        "Pricing" {title, plans: [{name, price, features: [...], cta}]}, "CTA" {title, text, cta}, "Footer" {logo, text, cols: [["Heading", ["link", ...]]]}. A full page is usually 6 to 9 sections. \
+        IMAGES: every "img"/"imgs" value is a short, vivid description of the photo that belongs there (e.g. "a dog walker laughing with a golden retriever in a sunny park"); the app shows it as a labeled placeholder the person can fill later. \
+        LOOK: add "theme" to a screen to style it: {"bg": "#hex", "text": "#hex", "muted": "#hex", "primary": "#hex", "onPrimary": "#hex", "surface": "#hex", "font": "font family", "headFont": "font family"}. \
+        Use the board's "boardColors" when there are some, fonts from "fontsOnThisMac" or Google Fonts, and leave "theme" out when they ask for plain or gray wireframes. \
         Use real, specific words for the product (not "Lorem"). Put the explanation of each screen in its "note" (that becomes a note under the screen); don't also add separate notes for them. \
         FONTS: when they ask to explore, compare or suggest fonts or type, add "font" cards ({"type": "font", "font": "exact family name", "sample": "a short line in their product's voice", "tag": "why it fits, 2 to 4 words"}), never plain notes with font names. \
         Prefer families in "fontsOnThisMac"; you may also suggest Google Fonts by their exact name (the app loads them). A good exploration is 4 to 8 fonts, grouped by mood with titles. \
@@ -265,6 +295,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer"
                 return done(false, String(e.prefix(300)))
             }
+            done(true, text)
+        }
+    }
+
+    // run Claude Code with a prompt and a short list of allowed tools; replies with its text
+    func runClaude(_ prompt: String, tools: [String], timeout: Double, done: @escaping (Bool, String) -> Void) {
+        guard let claude = claudePath else { return done(false, "I need Claude Code to do that.") }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let p = Process(), out = Pipe(), err = Pipe()
+            p.executableURL = URL(fileURLWithPath: claude)
+            p.arguments = ["-p", prompt, "--output-format", "text"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
+            p.currentDirectoryURL = support
+            var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
+            p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
+            do { try p.run() } catch { return done(false, error.localizedDescription) }
+            let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
+            let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
+            let text = String(data: data, encoding: .utf8) ?? ""
+            if p.terminationStatus != 0 && text.isEmpty { return done(false, String((String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer").prefix(300))) }
             done(true, text)
         }
     }

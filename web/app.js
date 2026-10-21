@@ -411,7 +411,7 @@
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
-      case 'box': return `<div class="bx"></div>`;
+      case 'box': return `<div class="bx"></div>${c.img && !c.src ? `<div class="bx-ph"><span class="mi">image</span><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -1066,8 +1066,9 @@
     // wireframes: real screens built from the pieces, left to right, with arrows for the flow
     if (Array.isArray(r.screens) && r.screens.length) {
       let sx = board.cards.length ? Math.max(...board.cards.map(c => c.x + c.w)) + 160 : center.x - 200, sy = board.cards.length ? Math.min(...board.cards.map(c => c.y)) : center.y - 400, prev = null;
-      r.screens.forEach(sp => { const { f, made } = buildScreen(sp, sx, sy); made.forEach(c => added.push(c)); if (prev && sp.flow !== false) board.links.push({ id: uid(), a: prev.id, b: f.id, arrow: true }); prev = f; sx += f.w + 140; });
+      const builtFrames = []; r.screens.forEach(sp => { const { f, made } = buildScreen(sp, sx, sy); builtFrames.push(f); made.forEach(c => added.push(c)); if (prev && sp.flow !== false) board.links.push({ id: uid(), a: prev.id, b: f.id, arrow: true }); prev = f; sx += f.w + 140; });
     }
+    if (r.screens?.length) setTimeout(() => offerFill(spotsIn(board.cards.filter(c => c.type === 'frame').slice(-r.screens.length))), 1500);
     // pictures (Mobbin screens, Higgsfield images): fetched and saved into the board, laid out in a row of tilted cards
     const imgs = r.images || [];
     if (imgs.length) {
@@ -1183,7 +1184,8 @@
       if (!sel.has(el.dataset.id)) selectOnly([el.dataset.id]); const cs = selCards();
       boardMenu(e, [
         { label: 'Export as image', run: () => exportCards(cs, cardName(cs), false) },
-        { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) }, '-',
+        { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) },
+        ...(spotsIn(cs).length ? [{ label: `Fill ${spotsIn(cs).length} image spot${spotsIn(cs).length > 1 ? 's' : ''}…`, run: () => offerFill(spotsIn(cs)) }] : []), '-',
         { label: 'Duplicate', run: () => { const copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
         { label: 'Delete', danger: true, run: () => removeSelected() }]);
     } else boardMenu(e, [
@@ -1283,7 +1285,7 @@
     if (!el.querySelector('.rot-h')) el.insertAdjacentHTML('beforeend', '<i class="rot-h" title="Drag to rotate"></i>');
     if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill || '#ffffff'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
-    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
+    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? `center / cover no-repeat url("${c.src}")` : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
       boxShadow: c.stroke && c.sw ? `inset 0 0 0 ${c.sw}px ${c.stroke}` : 'none' });
     if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
       color: c.color || '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
@@ -1321,7 +1323,8 @@
   const groupOf = id => { const g = byId(id)?.group; return g ? board.cards.filter(c => c.group === g).map(c => c.id) : [id]; };
   function groupSel(on) { const cs = selCards(); if (on && cs.length < 2) return; const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
   // ready-made pieces, in clean gray; bars stretch to the screen they land on
-  const T = (x, y, w, text, o = {}) => ({ type: 'text', x, y, w, h: Math.round((o.size || 15) * 1.3), text, size: 15, weight: 500, color: '#27272a', font: 'DM Sans', ...o });
+  const T = (x, y, w, text, o = {}) => { const sz = o.size || 15, perLine = Math.max(4, Math.floor(w / (sz * .52))), lines = Math.max(1, ...String(text || '').split('\n').map(l => Math.ceil(Math.max(1, l.length) / perLine)));
+    return { type: 'text', x, y, w, h: Math.round(sz * (o.lh || 1.3) * lines), text, size: 15, weight: 500, color: '#27272a', font: 'DM Sans', ...o }; };
   const B = (x, y, w, h, o = {}) => ({ type: 'box', x, y, w, h, fill: '#e4e4e7', radius: 0, ...o });
   const IC = (x, y, name, s = 24, o = {}) => ({ type: 'icon', x, y, w: s, h: s, name, color: '#3f3f46', ...o });
   // each piece can take its own words: (width, { title, text, sub, label, tabs, h, align, style… })
@@ -1342,6 +1345,55 @@
     'Image': { icon: 'image', w: 300, make: (W, o = {}) => { const h = o.h || 180; return [B(0, 0, W, h, { radius: 12 }), IC(W / 2 - 16, h / 2 - 16, o.icon || 'image', 32, { color: '#a1a1aa' })]; } },
     'Heading': { icon: 'title', w: 300, make: (W, o = {}) => [T(0, 0, W, o.text || o.title || 'Heading', { size: o.size || 28, weight: 800, align: o.align || 'left' }), ...(o.sub === '' ? [] : [T(0, (o.size || 28) * 1.3 + 6, W, o.sub || 'A little line underneath it.', { size: 15, color: '#71717a', align: o.align || 'left' })])] },
   };
+  const PH = (x, y, w, h, label, o = {}) => ({ ...B(x, y, w, h, { radius: 16, ...o }), img: label || 'Image' });
+  const WEB = {
+    'Header': { icon: 'web', web: 1, make: (W, o = {}) => { const links = o.links || ['Product', 'Pricing', 'About', 'Blog'], M = 64;
+      return [B(0, 0, W, 80, { fill: '#ffffff' }), T(M, 26, 260, o.logo || o.title || 'Brand', { size: 22, weight: 800 }), ...links.slice(0, 5).map((l, i) => T(W / 2 - links.length * 55 + i * 110, 30, 110, l, { size: 15, align: 'center', color: '#52525b' })),
+        B(W - M - 150, 18, 150, 44, { fill: '#18181b', radius: 22 }), T(W - M - 150, 30, 150, o.cta || 'Get started', { size: 14, weight: 600, color: '#ffffff', align: 'center' }), B(0, 79, W, 1, { fill: '#e4e4e7' })]; } },
+    'Hero': { icon: 'view_day', web: 1, make: (W, o = {}) => { const M = 64, cw = (W - M * 2) * .48, h = 600, t = T(M, 120, cw, o.title || 'A big, clear promise goes right here', { size: 56, weight: 800, lh: 1.1 }), sub = T(M, 120 + t.h + 24, cw, o.text || 'One or two sentences that say who it is for and why it helps.', { size: 20, color: '#71717a', lh: 1.45 }), by = sub.y + sub.h + 36;
+      return [B(0, 0, W, h, { fill: '#ffffff' }), t, sub, B(M, by, 170, 52, { fill: '#18181b', radius: 26 }), T(M, by + 15, 170, o.cta || 'Get started', { size: 16, weight: 600, color: '#ffffff', align: 'center' }),
+        B(M + 186, by, 160, 52, { fill: '#ffffff', stroke: '#18181b', sw: 1.5, radius: 26 }), T(M + 186, by + 15, 160, o.cta2 || 'Learn more', { size: 16, weight: 600, align: 'center' }), PH(W / 2 + 16, 72, W / 2 - M - 16, h - 144, o.img || 'Hero image', { radius: 28 })]; } },
+    'Features': { icon: 'view_column', web: 1, make: (W, o = {}) => { const M = 64, items = (o.items || [{ icon: 'bolt', title: 'Fast', text: 'Say what makes it quick.' }, { icon: 'favorite_border', title: 'Friendly', text: 'Say why people enjoy it.' }, { icon: 'lock', title: 'Safe', text: 'Say why they can trust it.' }]).slice(0, 4), n = items.length, gap = 32, cw = (W - M * 2 - gap * (n - 1)) / n;
+      const title = T(M, 96, W - M * 2, o.title || 'Why people love it', { size: 36, weight: 800, align: 'center' }), y0 = 96 + title.h + 56; let tall = 0;
+      const cols = items.flatMap((it, i) => { const x = M + i * (cw + gap), tt = T(x, y0 + 72, cw, it.title || 'Feature', { size: 20, weight: 700 }), tx = T(x, y0 + 72 + tt.h + 8, cw, it.text || '', { size: 15, color: '#71717a', lh: 1.5 }); tall = Math.max(tall, 72 + tt.h + 8 + tx.h);
+        return [B(x, y0, 52, 52, { fill: '#f4f4f5', radius: 14 }), IC(x + 14, y0 + 14, it.icon || 'star', 24), tt, tx]; });
+      return [B(0, 0, W, y0 + tall + 96, { fill: '#ffffff' }), title, ...cols]; } },
+    'Stats': { icon: 'insights', web: 1, make: (W, o = {}) => { const M = 64, items = (o.items || [{ value: '10k+', label: 'happy people' }, { value: '4.9', label: 'average rating' }, { value: '24/7', label: 'support' }]).slice(0, 4), cw = (W - M * 2) / items.length;
+      return [B(0, 0, W, 220, { fill: '#f4f4f5' }), ...items.flatMap((it, i) => [T(M + i * cw, 60, cw, it.value || '100', { size: 48, weight: 800, align: 'center' }), T(M + i * cw, 128, cw, it.label || '', { size: 15, color: '#71717a', align: 'center' })])]; } },
+    'Testimonials': { icon: 'format_quote', web: 1, make: (W, o = {}) => { const M = 64, items = (o.items || [{ quote: 'A short, warm quote from a happy customer.', name: 'Alex Kim' }, { quote: 'Another quote about what changed for them.', name: 'Sam Rivera' }, { quote: 'One more, short and specific.', name: 'Jo Patel' }]).slice(0, 3), gap = 24, cw = (W - M * 2 - gap * (items.length - 1)) / items.length;
+      const title = T(M, 96, W - M * 2, o.title || 'What people say', { size: 36, weight: 800, align: 'center' }), y0 = 96 + title.h + 48;
+      return [B(0, 0, W, y0 + 280 + 96, { fill: '#ffffff' }), title, ...items.flatMap((it, i) => { const x = M + i * (cw + gap); return [B(x, y0, cw, 280, { fill: '#f4f4f5', radius: 20 }), IC(x + 28, y0 + 28, 'format_quote', 32, { color: '#a1a1aa' }), T(x + 28, y0 + 72, cw - 56, '“' + (it.quote || '') + '”', { size: 17, lh: 1.5 }), PH(x + 28, y0 + 208, 44, 44, (it.name || 'Person') + ' portrait', { radius: 22 }), T(x + 84, y0 + 220, cw - 112, it.name || 'Name', { size: 15, weight: 700 })]; })]; } },
+    'Pricing': { icon: 'sell', web: 1, make: (W, o = {}) => { const M = 64, plans = (o.plans || [{ name: 'Starter', price: 'Free', features: ['The basics', 'One project'] }, { name: 'Pro', price: '$12/mo', features: ['Everything in Starter', 'Unlimited projects', 'Priority help'] }, { name: 'Team', price: '$29/mo', features: ['Everything in Pro', 'Shared spaces'] }]).slice(0, 3), gap = 24, cw = Math.min(360, (W - M * 2 - gap * (plans.length - 1)) / plans.length), x0 = (W - (cw * plans.length + gap * (plans.length - 1))) / 2;
+      const title = T(M, 96, W - M * 2, o.title || 'Simple pricing', { size: 36, weight: 800, align: 'center' }), y0 = 96 + title.h + 48, ch = 380;
+      return [B(0, 0, W, y0 + ch + 96, { fill: '#ffffff' }), title, ...plans.flatMap((pl, i) => { const x = x0 + i * (cw + gap), hot = i === Math.min(1, plans.length - 1);
+        return [B(x, y0, cw, ch, { fill: hot ? '#18181b' : '#ffffff', stroke: '#e4e4e7', sw: hot ? 0 : 1.5, radius: 22 }), T(x + 28, y0 + 28, cw - 56, pl.name || 'Plan', { size: 18, weight: 700, color: hot ? '#ffffff' : '#27272a' }), T(x + 28, y0 + 62, cw - 56, pl.price || '$0', { size: 40, weight: 800, color: hot ? '#ffffff' : '#18181b' }),
+          ...(pl.features || []).slice(0, 5).map((f, k) => T(x + 28, y0 + 130 + k * 30, cw - 56, '✓  ' + f, { size: 15, color: hot ? '#e4e4e7' : '#52525b' })),
+          B(x + 28, y0 + ch - 76, cw - 56, 48, { fill: hot ? '#ffffff' : '#18181b', radius: 24 }), T(x + 28, y0 + ch - 62, cw - 56, pl.cta || 'Choose ' + (pl.name || 'plan'), { size: 15, weight: 600, align: 'center', color: hot ? '#18181b' : '#ffffff' })]; })]; } },
+    'Gallery': { icon: 'collections', web: 1, make: (W, o = {}) => { const M = 64, imgs = (o.imgs || ['Photo one', 'Photo two', 'Photo three', 'Photo four', 'Photo five', 'Photo six']).slice(0, 9), cols = 3, gap = 20, cw = (W - M * 2 - gap * (cols - 1)) / cols, rh = cw * .72;
+      const title = T(M, 96, W - M * 2, o.title || 'A closer look', { size: 36, weight: 800, align: 'center' }), y0 = 96 + title.h + 48, rows = Math.ceil(imgs.length / cols);
+      return [B(0, 0, W, y0 + rows * (rh + gap) + 76, { fill: '#ffffff' }), title, ...imgs.map((l, i) => PH(M + (i % cols) * (cw + gap), y0 + Math.floor(i / cols) * (rh + gap), cw, rh, l, { radius: 18 }))]; } },
+    'Logos': { icon: 'workspaces', web: 1, make: (W, o = {}) => { const M = 64, n = 5, cw = (W - M * 2 - 32 * (n - 1)) / n;
+      return [B(0, 0, W, 170, { fill: '#ffffff' }), T(M, 40, W - M * 2, o.title || 'Trusted by teams everywhere', { size: 14, weight: 600, color: '#a1a1aa', align: 'center' }), ...Array.from({ length: n }, (_, i) => B(M + i * (cw + 32), 84, cw, 44, { fill: '#f4f4f5', radius: 10 }))]; } },
+    'CTA': { icon: 'campaign', web: 1, make: (W, o = {}) => { const M = 64, t = T(M + 64, 80, W - M * 2 - 128, o.title || 'Ready to start?', { size: 40, weight: 800, align: 'center', color: '#ffffff' }), sub = T(M + 64, 80 + t.h + 16, W - M * 2 - 128, o.text || 'One last nudge, in one line.', { size: 18, align: 'center', color: '#d4d4d8' }), by = sub.y + sub.h + 32;
+      return [B(0, 0, W, by + 52 + 96, { fill: '#ffffff' }), B(M, 24, W - M * 2, by + 52 + 48, { fill: '#18181b', radius: 32 }), t, sub, B(W / 2 - 90, by, 180, 52, { fill: '#ffffff', radius: 26 }), T(W / 2 - 90, by + 15, 180, o.cta || 'Get started', { size: 16, weight: 600, align: 'center', color: '#18181b' })]; } },
+    'Footer': { icon: 'call_to_action', web: 1, make: (W, o = {}) => { const M = 64, cols = o.cols || [['Product', ['Features', 'Pricing', 'Updates']], ['Company', ['About', 'Careers', 'Press']], ['Help', ['Support', 'Contact', 'Privacy']]];
+      return [B(0, 0, W, 300, { fill: '#f4f4f5' }), T(M, 64, 300, o.logo || 'Brand', { size: 22, weight: 800 }), T(M, 100, 300, o.text || 'A one-line sign-off.', { size: 14, color: '#71717a' }),
+        ...cols.slice(0, 4).flatMap(([h, ls], i) => [T(W - M - (cols.length - i) * 180, 64, 160, h, { size: 14, weight: 700 }), ...ls.slice(0, 4).map((l, k) => T(W - M - (cols.length - i) * 180, 98 + k * 28, 160, l, { size: 14, color: '#71717a' }))]),
+        B(M, 240, W - M * 2, 1, { fill: '#e4e4e7' }), T(M, 258, 400, o.copy || '© 2026 ' + (o.logo || 'Brand'), { size: 12, color: '#a1a1aa' })]; } },
+  };
+  Object.assign(PIECES, WEB);
+  // a screen's look: colors and fonts swapped onto the gray pieces
+  const GRAY = { text: '#27272a', ink: '#18181b', muted: '#71717a', soft: '#52525b', surface: '#f4f4f5', bar: '#fafafa', line: '#e4e4e7' };
+  function themeIt(list, th) {
+    if (!th) return list; const t = { bg: '#ffffff', text: '#18181b', muted: '#71717a', primary: '#18181b', onPrimary: '#ffffff', surface: '#f4f4f5', font: 'DM Sans', headFont: '', ...th };
+    useFont(t.font); if (t.headFont) useFont(t.headFont);
+    return list.map(it => { const c = { ...it };
+      if (c.type === 'text') { c.font = (c.weight >= 700 && t.headFont) ? t.headFont : t.font;
+        if ([GRAY.text, GRAY.ink].includes(c.color)) c.color = t.text; else if ([GRAY.muted, GRAY.soft].includes(c.color)) c.color = t.muted; else if (c.color === '#ffffff' && th.onPrimary) c.color = t.onPrimary; }
+      if (c.type === 'box' && !c.img) { if (c.fill === '#18181b' || c.fill === '#27272a') c.fill = t.primary; else if (c.fill === '#ffffff') c.fill = t.bg; else if ([GRAY.surface, GRAY.bar].includes(c.fill)) c.fill = t.surface; if (c.stroke === '#18181b' || c.stroke === '#27272a') c.stroke = t.primary; }
+      if (c.type === 'icon' && [GRAY.text, '#3f3f46'].includes(c.color)) c.color = t.text;
+      return c; });
+  }
   // pieces only Mochi asks for by name (not in the panel)
   const EXTRA = {
     'Text': (W, o = {}) => [T(0, 0, W, o.text || '', { size: o.size || 15, weight: o.weight || 500, align: o.align || 'left', color: o.color || '#3f3f46' })],
@@ -1355,36 +1407,40 @@
   function buildScreen(spec, x, y) {
     spec = { ...spec, w: num(spec.w, undefined), h: num(spec.h, undefined), gap: num(spec.gap, undefined) };
     spec.items = (Array.isArray(spec.items) ? spec.items : []).filter(it => it && typeof it === 'object').map(it => ({ ...it, w: num(it.w, undefined), h: num(it.h, undefined), size: num(it.size, undefined), count: num(it.count, undefined) }));
-    const dev = DEVICES[spec.device] || DEVICES.iPhone, W = spec.w || dev[0], phone = !spec.device || /iPhone|Android/.test(spec.device);
-    const f = card('frame', { x, y, w: W, h: spec.h || dev[1], r: 0, name: spec.name || 'Screen', device: DEVICES[spec.device] ? spec.device : 'iPhone', radius: dev[2], fill: '#ffffff' });
+    const dev = DEVICES[spec.device] || DEVICES.iPhone, W = spec.w || dev[0], phone = !spec.device || /iPhone|Android/.test(spec.device), webFirst = (spec.items || []).some(it => /^(header|hero|features|footer)$/i.test(it.piece || ''));
+    const f = card('frame', { x, y, w: W, h: spec.h || (webFirst && spec.device === 'Desktop' ? 600 : dev[1]), r: 0, name: spec.name || 'Screen', device: DEVICES[spec.device] ? spec.device : 'iPhone', radius: webFirst ? 12 : dev[2], fill: '#ffffff' });
     board.cards.push(f); renderCard(f, true);
     const items = spec.items || [], M = spec.device === 'Desktop' ? 64 : 24, CW = W - M * 2, GAP = spec.gap || 16, made = [f];
     let top = y + (phone ? 44 : 0), bottom = y + f.h;
     const put = (list, ox, oy) => { const g = uid(); list.forEach(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: list.length > 1 ? g : undefined, onFrame: f.id }); if (!c.group) delete c.group; board.cards.push(c); renderCard(c, true); made.push(c); }); };
     const nav = items.find(it => /nav/i.test(it.piece || '')), tab = items.find(it => /tab/i.test(it.piece || ''));
-    if (nav) { const l = PIECES['Nav bar'].make(W, nav); put(l, x, top); top += 56; }
-    if (tab) { const l = PIECES['Tab bar'].make(W, tab); bottom -= 64 + (phone ? 20 : 0); put(l, x, bottom); }
-    let cur = top + (spec.padTop ?? 20);
+    if (nav) { const l = themeIt(PIECES['Nav bar'].make(W, nav), spec.theme); put(l, x, top); top += 56; }
+    if (tab) { const l = themeIt(PIECES['Tab bar'].make(W, tab), spec.theme); bottom -= 64 + (phone ? 20 : 0); put(l, x, bottom); }
+    const isWeb = (spec.items || []).some(it => WEB[Object.keys(WEB).find(k => k.toLowerCase() === String(it.piece || '').toLowerCase())]);
+    if (spec.theme?.bg) { f.fill = spec.theme.bg; renderCard(f); }
+    let cur = top + (spec.padTop ?? (isWeb ? 0 : 20));
     items.filter(it => it !== nav && it !== tab).forEach(it => {
       const name = Object.keys(PIECES).find(k => k.toLowerCase() === String(it.piece || '').toLowerCase()) || Object.keys(EXTRA).find(k => k.toLowerCase() === String(it.piece || '').toLowerCase()) || 'Text';
-      const P = PIECES[name], full = name === 'List row', w = full ? W : ['Avatar', 'Toggle'].includes(name) && !it.text ? P.w : it.w || CW;
+      const P = PIECES[name], full = name === 'List row' || (P && P.web), w = full ? W : ['Avatar', 'Toggle'].includes(name) && !it.text ? P.w : it.w || CW;
       const reps = Math.max(1, Math.min(8, +it.count || (Array.isArray(it.rows) ? it.rows.length : 1)));
       for (let k = 0; k < reps; k++) {
         const o = Array.isArray(it.rows) ? { ...it, ...it.rows[k] } : it, list = P ? P.make(w, o) : EXTRA[name](w, o), h = pieceH(list, o);
         const ox = full ? x : (it.align === 'center' && w < CW) ? x + (W - w) / 2 : x + M;
-        put(list, ox, cur); cur += h + (full ? 0 : GAP);
+        put(themeIt(list, spec.theme), ox, cur); cur += h + (full ? 0 : GAP);
       }
     });
-    if (cur > bottom - 12) { const grow = cur - bottom + 24; f.h += grow; renderCard(f); made.filter(c => c.y >= bottom - 1 && c !== f).forEach(c => { c.y += grow; renderCard(c); }); }
+    if (webFirst && !tab) { f.h = Math.max(200, cur - y); renderCard(f); }
+    else if (cur > bottom - 12) { const grow = cur - bottom + 24; f.h += grow; renderCard(f); made.filter(c => c.y >= bottom - 1 && c !== f).forEach(c => { c.y += grow; renderCard(c); }); }
     if (spec.note) { const n = card('note', { x, y: y + f.h + 28, w: W, h: 120, text: spec.note, name: spec.name || '', color: 'butter', r: 0 }); board.cards.push(n); renderCard(n, true); made.push(n); }
     return { f, made };
   }
-  $('dzPieces').innerHTML = Object.entries(PIECES).map(([n, p]) => `<button data-piece="${n}" title="Add a ${n.toLowerCase()}"><span class="mi">${p.icon}</span>${n}</button>`).join('');
+  const pieceBtn = ([n, p]) => `<button data-piece="${n}" title="Add ${n.toLowerCase()}"><span class="mi">${p.icon}</span>${n}</button>`;
+  $('dzPieces').innerHTML = Object.entries(PIECES).filter(([, p]) => !p.web).map(pieceBtn).join('') + '<div class="label dz-sub">Website</div>' + Object.entries(PIECES).filter(([, p]) => p.web).map(pieceBtn).join('');
   $('dzPieces').onclick = e => { const b = e.target.closest('[data-piece]'); if (!b) return; pickWF(null); $('dzPieces').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); startPlacing('piece', { piece: b.dataset.piece }); };
   function placePiece(name, w) {
     const P = PIECES[name], f = [...board.cards].reverse().find(f => f.type === 'frame' && w.x > f.x && w.x < f.x + f.w && w.y > f.y && w.y < f.y + f.h);
-    const W = P.bar && f ? f.w : P.w || 360, items = P.make(W); let ox = w.x - 14 / view.z, oy = w.y - 14 / view.z;
-    if (P.bar && f) { ox = f.x; if (P.bar === 'top') oy = Math.max(f.y, oy); if (P.bar === 'bottom') oy = Math.min(f.y + f.h - 64, Math.max(f.y, oy)); }
+    const W = (P.bar || P.web) && f ? f.w : P.web ? 1200 : P.w || 360, items = P.make(W); let ox = w.x - 14 / view.z, oy = w.y - 14 / view.z;
+    if ((P.bar || P.web) && f) { ox = f.x; if (P.bar === 'top') oy = Math.max(f.y, oy); if (P.bar === 'bottom') oy = Math.min(f.y + f.h - 64, Math.max(f.y, oy)); }
     const g = uid(), made = items.map(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: g }); board.cards.push(c); renderCard(c, true); return c; });
     fileIntoFrame(made); selectOnly(made.map(c => c.id)); renderWires(); save();
   }
@@ -1470,6 +1526,51 @@
   // keep X / Y / W / H current while you drag (unless you're typing in them)
   function syncDesign() { const one = selCards().length === 1 && WF.includes(selCards()[0].type) ? selCards()[0] : null; if (!one || $('dzProps').contains(document.activeElement)) return;
     ['x', 'y', 'w', 'h'].forEach(k => { const i = $('dzProps').querySelector(`[data-k="${k}"]`); if (i && +i.value !== Math.round(one[k])) i.value = Math.round(one[k]); }); }
+
+  // ---------- filling image spots: Higgsfield photos (price check, then your yes) or free drawn illustrations ----------
+  const spotsIn = cs => { const ids = new Set(); cs.forEach(c => { if (c.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); else ids.add(c.id); }); return board.cards.filter(c => ids.has(c.id) && c.type === 'box' && c.img && !c.src); };
+  const aspect = c => { const r = c.w / c.h, opts = [['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['16:9', 16 / 9], ['9:16', 9 / 16], ['3:2', 1.5], ['2:3', 2 / 3], ['21:9', 21 / 9]]; return opts.sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r))[0][0]; };
+  const styleHint = spots => { const f = byId(spots[0]?.onFrame); return [board.name, f?.name].filter(Boolean).join(', '); };
+  function offerFill(spots, where = 'chat') {
+    if (!spots.length) return;
+    const n = spots.length, acts = [];
+    if (settings.ai && settings.higgs) acts.push({ label: `Fill ${n} with Higgsfield ✦`, run: () => quoteFill(spots) });
+    if (settings.ai) acts.push({ label: 'Draw simple illustrations (free)', ghost: !!(settings.ai && settings.higgs), run: () => drawFill(spots) });
+    if (!acts.length) return;
+    say(`There ${n === 1 ? 'is 1 image spot' : `are ${n} image spots`} waiting for pictures. ${settings.higgs ? 'Higgsfield makes real photos (that uses credits, and I check the price with you first), or I can draw simple illustrations for free.' : 'I can draw simple illustrations for them, free.'}`, 0, [...acts, { label: 'Leave them empty', ghost: true, run: () => {} }]);
+  }
+  async function quoteFill(spots) {
+    if (!chatOpen()) mochiOpen(true); addMsg('mochi', 'Checking your Higgsfield balance and the price per image…'); typing(true);
+    try {
+      const q = parse(await MB.higgsQuote({ model: 'nano_banana_2' })); typing(false);
+      const per = +q.perImage, bal = +q.balance, total = Number.isFinite(per) ? Math.ceil(per * spots.length) : null;
+      const line = total != null ? `That's ${spots.length} image${spots.length > 1 ? 's' : ''} × about ${per} credits ≈ ${total} credits.` : `I couldn't find the exact price, so check Higgsfield before saying yes.`;
+      const balLine = Number.isFinite(bal) ? ` You have ${bal} credits.` : '', short = Number.isFinite(bal) && total != null && total > bal;
+      say(line + balLine + (short ? ' That\'s more than you have right now, so I\'d fill fewer spots or top up first.' : ' Want me to make them?'), 0,
+        short ? [{ label: 'Draw illustrations instead (free)', run: () => drawFill(spots) }, { label: 'Not now', ghost: true, run: () => {} }]
+              : [{ label: `Yes, make ${spots.length} ✦`, run: () => makeFill(spots) }, { label: 'Not now', ghost: true, run: () => {} }]);
+    } catch (e) { typing(false); say("I couldn't reach Higgsfield: " + e.message); }
+  }
+  async function placeImages(spots, list, key) {
+    let n = 0;
+    for (const it of list || []) { const c = spots.find(s => s.id === it.id); if (!c) continue;
+      try { c.src = key === 'svg' ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(it.svg) : await MB.fetchImage(it.url); renderCard(c); n++; } catch (e) {} }
+    save(); return n;
+  }
+  async function makeFill(spots) {
+    addMsg('mochi', `Making ${spots.length} image${spots.length > 1 ? 's' : ''} with Higgsfield… this can take a minute or two ✦`); typing(true); $('mochi').classList.add('thinking'); goo.think(true);
+    try { const r = parse(await MB.higgsMake({ model: 'nano_banana_2', style: styleHint(spots), images: spots.map(c => ({ id: c.id, label: c.img, aspect: aspect(c) })) }));
+      const n = await placeImages(spots, r.images, 'url'); typing(false); say(n ? `Done! ${n} image${n > 1 ? 's are' : ' is'} in place ✦` : "Hmm, the images didn't come back. Nothing was placed."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
+    catch (e) { typing(false); say("Something went wrong making those: " + e.message); }
+    finally { $('mochi').classList.remove('thinking'); goo.think(false); }
+  }
+  async function drawFill(spots) {
+    if (!chatOpen()) mochiOpen(true); addMsg('mochi', `Drawing ${spots.length} little illustration${spots.length > 1 ? 's' : ''}…`); typing(true); $('mochi').classList.add('thinking'); goo.think(true);
+    try { const r = parse(await MB.drawFill({ style: 'soft pastel, rounded, friendly, minimal', images: spots.map(c => ({ id: c.id, label: c.img, w: Math.round(c.w), h: Math.round(c.h) })) }));
+      const n = await placeImages(spots, r.images, 'svg'); typing(false); say(n ? `Drew ${n} ✦ (want real photos later? that's Higgsfield)` : "I couldn't draw those this time."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
+    catch (e) { typing(false); say("I couldn't draw those: " + e.message); }
+    finally { $('mochi').classList.remove('thinking'); goo.think(false); }
+  }
 
   // ---------- crop an image: see the whole picture, drag the box or its corners, then Done ----------
   let cropping = null, cropDrag = null;
@@ -1742,7 +1843,7 @@
       return; }
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { if (bar.dataset.key !== '') { bar.dataset.key = ''; renderDesign(); } return; }
-    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit).join();
+    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src).join();
     if (bar.dataset.key === key) { syncDesign(); return; } bar.dataset.key = key; renderDesign();
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
     let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
@@ -1751,6 +1852,7 @@
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
+    if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
@@ -1801,6 +1903,7 @@
       if (c.type === 'note' && !parentOf(c.id)) { renderCard(c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`), b2 = el.querySelector('.body'); b2.style.height = 'auto'; c.h = Math.max(80, b2.offsetHeight); b2.style.height = ''; } }); redraw(); }
     if (a === 'crop') return startCrop(one);
     const cr = e.target.closest('[data-crop]')?.dataset.crop; if (cr) return endCrop(cr);
+    if (e.target.closest('[data-fill]')) return offerFill(spotsIn(cs));
     if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
     if (a === 'visit') MB.openURL(one.url);
     if (a === 'relink') { one.draft = one.url; one.url = ''; one.image = ''; one.h = 52; redraw(); }
