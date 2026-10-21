@@ -200,6 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                   "name": "optional bold name above a note's words", "in": "optional: a collection id, or the name of a collection in this reply, to stack it inside"}],
          "titles": [{"text": "group name", "x": 0, "y": 0}],
          "collections": [{"name": "Loading", "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0}],
+         "screens": [{"name": "Log in", "device": "iPhone|Android|iPad|Desktop", "note": "1 to 2 sentences: what this screen is and what it does",
+                      "items": [{"piece": "Nav bar", "title": "Sign in"}, {"piece": "Heading", "text": "Welcome back", "sub": "Log in to continue"},
+                                {"piece": "Input", "label": "Email", "text": "you@example.com"}, {"piece": "Button", "text": "Log in"}, {"piece": "Tab bar", "tabs": [["home", "Home"], ["person_outline", "Profile"]]}]}],
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
          "edit": [{"id": "existing card id", "text": "new words (a note, title, list heading, or a link's title)", "items": ["the full new list, for a todo"], "desc": "a link's note",
                    "color": "white|pink|butter|mint|lilac|sky|peach", "tag": "the little handwritten label above a card (\"\" removes it)", "hex": "#rrggbb", "label": "swatch name",
@@ -215,6 +218,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         Moving a board into a folder that doesn't exist yet creates it; filing a folder into a project that doesn't exist yet creates the project. Never invent board ids: only use ids from "library".
         A "coll" card is a COLLECTION: a named column whose "kids" stack inside it automatically (you never position its kids). \
         Prefer collections for grouping (screen states, themes, steps): make them with "collections" and put cards in with "in". \
+        WIREFRAMES: when they ask for wireframes, screens, mockups, a flow or an app layout, ALWAYS use "screens" (real wireframe pieces the app lays out for you), not notes. \
+        List each screen's pieces top to bottom; the app stacks them, puts "Nav bar" at the top and "Tab bar" at the bottom, and draws arrows between screens in order. \
+        Pieces and their words: "Nav bar" {title, icon}, "Tab bar" {tabs: [[material_icon_name, label]], active}, "Heading" {text, sub, align}, "Text" {text, size, weight, align}, \
+        "Input" {label, text}, "Search" {text}, "Button" {text, style: "primary"|"secondary"}, "Card" {title, text}, "List row" {title, sub, icon} (use "rows": [{title, sub}] for several), \
+        "Toggle" {text, on}, "Checkbox" {text, on}, "Avatar" {size, align}, "Image" {h}, "Icon" {name, size, align}, "Divider", "Space" {h}. Icons are Material Icons names (home, search, settings, favorite_border, person_outline, notifications_none, shopping_bag, add, close). \
+        Use real, specific words for the product (not "Lorem"). Put the explanation of each screen in its "note" (that becomes a note under the screen); don't also add separate notes for them. \
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 

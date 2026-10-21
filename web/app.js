@@ -1046,6 +1046,11 @@
       if (board.cards.includes(c)) { renderCard(c, true); added.push(c); } else renderTray(); });
     if (r.remove && r.remove.length) { const gone = new Set(r.remove); board.cards = board.cards.filter(c => !gone.has(c.id)); board.tray = board.tray.filter(c => !gone.has(c.id)); board.links = board.links.filter(l => !gone.has(l.a) && !gone.has(l.b)); gone.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove()); }
     (r.connect || []).forEach(p => { const [a, b] = Array.isArray(p) ? p : [p.a, p.b]; if (byId(a) && byId(b)) board.links.push({ id: uid(), a, b }); });
+    // wireframes: real screens built from the pieces, left to right, with arrows for the flow
+    if (Array.isArray(r.screens) && r.screens.length) {
+      let sx = board.cards.length ? Math.max(...board.cards.map(c => c.x + c.w)) + 160 : center.x - 200, sy = board.cards.length ? Math.min(...board.cards.map(c => c.y)) : center.y - 400, prev = null;
+      r.screens.forEach(sp => { const { f, made } = buildScreen(sp, sx, sy); made.forEach(c => added.push(c)); if (prev && sp.flow !== false) board.links.push({ id: uid(), a: prev.id, b: f.id, arrow: true }); prev = f; sx += f.w + 140; });
+    }
     // pictures (Mobbin screens, Higgsfield images): fetched and saved into the board, laid out in a row of tilted cards
     const imgs = r.images || [];
     if (imgs.length) {
@@ -1062,7 +1067,7 @@
     }
     layoutAll();
     renderTray(); renderWires(); save();
-    if (added.length && (r.add || r.titles || r.place || r.move || imgs.length)) setTimeout(() => fit(board.cards), 300);
+    if (added.length && (r.add || r.titles || r.place || r.move || r.screens || imgs.length)) setTimeout(() => fit(board.cards), 300);
     const acts = r.confirm ? [{ label: (r.confirm || 'Yes, make it') + ' ✦', run: () => ask(q, true) }, { label: 'Not now', ghost: true, run: () => {} }] : [];
     say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), acts.length ? 0 : 9000, acts);
   }
@@ -1098,7 +1103,7 @@
     stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
     g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape });
-    if (type === 'piece') { const P = PIECES[extra.piece], items = P.make(P.bar ? 360 : 360), W = Math.max(...items.map(i => i.x + i.w)), H = Math.max(...items.map(i => i.y + i.h)); g.style.width = W + 'px'; g.style.height = H + 'px'; g.querySelector('span').textContent = extra.piece; }
+    if (type === 'piece') { const P = PIECES[extra.piece], items = P.make(P.w || 360), W = Math.max(...items.map(i => i.x + i.w)), H = Math.max(...items.map(i => i.y + i.h)); g.style.width = W + 'px'; g.style.height = H + 'px'; g.querySelector('span').textContent = extra.piece; }
     if (type === 'icon') { g.innerHTML = `<span class="mi" style="font-size:28px;position:static;color:#27272a">${esc(extra.name)}</span>`; g.style.width = g.style.height = '28px'; }
     if (type === 'frame' && DEVICES[extra.device]) { g.style.width = DEVICES[extra.device][0] + 'px'; g.style.height = DEVICES[extra.device][1] + 'px'; g.querySelector('span').textContent = extra.device; }
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
@@ -1295,26 +1300,63 @@
   const T = (x, y, w, text, o = {}) => ({ type: 'text', x, y, w, h: Math.round((o.size || 15) * 1.3), text, size: 15, weight: 500, color: '#27272a', font: 'DM Sans', ...o });
   const B = (x, y, w, h, o = {}) => ({ type: 'box', x, y, w, h, fill: '#e4e4e7', radius: 0, ...o });
   const IC = (x, y, name, s = 24, o = {}) => ({ type: 'icon', x, y, w: s, h: s, name, color: '#3f3f46', ...o });
+  // each piece can take its own words: (width, { title, text, sub, label, tabs, h, align, style… })
   const PIECES = {
-    'Nav bar': { icon: 'web_asset', bar: 'top', make: W => [B(0, 0, W, 56, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), IC(14, 16, 'arrow_back'), T(56, 18, W - 112, 'Title', { size: 17, weight: 700, align: 'center' }), IC(W - 38, 16, 'more_vert')] },
-    'Tab bar': { icon: 'tab', bar: 'bottom', make: W => { const items = [['home', 'Home'], ['search', 'Search'], ['favorite_border', 'Saved'], ['person_outline', 'Profile']], cw = W / 4;
-      return [B(0, 0, W, 64, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), ...items.flatMap(([n, l], i) => [IC(i * cw + cw / 2 - 12, 10, n), T(i * cw, 38, cw, l, { size: 11, align: 'center', color: '#52525b' })])]; } },
-    'Button': { icon: 'smart_button', make: () => [B(0, 0, 160, 44, { fill: '#27272a', radius: 10 }), T(0, 12, 160, 'Button', { size: 15, weight: 600, color: '#ffffff', align: 'center' })] },
-    'Input': { icon: 'input', make: () => [B(0, 0, 300, 48, { fill: '#ffffff', stroke: '#d4d4d8', sw: 1.5, radius: 10 }), T(14, 14, 260, 'Placeholder', { color: '#a1a1aa' })] },
-    'Search': { icon: 'search', make: () => [B(0, 0, 300, 44, { fill: '#f4f4f5', radius: 22 }), IC(14, 10, 'search', 24, { color: '#71717a' }), T(46, 12, 220, 'Search', { color: '#a1a1aa' })] },
-    'Card': { icon: 'crop_landscape', make: () => [B(0, 0, 300, 236, { fill: '#ffffff', stroke: '#e4e4e7', sw: 1, radius: 14 }), B(10, 10, 280, 130, { radius: 10 }), IC(138, 63, 'image', 24, { color: '#a1a1aa' }), T(16, 154, 268, 'Card title', { size: 17, weight: 700 }), T(16, 182, 268, 'A short line about this card.', { size: 13, color: '#71717a' })] },
-    'List row': { icon: 'view_list', bar: 'row', make: W => [B(0, 0, W, 68, { fill: '#ffffff' }), B(16, 14, 40, 40, { radius: 20 }), T(68, 15, W - 120, 'Row title', { weight: 600 }), T(68, 36, W - 120, 'Supporting text', { size: 13, color: '#71717a' }), IC(W - 36, 22, 'chevron_right', 24, { color: '#a1a1aa' }), B(68, 67, W - 68, 1, { fill: '#e4e4e7' })] },
-    'Toggle': { icon: 'toggle_on', make: () => [B(0, 0, 52, 30, { fill: '#27272a', radius: 15 }), B(25, 3, 24, 24, { fill: '#ffffff', radius: 12 })] },
-    'Checkbox': { icon: 'check_box', make: () => [B(0, 0, 22, 22, { fill: '#27272a', radius: 6 }), IC(1, 1, 'check', 20, { color: '#ffffff' }), T(32, 2, 200, 'Remember me')] },
-    'Avatar': { icon: 'account_circle', make: () => [B(0, 0, 56, 56, { radius: 28 }), IC(14, 14, 'person', 28, { color: '#a1a1aa' })] },
-    'Image': { icon: 'image', make: () => [B(0, 0, 300, 180, { radius: 12 }), IC(134, 74, 'image', 32, { color: '#a1a1aa' })] },
-    'Heading': { icon: 'title', make: () => [T(0, 0, 300, 'Heading', { size: 28, weight: 800 }), T(0, 42, 300, 'A little line underneath it.', { size: 15, color: '#71717a' })] },
+    'Nav bar': { icon: 'web_asset', bar: 'top', make: (W, o = {}) => [B(0, 0, W, 56, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), ...(o.back === false ? [] : [IC(14, 16, 'arrow_back')]), T(56, 18, W - 112, o.title || o.text || 'Title', { size: 17, weight: 700, align: 'center' }), IC(W - 38, 16, o.icon || 'more_vert')] },
+    'Tab bar': { icon: 'tab', bar: 'bottom', make: (W, o = {}) => { const items = (o.tabs || [['home', 'Home'], ['search', 'Search'], ['favorite_border', 'Saved'], ['person_outline', 'Profile']]).slice(0, 5).map(t => Array.isArray(t) ? t : [t.icon || 'circle', t.label || t.text || '']), cw = W / items.length;
+      return [B(0, 0, W, 64, { fill: '#fafafa', stroke: '#e4e4e7', sw: 1 }), ...items.flatMap(([n, l], i) => [IC(i * cw + cw / 2 - 12, 10, n, 24, { color: i === (o.active ?? 0) ? '#18181b' : '#71717a' }), T(i * cw, 38, cw, l, { size: 11, align: 'center', color: i === (o.active ?? 0) ? '#18181b' : '#71717a' })])]; } },
+    'Button': { icon: 'smart_button', w: 160, make: (W, o = {}) => { const sec = o.style === 'secondary' || o.style === 'outline';
+      return [B(0, 0, W, 48, { fill: sec ? '#ffffff' : '#27272a', stroke: sec ? '#27272a' : undefined, sw: sec ? 1.5 : 0, radius: 12 }), T(0, 14, W, o.text || 'Button', { size: 15, weight: 600, color: sec ? '#27272a' : '#ffffff', align: 'center' })]; } },
+    'Input': { icon: 'input', w: 300, make: (W, o = {}) => { const top = o.label ? 22 : 0; return [...(o.label ? [T(0, 0, W, o.label, { size: 13, weight: 600, color: '#3f3f46' })] : []), B(0, top, W, 48, { fill: '#ffffff', stroke: '#d4d4d8', sw: 1.5, radius: 10 }), T(14, top + 14, W - 28, o.text || 'Placeholder', { color: '#a1a1aa' })]; } },
+    'Search': { icon: 'search', w: 300, make: (W, o = {}) => [B(0, 0, W, 44, { fill: '#f4f4f5', radius: 22 }), IC(14, 10, 'search', 24, { color: '#71717a' }), T(46, 12, W - 60, o.text || 'Search', { color: '#a1a1aa' })] },
+    'Card': { icon: 'crop_landscape', w: 300, make: (W, o = {}) => [B(0, 0, W, 236, { fill: '#ffffff', stroke: '#e4e4e7', sw: 1, radius: 14 }), B(10, 10, W - 20, 130, { radius: 10 }), IC(W / 2 - 12, 63, o.icon || 'image', 24, { color: '#a1a1aa' }), T(16, 154, W - 32, o.title || 'Card title', { size: 17, weight: 700 }), T(16, 182, W - 32, o.text || 'A short line about this card.', { size: 13, color: '#71717a' })] },
+    'List row': { icon: 'view_list', bar: 'row', make: (W, o = {}) => [B(0, 0, W, 68, { fill: '#ffffff' }), o.icon ? IC(24, 22, o.icon, 24, { color: '#52525b' }) : B(16, 14, 40, 40, { radius: 20 }), T(68, 15, W - 120, o.title || o.text || 'Row title', { weight: 600 }), T(68, 36, W - 120, o.sub ?? 'Supporting text', { size: 13, color: '#71717a' }), IC(W - 36, 22, 'chevron_right', 24, { color: '#a1a1aa' }), B(68, 67, W - 68, 1, { fill: '#e4e4e7' })] },
+    'Toggle': { icon: 'toggle_on', w: 52, make: (W, o = {}) => o.text ? [T(0, 6, W - 70, o.text), B(W - 52, 0, 52, 30, { fill: o.on === false ? '#d4d4d8' : '#27272a', radius: 15 }), B(o.on === false ? W - 49 : W - 27, 3, 24, 24, { fill: '#ffffff', radius: 12 })]
+      : [B(0, 0, 52, 30, { fill: '#27272a', radius: 15 }), B(25, 3, 24, 24, { fill: '#ffffff', radius: 12 })] },
+    'Checkbox': { icon: 'check_box', w: 240, make: (W, o = {}) => [B(0, 0, 22, 22, { fill: o.on === false ? '#ffffff' : '#27272a', stroke: '#27272a', sw: 1.5, radius: 6 }), ...(o.on === false ? [] : [IC(1, 1, 'check', 20, { color: '#ffffff' })]), T(32, 2, W - 32, o.text || 'Remember me')] },
+    'Avatar': { icon: 'account_circle', w: 56, make: (W, o = {}) => { const s = o.size || 56; return [B(0, 0, s, s, { radius: s / 2 }), IC(s / 4, s / 4, 'person', s / 2, { color: '#a1a1aa' })]; } },
+    'Image': { icon: 'image', w: 300, make: (W, o = {}) => { const h = o.h || 180; return [B(0, 0, W, h, { radius: 12 }), IC(W / 2 - 16, h / 2 - 16, o.icon || 'image', 32, { color: '#a1a1aa' })]; } },
+    'Heading': { icon: 'title', w: 300, make: (W, o = {}) => [T(0, 0, W, o.text || o.title || 'Heading', { size: o.size || 28, weight: 800, align: o.align || 'left' }), ...(o.sub === '' ? [] : [T(0, (o.size || 28) * 1.3 + 6, W, o.sub || 'A little line underneath it.', { size: 15, color: '#71717a', align: o.align || 'left' })])] },
   };
+  // pieces only Mochi asks for by name (not in the panel)
+  const EXTRA = {
+    'Text': (W, o = {}) => [T(0, 0, W, o.text || '', { size: o.size || 15, weight: o.weight || 500, align: o.align || 'left', color: o.color || '#3f3f46' })],
+    'Icon': (W, o = {}) => { const s = o.size || 32; return [IC(o.align === 'center' ? W / 2 - s / 2 : 0, 0, o.name || o.icon || 'star', s, { color: o.color || '#27272a' })]; },
+    'Space': (W, o = {}) => [],
+    'Divider': (W, o = {}) => [B(0, 0, W, 1, { fill: '#e4e4e7' })],
+  };
+  const pieceH = (items, o) => Math.max(o.h && !items.length ? o.h : 0, ...items.map(i => i.y + i.h));
+  // a whole screen from a list of pieces, top to bottom: bars hug the edges, the rest stacks with even gaps
+  function buildScreen(spec, x, y) {
+    const dev = DEVICES[spec.device] || DEVICES.iPhone, W = spec.w || dev[0], phone = !spec.device || /iPhone|Android/.test(spec.device);
+    const f = card('frame', { x, y, w: W, h: spec.h || dev[1], r: 0, name: spec.name || 'Screen', device: DEVICES[spec.device] ? spec.device : 'iPhone', radius: dev[2], fill: '#ffffff' });
+    board.cards.push(f); renderCard(f, true);
+    const items = spec.items || [], M = spec.device === 'Desktop' ? 64 : 24, CW = W - M * 2, GAP = spec.gap || 16, made = [f];
+    let top = y + (phone ? 44 : 0), bottom = y + f.h;
+    const put = (list, ox, oy) => { const g = uid(); list.forEach(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: list.length > 1 ? g : undefined, onFrame: f.id }); if (!c.group) delete c.group; board.cards.push(c); renderCard(c, true); made.push(c); }); };
+    const nav = items.find(it => /nav/i.test(it.piece || '')), tab = items.find(it => /tab/i.test(it.piece || ''));
+    if (nav) { const l = PIECES['Nav bar'].make(W, nav); put(l, x, top); top += 56; }
+    if (tab) { const l = PIECES['Tab bar'].make(W, tab); bottom -= 64 + (phone ? 20 : 0); put(l, x, bottom); }
+    let cur = top + (spec.padTop ?? 20);
+    items.filter(it => it !== nav && it !== tab).forEach(it => {
+      const name = Object.keys(PIECES).find(k => k.toLowerCase() === String(it.piece || '').toLowerCase()) || Object.keys(EXTRA).find(k => k.toLowerCase() === String(it.piece || '').toLowerCase()) || 'Text';
+      const P = PIECES[name], full = name === 'List row', w = full ? W : ['Avatar', 'Toggle'].includes(name) && !it.text ? P.w : it.w || CW;
+      const reps = Math.max(1, Math.min(8, +it.count || (Array.isArray(it.rows) ? it.rows.length : 1)));
+      for (let k = 0; k < reps; k++) {
+        const o = Array.isArray(it.rows) ? { ...it, ...it.rows[k] } : it, list = P ? P.make(w, o) : EXTRA[name](w, o), h = pieceH(list, o);
+        const ox = full ? x : (it.align === 'center' && w < CW) ? x + (W - w) / 2 : x + M;
+        put(list, ox, cur); cur += h + (full ? 0 : GAP);
+      }
+    });
+    if (cur > bottom - 12) { const grow = cur - bottom + 24; f.h += grow; renderCard(f); made.filter(c => c.y >= bottom - 1 && c !== f).forEach(c => { c.y += grow; renderCard(c); }); }
+    if (spec.note) { const n = card('note', { x, y: y + f.h + 28, w: W, h: 120, text: spec.note, name: spec.name || '', color: 'butter', r: 0 }); board.cards.push(n); renderCard(n, true); made.push(n); }
+    return { f, made };
+  }
   $('dzPieces').innerHTML = Object.entries(PIECES).map(([n, p]) => `<button data-piece="${n}" title="Add a ${n.toLowerCase()}"><span class="mi">${p.icon}</span>${n}</button>`).join('');
   $('dzPieces').onclick = e => { const b = e.target.closest('[data-piece]'); if (!b) return; pickWF(null); $('dzPieces').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); startPlacing('piece', { piece: b.dataset.piece }); };
   function placePiece(name, w) {
     const P = PIECES[name], f = [...board.cards].reverse().find(f => f.type === 'frame' && w.x > f.x && w.x < f.x + f.w && w.y > f.y && w.y < f.y + f.h);
-    const W = P.bar && f ? f.w : 360, items = P.make(W); let ox = w.x - 14 / view.z, oy = w.y - 14 / view.z;
+    const W = P.bar && f ? f.w : P.w || 360, items = P.make(W); let ox = w.x - 14 / view.z, oy = w.y - 14 / view.z;
     if (P.bar && f) { ox = f.x; if (P.bar === 'top') oy = Math.max(f.y, oy); if (P.bar === 'bottom') oy = Math.min(f.y + f.h - 64, Math.max(f.y, oy)); }
     const g = uid(), made = items.map(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: g }); board.cards.push(c); renderCard(c, true); return c; });
     fileIntoFrame(made); selectOnly(made.map(c => c.id)); renderWires(); save();
