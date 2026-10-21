@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mochiboard</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- the wobbly hand-cut edge every frame wears -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="wob" x="-4%" y="-4%" width="108%" height="108%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<aside class="side" id="side">
+  <div class="brand"><canvas id="brandGoo" width="40" height="36"></canvas><span>Mochiboard</span></div>
+  <div class="side-label">Boards</div>
+  <div class="boards" id="boards"></div>
+  <button class="pill-btn" id="newBoard">+ New board</button>
+  <div class="side-label">Start from</div>
+  <div class="templates" id="templates"></div>
+  <div class="side-foot">
+    <div><kbd>⌘K</kbd> quick capture</div>
+    <div><kbd>double-click</kbd> new note</div>
+    <div><kbd>F</kbd> focus selection</div>
+    <div><kbd>space</kbd>+drag to pan</div>
+  </div>
+</aside>
+
+<main class="stage" id="stage">
+  <div class="grid" id="grid"></div>
+  <div class="world" id="world">
+    <svg class="wires" id="wires"></svg>
+    <div class="cards" id="cards"></div>
+  </div>
+  <div class="marquee" id="marquee"></div>
+  <div class="focus-veil" id="veil"></div>
+
+  <header class="top">
+    <input class="board-name" id="boardName" spellcheck="false" aria-label="Board name">
+    <span class="saved" id="saved">saved</span>
+  </header>
+
+  <div class="tools" id="tools">
+    <button data-add="note" title="Note (N)"><span class="ic">✎</span>Note</button>
+    <button data-add="todo" title="Checklist (C)"><span class="ic">☑</span>List</button>
+    <button data-add="title" title="Title (T)"><span class="ic">T</span>Title</button>
+    <button data-add="link" title="Link (L)"><span class="ic">↗</span>Link</button>
+    <button data-add="image" title="Image (I)"><span class="ic">▣</span>Image</button>
+    <button data-add="swatch" title="Color"><span class="ic">◉</span>Color</button>
+    <span class="zoom" id="zoom">100%</span>
+  </div>
+
+  <aside class="tray" id="tray">
+    <div class="tray-head"><span>Unsorted</span><b id="trayCount">0</b></div>
+    <div class="tray-hint">ideas waiting for a spot. drag one onto the board ✦</div>
+    <div class="tray-list" id="trayList"></div>
+  </aside>
+
+  <!-- Mochi: her pill, her bar, her bubble -->
+  <div class="mochi" id="mochi">
+    <div class="m-bubble" id="mBubble"><small>mochi</small><p id="mSay"></p></div>
+    <div class="m-pill" id="mPill">
+      <canvas id="goo" width="64" height="56"></canvas>
+      <span class="m-name" id="mName">Mochi</span>
+      <form id="mForm" class="m-form"><input id="mInput" placeholder="Ask Mochi… “group these by theme”" autocomplete="off"></form>
+    </div>
+  </div>
+
+  <div class="capture" id="capture">
+    <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
+  </div>
+  <input type="file" id="filePick" accept="image/*" multiple hidden>
+</main>
+
+<script src="bridge.js"></script>
+<script src="goo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
