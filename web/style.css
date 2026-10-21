@@ -834,3 +834,10 @@ body.dark .top.covered { background: rgba(38, 34, 43, .88); box-shadow: 0 6px 20
 .au-count.soft { display: flex; gap: 5px; align-items: center; justify-content: center; }
 .au-count.soft i { width: 7px; height: 7px; border-radius: 50%; background: var(--pink-deep); animation: mc-dot 1s ease-in-out infinite; }
 .au-count.soft i:nth-child(2) { animation-delay: .15s; } .au-count.soft i:nth-child(3) { animation-delay: .3s; }
+/* dark mode: anything filled with "ink" (which turns light in dark mode) gets dark text, so nothing is white on white */
+body.dark .sb-sizes button.on, body.dark .selbar .sb-txt.on, body.dark .cp-acts .solid, body.dark .home-close:hover, body.dark .set-btn:hover,
+body.dark .conn button:hover, body.dark .mc-send, body.dark .dv-back, body.dark .db-done, body.dark .au-play { background: #ece8f0; color: #1c1920; border-color: #ece8f0; }
+body.dark .tools button::after { background: #ece8f0; color: #1c1920; }
+body.dark .sb-sizes button.on i { background: #1c1920; }
+body.dark .db-sizes button.on { background: var(--blush); } body.dark .db-sizes button.on i { background: #ece8f0; }
+body.dark .home-back:hover, body.dark .linkbox button { background: #ece8f0; color: #1c1920; }

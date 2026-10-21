@@ -1296,7 +1296,7 @@
     return `<path fill="none" style="stroke:${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${tool === 'hi' ? ' opacity=".38" style="mix-blend-mode:multiply"' : ''} d="${centerline(pts)}"/>`;
   }
   function renderDrawbar() {
-    $('dbColors').innerHTML = Object.entries(INKS).map(([n, c]) => `<button data-ink="${n}" title="${n}" style="background:${c}" class="${pen.color === n ? 'on' : ''}"></button>`).join('');
+    $('dbColors').innerHTML = Object.entries(INKS).map(([n, c]) => `<button data-ink="${n}" title="${n}" style="background:${n === 'ink' ? 'var(--pen-ink)' : c}" class="${pen.color === n ? 'on' : ''}"></button>`).join('');
     $('drawbar').querySelectorAll('[data-pen]').forEach(b => b.classList.toggle('on', b.dataset.pen === pen.tool));
     $('dbSizes').querySelectorAll('[data-sz]').forEach(b => b.classList.toggle('on', b.dataset.sz === pen.size));
     stage.classList.toggle('erasing', drawOn && pen.tool === 'eraser'); stage.classList.toggle('drawing', drawOn && pen.tool !== 'eraser');
