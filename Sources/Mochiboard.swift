@@ -72,7 +72,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "linkPreview":
             linkPreview(args["url"] as? String ?? "") { reply(true, $0) }
         case "ask":
-            askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:]) { ok, text in reply(ok, text) }
+            askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:], confirmed: args["confirmed"] as? Bool ?? false) { ok, text in reply(ok, text) }
+        case "connections":
+            connections { reply(true, $0) }
+        case "fetchImage":
+            fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
+        case "openURL":
+            if let u = URL(string: args["url"] as? String ?? "") { NSWorkspace.shared.open(u) }; reply(true, true)
         default: reply(false, "unknown op \(op)")
         }
     }
@@ -112,7 +118,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if !s.isEmpty { return s }
         return ["~/.claude/local/claude", "~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].map { NSString(string: $0).expandingTildeInPath }.first { FileManager.default.isExecutableFile(atPath: $0) }
     }()
-    func askMochi(_ request: String, _ board: Any, done: @escaping (Bool, String) -> Void) {
+    // which helpers Mochi can use: Claude Code itself, and the Mobbin / Higgsfield connections in the person's Claude account
+    func connections(done: @escaping ([String: Any]) -> Void) {
+        guard let claude = claudePath else { return done(["claude": false, "mobbin": false, "higgsfield": false]) }
+        DispatchQueue.global().async {
+            let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: claude); p.arguments = ["mcp", "list"]
+            p.currentDirectoryURL = support; p.standardOutput = out; p.standardError = Pipe(); p.standardInput = FileHandle.nullDevice
+            try? p.run(); let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            let lines = (String(data: d, encoding: .utf8) ?? "").lowercased().split(separator: "\n")
+            let ok = { (name: String) in lines.contains { $0.contains(name) && $0.contains("connected") && !$0.contains("needs") } }
+            done(["claude": true, "mobbin": ok("mobbin"), "higgsfield": ok("higgsfield")])
+        }
+    }
+    // pictures from Mobbin or Higgsfield come in as links; bring them home as data, so they're saved with the board
+    func fetchImage(_ s: String, done: @escaping (String?) -> Void) {
+        guard let url = URL(string: s) else { return done(nil) }
+        URLSession.shared.dataTask(with: URLRequest(url: url, timeoutInterval: 30)) { data, resp, _ in
+            guard let data, data.count > 200 else { return done(nil) }
+            let type = (resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? "image/jpeg"
+            done("data:\(type.split(separator: ";").first ?? "image/jpeg");base64,\(data.base64EncodedString())")
+        }.resume()
+    }
+    func askMochi(_ request: String, _ board: Any, confirmed: Bool, done: @escaping (Bool, String) -> Void) {
         guard let claude = claudePath else { return done(false, "I need Claude Code to think. Install it from claude.com/claude-code, then try again.") }
         let boardJSON = (try? JSONSerialization.data(withJSONObject: board)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let prompt = """
@@ -135,17 +162,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
          "connect": [["card id", "card id"]]}
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
+
+        You may also have two design helpers (only if their tools are available to you):
+        - Mobbin (real app screenshots): when they ask for UI references, inspiration or examples of screens or flows, search Mobbin and return the best 4 to 8 \
+        as "images": [{"url": "the screen image url", "caption": "App name · what the screen is", "x": 0, "y": 0}].
+        - Higgsfield (image generation, costs the person credits): \(confirmed
+            ? "they have CONFIRMED. Generate what they asked for with Higgsfield (one image unless they asked for more; use the nano_banana_2 model), wait for it to finish, and return it in \"images\" with a short caption."
+            : "they have NOT confirmed spending credits yet. Do NOT generate. If their request needs a generated image, describe in \"say\" what you would make and that it uses a few Higgsfield credits, and add \"confirm\": \"a 2 to 5 word label for the button\". Everything else in the request you can still do now.")
+        If a helper isn't available, say so kindly in "say" and suggest connecting it in Mochiboard's sidebar.
         """
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process(), out = Pipe(), err = Pipe()
             p.executableURL = URL(fileURLWithPath: claude)
-            p.arguments = ["-p", prompt, "--output-format", "text"]
+            var tools = ["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"]
+            // the generator is only switched on after the person taps "yes" in the app: spending credits needs their say-so
+            if confirmed { tools += ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"] }
+            p.arguments = ["-p", prompt, "--output-format", "text", "--allowedTools", tools.joined(separator: ",")]
             p.currentDirectoryURL = support
             var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
             p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
             do { try p.run() } catch { return done(false, error.localizedDescription) }
             let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 180, execute: killer)
+            DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: killer)
             let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
             let text = String(data: data, encoding: .utf8) ?? ""
             if p.terminationStatus != 0 && text.isEmpty {

@@ -327,7 +327,11 @@
   // ---------- Mochi on the board ----------
   const goo = Goo($('goo')); Goo($('brandGoo'));
   let sayT = 0;
-  function say(text, ms = 6000) { $('mSay').textContent = text; $('mBubble').classList.add('on'); goo.hop(); clearTimeout(sayT); sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms); }
+  function say(text, ms = 6000, acts = []) {
+    $('mSay').textContent = text; $('mActs').innerHTML = '';
+    acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; if (a.ghost) b.className = 'ghost'; b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
+    $('mBubble').classList.add('on'); goo.hop(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
+  }
   function mochiOpen(on) { $('mochi').classList.toggle('open', on); if (on) setTimeout(() => $('mInput').focus(), 30); }
   $('mPill').onclick = e => { if (!$('mochi').classList.contains('open')) mochiOpen(true); };
   // what Mochi sees: the cards (trimmed), where they are, what's selected, and what's in Unsorted
@@ -336,16 +340,16 @@
       text: (c.text || c.title || c.label || '').slice(0, 300), items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief) };
   }
-  $('mForm').onsubmit = async e => {
-    e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return;
-    $('mInput').value = ''; mochiOpen(false); $('mochi').classList.add('thinking'); goo.think(true); say('On it…', 60000);
-    try { const raw = await MB.ask(q, snapshot()); applyMochi(parse(raw)); }
+  async function ask(q, confirmed = false) {
+    $('mochi').classList.add('thinking'); goo.think(true); say(confirmed ? 'Making it… (this can take a minute)' : 'On it…', 0);
+    try { const raw = await MB.ask(q, snapshot(), confirmed); await applyMochi(parse(raw), q); }
     catch (err) { say("Hmm, I couldn't reach Claude: " + err.message); }
     finally { $('mochi').classList.remove('thinking'); goo.think(false); }
-  };
+  }
+  $('mForm').onsubmit = e => { e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return; $('mInput').value = ''; mochiOpen(false); ask(q); };
   const parse = raw => { const s = String(raw), a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0) return { say: s.trim() }; try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { return { say: s.trim() }; } };
   // her actions: say, add cards, move cards, place unsorted ideas, add titles, connect cards
-  function applyMochi(r) {
+  async function applyMochi(r, q) {
     const center = centerWorld(), added = []; let i = 0;
     const place = o => { if (o.x == null || o.y == null) { o.x = center.x - 300 + (i % 3) * 250; o.y = center.y - 100 + Math.floor(i / 3) * 170; i++; } };
     (r.add || []).forEach(o => { place(o); const c = card(o.type === 'todo' || o.type === 'title' || o.type === 'swatch' ? o.type : 'note', {
@@ -356,10 +360,41 @@
     (r.move || []).forEach(o => { const c = byId(o.id); if (!c || o.x == null) return; c.x = o.x; c.y = o.y; if (o.color && COLOR_NAMES.includes(o.color)) c.color = o.color;
       const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.transition = 'left .6s cubic-bezier(.2,.8,.3,1), top .6s cubic-bezier(.2,.8,.3,1)'; renderCard(c); setTimeout(() => el.style.transition = '', 650); } added.push(c); });
     (r.connect || []).forEach(p => { const [a, b] = Array.isArray(p) ? p : [p.a, p.b]; if (byId(a) && byId(b)) board.links.push({ id: uid(), a, b }); });
+    // pictures (Mobbin screens, Higgsfield images): fetched and saved into the board, laid out in a row of tilted cards
+    const imgs = r.images || [];
+    if (imgs.length) {
+      const base = { x: Math.max(...board.cards.map(c => c.x + c.w), center.x - 300) + 80, y: Math.min(...board.cards.map(c => c.y), center.y) };
+      let k = 0;
+      for (const im of imgs) {
+        try {
+          const data = await MB.fetchImage(im.url), dims = await new Promise(res => { const t = new Image(); t.onload = () => res([t.width, t.height]); t.onerror = () => res([3, 4]); t.src = data; });
+          const w = 240, h = Math.min(520, Math.round(w * dims[1] / dims[0])) + 16;
+          const c = card('image', { src: data, w, h, x: im.x ?? base.x + (k % 4) * 270, y: im.y ?? base.y + Math.floor(k / 4) * 560, tagText: im.caption || '' });
+          addCard(c); added.push(c); k++;
+        } catch (e) {}
+      }
+    }
     renderTray(); renderWires(); save();
     if (added.length) setTimeout(() => fit(board.cards), 300);
-    say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), 9000);
+    const acts = r.confirm ? [{ label: (r.confirm || 'Yes, make it') + ' ✦', run: () => ask(q, true) }, { label: 'Not now', ghost: true, run: () => {} }] : [];
+    say(r.say || (added.length ? `Done! I touched ${added.length} cards.` : 'Done!'), acts.length ? 0 : 9000, acts);
   }
+
+  // ---------- Mochi's helpers: Claude Code, Mobbin, Higgsfield ----------
+  let lastConn = 0;
+  async function showConnections(force) {
+    if (!force && Date.now() - lastConn < 5 * 60 * 1000) return; lastConn = Date.now();
+    const el = $('conns');
+    if (!el.children.length) el.innerHTML = ['Claude Code', 'Mobbin', 'Higgsfield'].map(n => `<div class="conn"><span class="dot"></span>${n}<em style="color:var(--ink-faint)">checking…</em></div>`).join('');
+    const c = await MB.connections().catch(() => ({}));
+    const rows = [['claude', 'Claude Code', 'https://claude.com/claude-code', 'Install'], ['mobbin', 'Mobbin', 'https://claude.ai/settings/connectors', 'Connect'], ['higgsfield', 'Higgsfield', 'https://claude.ai/settings/connectors', 'Connect']];
+    el.innerHTML = '';
+    rows.forEach(([k, name, url, verb]) => { const r = document.createElement('div'); r.className = 'conn' + (c[k] ? ' on' : ''); r.innerHTML = `<span class="dot"></span>${name}`;
+      if (c[k]) r.insertAdjacentHTML('beforeend', '<em>ready</em>');
+      else if (!c.browser) { const b = document.createElement('button'); b.textContent = verb; b.onclick = () => { MB.openURL(url); say(k === 'claude' ? 'Install Claude Code, then reopen Mochiboard and I can think on your boards!' : `Connect ${name} in your Claude settings (Connectors), then come back. I'll check again when you reopen me ✦`, 9000); }; r.appendChild(b); }
+      el.appendChild(r); });
+  }
+  addEventListener('focus', () => showConnections());
 
   // ---------- start ----------
   (async () => {
@@ -368,6 +403,7 @@
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
     setTimeout(() => { fit(board.cards); say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
+    showConnections(true);
   })();
   window.__mb = { get board() { return board; }, applyMochi, fit };   // handy for testing
 })();

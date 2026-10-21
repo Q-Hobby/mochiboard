@@ -19,6 +19,9 @@
       localStorage.setItem(LS + 'index', JSON.stringify(idx)); return true;
     },
     async remove(id) { localStorage.removeItem(LS + 'board:' + id); localStorage.setItem(LS + 'index', JSON.stringify(JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== id))); return true; },
+    async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true }; },
+    async fetchImage(url) { return url; },
+    async openURL(url) { window.open(url, '_blank'); },
     async linkPreview(url) { let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {} return { title: host, desc: url, image: '' }; },
     // a pretend Mochi for the browser: she still tidies things up so the canvas can be tried without the app
     async ask(prompt, board) {
@@ -36,6 +39,7 @@
   window.MB = native ? {
     native: true,
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
-    linkPreview: url => call('linkPreview', { url }), ask: (prompt, board) => call('ask', { prompt, board }),
+    linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false) => call('ask', { prompt, board, confirmed }),
+    connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }),
   } : Object.assign({ native: false }, browser);
 })();
