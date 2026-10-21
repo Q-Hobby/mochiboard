@@ -792,7 +792,7 @@
   });
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
   stage.addEventListener('wheel', e => {
-    if (e.target.closest('.tray-list, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick')) return; e.preventDefault();
+    if (e.target.closest('.tray, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick')) return; e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01));
     else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
   }, { passive: false });
@@ -912,8 +912,12 @@
 
   // ---------- Mochi on the board ----------
   // her hop: she jumps right up out of her pill, then squishes a little as she lands
-  function hopMochi() { goo.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
-  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo')), Goo($('setGoo'))];
+  function hopMochi() { goo.hop(); favGoo?.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
+  // in a browser, the tab's icon is a tiny Mochi who breathes, blinks and hops along with the real one
+  const favGoo = MB.native ? null : (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const fg = Goo(c, { manual: true });
+    let link = document.querySelector('link[rel="icon"]'); if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    setInterval(() => { fg.draw(); link.href = c.toDataURL('image/png'); }, 120); return fg; })();
+  const goo = Goo($('goo')), goos = [goo, ...(favGoo ? [favGoo] : []), Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo')), Goo($('setGoo'))];
 
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
@@ -1029,10 +1033,10 @@
     if (haveClaude === false) return offlineMochi(q, "I need Claude Code on this Mac to think.");
     if (!chatOpen()) mochiOpen(true);
     if (!confirmed) addMsg('me', q); else addMsg('mochi', 'Making it… this can take a minute ✦');
-    $('mochi').classList.add('thinking'); goo.think(true); typing(true);
+    $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true); typing(true);
     try { const raw = await MB.ask(q, snapshot(), confirmed, { mobbin: settings.mobbin, higgs: settings.higgs }); await applyMochi(parse(raw), q); }
     catch (err) { if (/Claude Code/.test(err.message)) { haveClaude = false; return offlineMochi(q, 'I need Claude Code on this Mac to think.'); } say("Hmm, I couldn't reach Claude: " + err.message); }
-    finally { $('mochi').classList.remove('thinking'); goo.think(false); typing(false); }
+    finally { $('mochi').classList.remove('thinking'); goo.think(false); favGoo?.think(false); typing(false); }
   }
   $('mForm').onsubmit = e => { e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return; $('mInput').value = ''; mochiOpen(false); $('mInput').placeholder = 'Ask Mochi… “group these by theme”'; ask(q); };
   const parse = raw => { const s = String(raw), a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0) return { say: s.trim() }; try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { return { say: s.trim() }; } };
@@ -1501,7 +1505,10 @@
   $('dzPresets').onclick = e => { const b = e.target.closest('[data-dev]'); if (!b) return; $('dzPresets').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); startPlacing('frame', { device: b.dataset.dev }); };
   $('dzMin').onclick = () => { const m = $('design').classList.toggle('min'); $('dzMin').textContent = m ? '+' : '–'; placeTray(); };
   $('design').addEventListener('pointerdown', e => e.stopPropagation());
-  function placeTray() { const d = $('design').getBoundingClientRect(), s = stage.getBoundingClientRect(); $('tray').style.top = (d.bottom - s.top + 12) + 'px'; }
+  // Unsorted sits under the Wireframe panel and always fits on screen; its list scrolls when it's long
+  function placeTray() { const d = $('design').getBoundingClientRect(), s = stage.getBoundingClientRect(), top = d.bottom - s.top + 12;
+    $('tray').style.top = top + 'px'; $('tray').style.maxHeight = Math.max(150, s.height - top - 16) + 'px'; }
+  addEventListener('resize', placeTray);
   new ResizeObserver(placeTray).observe($('design'));
   const AL = d => `<svg viewBox="0 0 20 20">${d}</svg>`;
   const ALIGN = { l: AL('<path d="M4 3v14M7 6h9M7 13h5"/>'), c: AL('<path d="M10 3v14M5 6h10M7 13h6"/>'), r: AL('<path d="M16 3v14M4 6h9M8 13h5"/>'),
@@ -1590,18 +1597,18 @@
     save(); return n;
   }
   async function makeFill(spots) {
-    addMsg('mochi', `Making ${spots.length} image${spots.length > 1 ? 's' : ''} with Higgsfield… this can take a minute or two ✦`); typing(true); $('mochi').classList.add('thinking'); goo.think(true);
+    addMsg('mochi', `Making ${spots.length} image${spots.length > 1 ? 's' : ''} with Higgsfield… this can take a minute or two ✦`); typing(true); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
     try { const r = parse(await MB.higgsMake({ model: 'nano_banana_2', style: styleHint(spots), images: spots.map(c => ({ id: c.id, label: c.img, aspect: aspect(c) })) }));
       const n = await placeImages(spots, r.images, 'url'); typing(false); say(n ? `Done! ${n} image${n > 1 ? 's are' : ' is'} in place ✦` : "Hmm, the images didn't come back. Nothing was placed."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
     catch (e) { typing(false); say("Something went wrong making those: " + e.message); }
-    finally { $('mochi').classList.remove('thinking'); goo.think(false); }
+    finally { $('mochi').classList.remove('thinking'); goo.think(false); favGoo?.think(false); }
   }
   async function drawFill(spots) {
-    if (!chatOpen()) mochiOpen(true); addMsg('mochi', `Drawing ${spots.length} little illustration${spots.length > 1 ? 's' : ''}…`); typing(true); $('mochi').classList.add('thinking'); goo.think(true);
+    if (!chatOpen()) mochiOpen(true); addMsg('mochi', `Drawing ${spots.length} little illustration${spots.length > 1 ? 's' : ''}…`); typing(true); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
     try { const r = parse(await MB.drawFill({ style: 'soft pastel, rounded, friendly, minimal', images: spots.map(c => ({ id: c.id, label: c.img, w: Math.round(c.w), h: Math.round(c.h) })) }));
       const n = await placeImages(spots, r.images, 'svg'); typing(false); say(n ? `Drew ${n} ✦ (want real photos later? that's Higgsfield)` : "I couldn't draw those this time."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
     catch (e) { typing(false); say("I couldn't draw those: " + e.message); }
-    finally { $('mochi').classList.remove('thinking'); goo.think(false); }
+    finally { $('mochi').classList.remove('thinking'); goo.think(false); favGoo?.think(false); }
   }
 
   // ---------- crop an image: see the whole picture, drag the box or its corners, then Done ----------

@@ -843,7 +843,7 @@ body.dark .db-sizes button.on { background: var(--blush); } body.dark .db-sizes 
 body.dark .home-back:hover, body.dark .linkbox button { background: #ece8f0; color: #1c1920; }
 
 /* ---------- wireframes ---------- */
-.design { position: absolute; right: 16px; top: 16px; width: 230px; z-index: 11; padding: 12px; border-radius: 22px; background: rgba(255, 255, 255, .9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(120, 80, 120, .12); max-height: calc(100% - 140px); overflow: auto; scrollbar-width: none; }
+.design { position: absolute; right: 16px; top: 16px; width: 230px; z-index: 11; padding: 12px; border-radius: 22px; background: rgba(255, 255, 255, .9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(120, 80, 120, .12); max-height: max(220px, calc(60% - 16px)); overflow: auto; scrollbar-width: thin; }
 .dz-head { display: flex; align-items: center; justify-content: space-between; min-height: 24px; padding-left: 2px; }
 .design.min .dz-body { display: none; }
 .dz-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 10px; }
@@ -1062,3 +1062,4 @@ body.web .web-pill.web-only { display: flex !important; }
 body.dark .web-pill, body.dark .web-note { background: #3a2a34; color: #ffb3d4; }
 body.web .conns { display: none; }
 .web-note .set-link { color: #d64f8d; } body.dark .web-note .set-link { color: #ffb3d4; }
+.tray-list { min-height: 0; overscroll-behavior: contain; }

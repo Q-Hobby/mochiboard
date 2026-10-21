@@ -20,8 +20,8 @@ window.Goo = (canvas, opts = {}) => {
     [3, 9].forEach(c => g.fillRect(ox + (c + ex) * px, oy + (blink ? 5.5 : 5) * px, px, blink ? px * .4 : px * 2));
     g.fillStyle = '#ff8fc2'; [2, 10].forEach(c => g.fillRect(ox + c * px, oy + 7 * px, px, px));
     g.restore();
-    requestAnimationFrame(frame);
+    if (!opts.manual) requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
-  return { hop() { hopT = performance.now() / 1000; }, think(on) { thinking = on; }, setColors(c) { col = c; } };
+  if (!opts.manual) requestAnimationFrame(frame);   // manual: the caller draws her (the favicon runs on a timer, which keeps going in background tabs)
+  return { hop() { hopT = performance.now() / 1000; }, think(on) { thinking = on; }, setColors(c) { col = c; }, draw() { frame(performance.now()); } };
 };
