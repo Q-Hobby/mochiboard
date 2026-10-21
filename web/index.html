@@ -101,6 +101,12 @@
     </div>
   <!-- Mochi: her pill, her bar, her bubble -->
     <div class="mochi" id="mochi">
+      <!-- Mochi's chat window -->
+      <div class="m-chat" id="mChat">
+        <div class="mc-head"><canvas id="chatGoo" width="40" height="36"></canvas><b>Mochi</b><span class="mc-status" id="mcStatus"></span><button class="mc-btn" id="mcNew" title="Start a fresh chat">New chat</button><button class="mc-btn x" id="mcClose" title="Close (Esc)">×</button></div>
+        <div class="mc-list" id="mcList"></div>
+        <form class="mc-form" id="mcForm"><textarea id="mcInput" rows="1" placeholder="Ask Mochi… “group these by theme”" spellcheck="true"></textarea><button class="mc-send" title="Send (Enter)">↑</button></form>
+      </div>
       <div class="m-bubble" id="mBubble"><small>mochi</small><p id="mSay"></p><div class="m-acts" id="mActs"></div></div>
       <div class="m-pill" id="mPill">
         <canvas id="goo" width="64" height="56"></canvas>
