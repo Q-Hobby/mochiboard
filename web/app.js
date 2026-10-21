@@ -356,8 +356,10 @@
     const st = JSON.parse(past[past.length - 1]); restoring = true;
     Object.assign(board, st); sel.clear(); selWire = null; endEdit(); renderAll(); renderPalette(); save(); restoring = false;
   }
+  // every card keeps real numbers for its place and size (a bad one would break saving)
+  function cleanNumbers() { board.cards.forEach(c => { ['x', 'y'].forEach(k => { if (!Number.isFinite(c[k])) c[k] = 0; }); ['w', 'h'].forEach(k => { if (!Number.isFinite(c[k]) || c[k] <= 0) c[k] = k === 'w' ? 200 : 100; }); ['r', 'rot'].forEach(k => { if (c[k] != null && !Number.isFinite(c[k])) c[k] = 0; }); }); }
   function save() {
-    if (!drag && board) layoutAll();
+    if (!drag && board) { layoutAll(); cleanNumbers(); }
     if (!restoring) { clearTimeout(snapT); snapT = setTimeout(remember, 350); }
     $('saved').textContent = 'saving…'; clearTimeout(saveT);
     saveT = setTimeout(async () => { board.view = view; await MB.save(board); $('saved').textContent = 'saved'; refreshBoards(); }, 400);
@@ -1329,7 +1331,10 @@
   };
   const pieceH = (items, o) => Math.max(o.h && !items.length ? o.h : 0, ...items.map(i => i.y + i.h));
   // a whole screen from a list of pieces, top to bottom: bars hug the edges, the rest stacks with even gaps
+  const num = (v, d) => { const n = +v; return Number.isFinite(n) && v !== '' && v !== null ? n : d; };
   function buildScreen(spec, x, y) {
+    spec = { ...spec, w: num(spec.w, undefined), h: num(spec.h, undefined), gap: num(spec.gap, undefined) };
+    spec.items = (Array.isArray(spec.items) ? spec.items : []).filter(it => it && typeof it === 'object').map(it => ({ ...it, w: num(it.w, undefined), h: num(it.h, undefined), size: num(it.size, undefined), count: num(it.count, undefined) }));
     const dev = DEVICES[spec.device] || DEVICES.iPhone, W = spec.w || dev[0], phone = !spec.device || /iPhone|Android/.test(spec.device);
     const f = card('frame', { x, y, w: W, h: spec.h || dev[1], r: 0, name: spec.name || 'Screen', device: DEVICES[spec.device] ? spec.device : 'iPhone', radius: dev[2], fill: '#ffffff' });
     board.cards.push(f); renderCard(f, true);

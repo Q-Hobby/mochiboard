@@ -8,6 +8,14 @@ import Speech
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
 let boardsDir = support.appendingPathComponent("boards")
 
+// JSON can't hold "not a number" or infinity, and writing one throws (which quits the app), so swap them for 0 first
+func jsonSafe(_ v: Any) -> Any {
+    if let n = v as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), !n.doubleValue.isFinite { return 0 }
+    if let d = v as? [String: Any] { return d.mapValues(jsonSafe) }
+    if let a = v as? [Any] { return a.map(jsonSafe) }
+    return v
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var web: WKWebView!
@@ -50,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         guard let body = m.body as? [String: Any], let id = body["id"] as? Int, let op = body["op"] as? String else { return }
         let args = body["args"] as? [String: Any] ?? [:]
         let reply: (Bool, Any) -> Void = { [weak self] ok, value in
-            let json = (try? JSONSerialization.data(withJSONObject: [value], options: [.fragmentsAllowed])).flatMap { String(data: $0, encoding: .utf8) } ?? "[null]"
+            let json = (try? JSONSerialization.data(withJSONObject: [jsonSafe(value)], options: [.fragmentsAllowed])).flatMap { String(data: $0, encoding: .utf8) } ?? "[null]"
             DispatchQueue.main.async { self?.web.evaluateJavaScript("__mbReply(\(id), \(ok), \(json)[0])") }
         }
         switch op {
@@ -66,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let f = boardsDir.appendingPathComponent("\(safe(args["id"])).json")
             if let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) { reply(true, j) } else { reply(true, NSNull()) }
         case "save":
-            guard let b = args["board"] as? [String: Any], let d = try? JSONSerialization.data(withJSONObject: b) else { return reply(false, "bad board") }
+            guard let b = args["board"] as? [String: Any], let d = try? JSONSerialization.data(withJSONObject: jsonSafe(b)) else { return reply(false, "bad board") }
             let f = boardsDir.appendingPathComponent("\(safe(b["id"])).json"), tmp = f.appendingPathExtension("tmp")
             do { try d.write(to: tmp); _ = try? FileManager.default.removeItem(at: f); try FileManager.default.moveItem(at: tmp, to: f); reply(true, true) } catch { reply(false, error.localizedDescription) }
         // folders live in one small file next to the boards: [{id, name, open}]
@@ -74,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let f = support.appendingPathComponent("folders.json")
             if let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) { reply(true, j) } else { reply(true, [Any]()) }
         case "saveFolders":
-            guard let d = try? JSONSerialization.data(withJSONObject: args["folders"] ?? []) else { return reply(false, "bad folders") }
+            guard let d = try? JSONSerialization.data(withJSONObject: jsonSafe(args["folders"] ?? [])) else { return reply(false, "bad folders") }
             do { try d.write(to: support.appendingPathComponent("folders.json"), options: .atomic); reply(true, true) } catch { reply(false, error.localizedDescription) }
         case "remove":
             try? FileManager.default.removeItem(at: boardsDir.appendingPathComponent("\(safe(args["id"])).json")); reply(true, true)
@@ -180,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
     func askMochi(_ request: String, _ board: Any, confirmed: Bool, mobbin: Bool, higgs: Bool, done: @escaping (Bool, String) -> Void) {
         guard let claude = claudePath else { return done(false, "I need Claude Code to think. Install it from claude.com/claude-code, then try again.") }
-        let boardJSON = (try? JSONSerialization.data(withJSONObject: board)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let boardJSON = (try? JSONSerialization.data(withJSONObject: jsonSafe(board))).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let prompt = """
         You are Mochi, a cute, warm little pixel goo who lives on a creative planning canvas app called Mochiboard. \
         You help designers and creative people plan: you add cards, sort ideas into groups, make moodboard plans and checklists, and spot what's missing.
