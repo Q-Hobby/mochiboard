@@ -172,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
          "edit": [{"id": "existing card id", "text": "new words (a note, title, list heading, or a link's title)", "items": ["the full new list, for a todo"], "desc": "a link's note",
                    "color": "white|pink|butter|mint|lilac|sky|peach", "tag": "the little handwritten label above a card (\"\" removes it)", "hex": "#rrggbb", "label": "swatch name",
-                   "name": "a note's bold name", "in": "a collection id to move it into (null takes it out)"}],
+                   "name": "a note's bold name", "in": "a collection id to move it into (null takes it out)", "size": "text size: s|m|l|xl"}],
          "remove": ["card id"],
          "place": [{"id": "an unsorted card id", "x": 0, "y": 0}],
          "connect": [["card id", "card id"]],
