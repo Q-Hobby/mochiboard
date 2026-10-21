@@ -85,6 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             connections { reply(true, $0) }
         case "fetchImage":
             fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
+        case "reveal":
+            NSWorkspace.shared.activateFileViewerSelecting([boardsDir]); reply(true, true)
         case "openURL":
             if let u = URL(string: args["url"] as? String ?? "") { NSWorkspace.shared.open(u) }; reply(true, true)
         default: reply(false, "unknown op \(op)")

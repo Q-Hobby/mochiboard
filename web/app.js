@@ -308,13 +308,27 @@
 
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
-    miniCache.clear(); board = b; board.palette = board.palette || []; view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
+    miniCache.clear(); board = b; board.palette = board.palette || []; setTimeout(resetHistory, 0); view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
     board.cards.forEach(c => { if (c.type === 'canvas' && c.board) { const kb = boardList.find(x => x.id === c.board); if (kb && kb.name !== c.text) c.text = kb.name; } });
     $('boardName').value = board.name; renderAll(); refreshBoards(); try { localStorage.setItem('mochiboard:last', id); } catch (e) {}
   }
   let saveT = 0;
+  // ---------- undo / redo: a snapshot of the board after each change settles ----------
+  let past = [], future = [], restoring = false, snapT = 0;
+  const stateOf = () => JSON.stringify({ cards: board.cards, links: board.links, tray: board.tray, palette: board.palette });
+  function remember() { if (restoring || !board) return; const st = stateOf(); if (past[past.length - 1] !== st) { past.push(st); if (past.length > 80) past.shift(); future = []; } }
+  function resetHistory() { past = board ? [stateOf()] : []; future = []; }
+  function travel(dir) {
+    clearTimeout(snapT); remember();                          // catch the very latest change first
+    const from = dir < 0 ? past : future, to = dir < 0 ? future : past;
+    if (dir < 0 ? past.length < 2 : !future.length) return say(dir < 0 ? 'Nothing left to undo' : 'Nothing to redo', 1800);
+    if (dir < 0) future.push(past.pop()); else past.push(future.pop());
+    const st = JSON.parse(past[past.length - 1]); restoring = true;
+    Object.assign(board, st); sel.clear(); selWire = null; endEdit(); renderAll(); renderPalette(); save(); restoring = false;
+  }
   function save() {
     if (!drag && board) layoutAll();
+    if (!restoring) { clearTimeout(snapT); snapT = setTimeout(remember, 350); }
     $('saved').textContent = 'saving…'; clearTimeout(saveT);
     saveT = setTimeout(async () => { board.view = view; await MB.save(board); $('saved').textContent = 'saved'; refreshBoards(); }, 400);
   }
@@ -728,7 +742,9 @@
   addEventListener('keydown', e => {
     const typing = e.target.closest('input, [contenteditable="true"]');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
+    if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape' && selWire) { selectWire(null); return; }
@@ -796,7 +812,29 @@
     const u = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'); if (/^https?:/.test(u)) linkCard(u.trim(), w); });
 
   // ---------- Mochi on the board ----------
-  const goo = Goo($('goo')); Goo($('brandGoo'));
+  const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo'))];
+
+  // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
+  const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
+    lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
+  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
+  function applySettings() {
+    goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
+    document.body.classList.toggle('no-grid', !settings.grid); document.body.classList.toggle('neat', !settings.tilt); document.body.classList.toggle('calm', !settings.motion);
+    $('keys').classList.toggle('hide', !settings.keys);
+    $('mochiColors').innerHTML = Object.entries(MOCHI_COLORS).map(([n, c]) => `<button data-mc="${n}" title="${n}" style="background:${c.B}" class="${settings.mochi === n ? 'on' : ''}"></button>`).join('');
+    document.querySelectorAll('[data-set]').forEach(t => t.checked = !!settings[t.dataset.set]);
+    try { localStorage.setItem('mochiboard:settings', JSON.stringify(settings)); localStorage.setItem('mochiboard:keys', settings.keys ? 'show' : 'hide'); } catch (e) {}
+  }
+  $('gearBtn').onclick = e => { e.stopPropagation(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  const closeSettings = () => $('settings').classList.remove('on');
+  $('setClose').onclick = closeSettings;
+  $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
+  $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); goo.hop(); } };
+  document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
+  $('recheck').onclick = () => showConnections(true);
+  $('revealBoards').onclick = () => MB.reveal();
   let sayT = 0;
   function say(text, ms = 6000, acts = []) {
     $('mSay').textContent = text; $('mActs').innerHTML = '';
@@ -1230,12 +1268,11 @@
   // ---------- the floating boxes: minimize to their title, remembered between launches ----------
   const boxState = (() => { try { return JSON.parse(localStorage.getItem('mochiboard:boxes') || '{}'); } catch (e) { return {}; } })();
   document.querySelectorAll('.box').forEach(b => {
-    const k = b.dataset.box, btn = b.querySelector('.mini:not(.home-btn)');
+    const k = b.dataset.box, btn = b.querySelector('.mini:not(.home-btn):not(.gear)');
     const set = min => { b.classList.toggle('min', min); btn.textContent = min ? '+' : '–'; btn.title = min ? 'Open' : 'Minimize'; boxState[k] = min; try { localStorage.setItem('mochiboard:boxes', JSON.stringify(boxState)); } catch (e) {} };
     set(!!boxState[k]); btn.onclick = () => set(!b.classList.contains('min'));
   });
-  try { if (localStorage.getItem('mochiboard:keys') === 'hide') $('keys').classList.add('hide'); } catch (e) {}
-  $('keysX').onclick = () => { $('keys').classList.add('hide'); try { localStorage.setItem('mochiboard:keys', 'hide'); } catch (e) {} };
+  $('keysX').onclick = () => { settings.keys = false; applySettings(); };
 
   // ---------- start ----------
   (async () => {
@@ -1243,7 +1280,8 @@
     if (!list.length) { const b = newBoard('Brain dump', 'Brain dump'); b.name = 'My first board'; await MB.save(b); list = await MB.list(); }
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
-    setTimeout(() => { fit(board.cards); say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
+    applySettings();
+    setTimeout(() => { fit(board.cards); if (settings.greet) say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
     showConnections(true);
   })();
   window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
