@@ -595,6 +595,7 @@
   stage.addEventListener('pointerdown', e => {
     if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
+    if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
     const wireEl = e.target.closest('[data-wire]');
     if (wireEl && !space) {
@@ -989,6 +990,45 @@
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
     if (type === 'audio') record(c);
   }
+
+  // ---------- export: right-click a card (or the empty board) to save it as an image or PDF ----------
+  const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  async function exportCards(cs, name, pdf) {
+    if (!cs.length) return say('Nothing to export yet ✦', 2500);
+    const all = new Set(cs); cs.forEach(c => c.type === 'coll' && (c.kids || []).forEach(k => byId(k) && all.add(byId(k))));
+    const list = [...all], x0 = Math.min(...list.map(c => c.x)) - 24, y0 = Math.min(...list.map(c => c.y)) - 40, x1 = Math.max(...list.map(c => c.x + c.w)) + 24, y1 = Math.max(...list.map(c => c.y + c.h)) + 24;
+    const keep = { ...view }, keepSel = [...sel], r = stage.getBoundingClientRect(), bw = x1 - x0, bh = y1 - y0;
+    selectOnly([]); selWire = null; endEdit(); renderWires(); document.body.classList.add('exporting');
+    const z = Math.min((r.width - 60) / bw, (r.height - 60) / bh, 2); view = { x: (r.width - bw * z) / 2 - x0 * z, y: (r.height - bh * z) / 2 - y0 * z, z }; applyView();
+    await nextFrame(); await new Promise(res => setTimeout(res, 150));
+    try {
+      const saved = await MB.exportRect({ x: r.left + (r.width - bw * z) / 2, y: r.top + (r.height - bh * z) / 2, w: bw * z, h: bh * z, name, pdf, scale: Math.min(4, 2 / Math.min(z, 1)) });
+      if (saved) say(`Saved “${saved}” ✦`, 3500);
+    } catch (e) { say(e.message, 4000); }
+    finally { document.body.classList.remove('exporting'); view = keep; applyView(); selectOnly(keepSel); }
+  }
+  function boardMenu(e, items) {
+    $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
+    m.innerHTML = items.map((it, i) => it === '-' ? '<span class="rm-sep"></span>' : `<button data-i="${i}" class="${it.danger ? 'danger' : ''}">${it.label}</button>`).join('');
+    document.body.appendChild(m); const rr = m.getBoundingClientRect(); if (rr.bottom > innerHeight - 10) m.style.top = innerHeight - rr.height - 10 + 'px'; if (rr.right > innerWidth - 10) m.style.left = innerWidth - rr.width - 10 + 'px';
+    m.onclick = ev => { const b = ev.target.closest('[data-i]'); if (!b) return; m.remove(); items[+b.dataset.i].run(); };
+    setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true));
+  }
+  const cardName = cs => (cs.length === 1 ? (cs[0].name || cs[0].text || cs[0].title || cs[0].label || ({ image: 'Image', stamp: 'Stamp', shape: 'Shape' }[cs[0].type]) || 'Card') : `${board.name} – ${cs.length} cards`).toString().slice(0, 60).trim() || 'Card';
+  stage.addEventListener('contextmenu', e => {
+    if (e.target.closest('.dock, .side, .tray, .top, .home, .docview, .cpop, .settings')) return;
+    e.preventDefault(); const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card');   // the pointer may be captured, so look at what's really under it
+    if (el) {
+      if (!sel.has(el.dataset.id)) selectOnly([el.dataset.id]); const cs = selCards();
+      boardMenu(e, [
+        { label: 'Export as image', run: () => exportCards(cs, cardName(cs), false) },
+        { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) }, '-',
+        { label: 'Duplicate', run: () => { const copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
+        { label: 'Delete', danger: true, run: () => removeSelected() }]);
+    } else boardMenu(e, [
+      { label: 'Export board as image', run: () => exportCards(board.cards, board.name, false) },
+      { label: 'Export board as PDF', run: () => exportCards(board.cards, board.name, true) }]);
+  });
 
   // ---------- voice memos: record straight onto the board, play them back, and Mochi writes them out ----------
   const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;

@@ -614,3 +614,10 @@ body.calm .card.stamp .st img, body.calm .sp-grid img, body.calm .ws-ring img { 
 .au-wave { min-width: 0; }
 .au-wave i { min-width: 1px; }
 .au-time { flex: none; }
+
+.row-menu .rm-sep { height: 1px; margin: 4px 6px; background: #f0e9f1; }
+/* while exporting: just the cards, no app around them */
+body.exporting .side, body.exporting .dock, body.exporting .tray, body.exporting .top, body.exporting .keys, body.exporting .ghost, body.exporting .grid,
+body.exporting .marquee, body.exporting .shapepick, body.exporting .wheel-stamps, body.exporting .stamp-pick, body.exporting .linkbox { visibility: hidden !important; }
+body.exporting .card .handle, body.exporting .card .knob, body.exporting .card .chip { display: none !important; }
+body.exporting .card.sel::after { display: none; }

@@ -86,6 +86,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             connections { reply(true, $0) }
         case "fetchImage":
             fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
+        // export what's on screen inside a rectangle as a crisp PNG or a real PDF, then let the person pick where to save it
+        case "export":
+            let r = CGRect(x: args["x"] as? Double ?? 0, y: args["y"] as? Double ?? 0, width: max(1, args["w"] as? Double ?? 1), height: max(1, args["h"] as? Double ?? 1))
+            let pdf = args["pdf"] as? Bool ?? false, name = (args["name"] as? String ?? "Mochiboard").replacingOccurrences(of: "/", with: "-"), scale = args["scale"] as? Double ?? 2
+            let finish: (Data?) -> Void = { [weak self] data in
+                DispatchQueue.main.async {
+                    guard let self, let data else { return reply(false, "I couldn't capture that") }
+                    let panel = NSSavePanel(); panel.nameFieldStringValue = name + (pdf ? ".pdf" : ".png"); panel.allowedContentTypes = [pdf ? .pdf : .png]
+                    panel.beginSheetModal(for: self.window) { resp in
+                        guard resp == .OK, let u = panel.url else { return reply(true, "") }
+                        do { try data.write(to: u); reply(true, u.lastPathComponent) } catch { reply(false, error.localizedDescription) }
+                    }
+                }
+            }
+            if pdf { let cfg = WKPDFConfiguration(); cfg.rect = r; web.createPDF(configuration: cfg) { finish(try? $0.get()) } }
+            else {
+                let cfg = WKSnapshotConfiguration(); cfg.rect = r; cfg.snapshotWidth = NSNumber(value: min(r.width * scale, 8000))
+                web.takeSnapshot(with: cfg) { img, _ in
+                    guard let img, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return finish(nil) }
+                    finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
+                }
+            }
         case "speechAuth":
             SFSpeechRecognizer.requestAuthorization { st in reply(true, st == .authorized ? "ok" : st == .notDetermined ? "ask" : "off") }
         case "transcribe":
