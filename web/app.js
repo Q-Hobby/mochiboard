@@ -392,7 +392,7 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
-      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
+      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
@@ -442,7 +442,7 @@
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
   const SHAPE_FILL = { gray: '#e4dfe7', pink: '#ffb8d2', butter: '#f8e08a', mint: '#a8e6c3', sky: '#aed3ff', lilac: '#cdb8ff', peach: '#ffc8a6', ink: '#494848' };
   function shapeSVG(c) {
-    const f = SHAPE_FILL[c.fill] || c.fill || SHAPE_FILL.gray, P = { stroke: 'none', fill: f };
+    const named = SHAPE_FILL[c.fill || 'gray'], f = named ? `var(--sh-${c.fill || 'gray'})` : c.fill, P = { stroke: 'none', style: `fill:${f}` };
     const attrs = o => Object.entries(o).map(([k, v]) => `${k}="${v}"`).join(' ');
     const body = {
       rect: `<rect x="0" y="0" width="100" height="100" rx="10" ${attrs(P)}/>`,
@@ -450,7 +450,7 @@
       tri: `<path d="M50 2 L98 98 L2 98 Z" stroke-linejoin="round" ${attrs(P)}/>`,
       star: `<path d="M50 3 L62 36 L97 37 L69 58 L79 93 L50 72 L21 93 L31 58 L3 37 L38 36 Z" ${attrs(P)}/>`,
       heart: `<path d="M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z" ${attrs(P)}/>`,
-      line: `<line x1="0" y1="50" x2="100" y2="50" stroke="${f === SHAPE_FILL.gray ? '#494848' : f}" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`,
+      line: `<line x1="0" y1="50" x2="100" y2="50" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`,
     }[c.shape || 'rect'];
     return `<svg class="sh" viewBox="0 0 100 100" preserveAspectRatio="none">${body}</svg>`;
   }
@@ -872,7 +872,7 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60' }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   function applySettings() {
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
@@ -893,7 +893,11 @@
   $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
   document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
   $('recheck').onclick = () => showConnections(true);
-  document.querySelectorAll('[data-seg]').forEach(g => g.onclick = e => { const b = e.target.closest('[data-v]'); if (b) { settings[g.dataset.seg] = b.dataset.v; applySettings(); } });
+  // switching chats off (or to "until I quit") removes what's saved in the board files right away
+  async function clearSavedChats() { const list = await MB.list(); for (const b of list) { const bb = b.id === board?.id ? board : await MB.load(b.id); if (bb?.chat?.length) { bb.chat = []; await MB.save(bb); } } }
+  $('clearChats').onclick = async () => { await clearSavedChats(); Object.keys(sessionChats).forEach(k => delete sessionChats[k]); renderChat(); $('clearChats').textContent = 'Cleared ✓'; setTimeout(() => $('clearChats').textContent = 'Clear all chats', 1800); };
+  document.querySelectorAll('[data-seg]').forEach(g => g.onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; settings[g.dataset.seg] = b.dataset.v; applySettings();
+    if (g.dataset.seg === 'chatKeep' && b.dataset.v !== 'board') clearSavedChats(); if (g.dataset.seg === 'chatKeep') renderChat(); });
   $('noteColors').onclick = e => { const b = e.target.closest('[data-nc]'); if (b) { settings.noteColor = b.dataset.nc; applySettings(); } };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => settings.theme === 'system' && applySettings());
   const newNoteColor = () => settings.noteColor === 'random' ? COLOR_NAMES[1 + Math.floor(Math.random() * 6)] : settings.noteColor;
@@ -914,7 +918,7 @@
   function mochiOpen(on) { $('mochi').classList.toggle('chat', on); if (on) { $('mBubble').classList.remove('on'); renderChat(); $('mcInput').focus(); } }
   $('mPill').onclick = () => mochiOpen(!chatOpen());
   $('mcClose').onclick = () => mochiOpen(false);
-  $('mcNew').onclick = () => { board.chat = []; renderChat(); save(); $('mcInput').focus(); };
+  $('mcNew').onclick = () => { chatLog().length = 0; if (settings.chatKeep === 'board') { board.chat = []; save(); } renderChat(); $('mcInput').focus(); };
   const IDEAS = ['Group these by theme', 'What am I missing?', 'Make a checklist from this', 'Find onboarding screens on Mobbin'];
   function msgEl(m) {
     const d = document.createElement('div'); d.className = 'mc-msg ' + m.who; d.textContent = m.text;
@@ -923,14 +927,17 @@
     return d;
   }
   function renderChat() {
-    const list = $('mcList'); list.innerHTML = ''; const msgs = board?.chat || [];
+    const list = $('mcList'); list.innerHTML = ''; const msgs = chatLog();
     if (!msgs.length) { list.innerHTML = `<div class="mc-empty"><b>Hi! I'm Mochi ✦</b>Ask me to sort, write, plan or find things for this board.<div class="mc-ideas">${IDEAS.filter(i => settings.mobbin || !/Mobbin/.test(i)).map(i => `<button>${i}</button>`).join('')}</div></div>`;
       list.querySelectorAll('.mc-ideas button').forEach(b => b.onclick = () => { ask(b.textContent); }); return; }
     msgs.forEach(m => list.appendChild(msgEl(m))); list.scrollTop = list.scrollHeight;
   }
+  // where a chat lives depends on Settings: saved with the board, kept only until Mochiboard quits, or not kept at all
+  const sessionChats = {};
+  function chatLog() { if (!board) return []; if (settings.chatKeep === 'board') return (board.chat = board.chat || []); return (sessionChats[board.id] = sessionChats[board.id] || []); }
   function addMsg(who, text, acts = []) {
-    if (!board) return; board.chat = board.chat || []; const m = { who, text, t: Date.now() };
-    board.chat.push(m); if (board.chat.length > 60) board.chat.splice(0, board.chat.length - 60); save();
+    if (!board) return; const log = chatLog(), m = { who, text, t: Date.now() }, max = +settings.chatMax || 60;
+    log.push(m); if (log.length > max) log.splice(0, log.length - max); if (settings.chatKeep === 'board') save();
     const list = $('mcList'); list.querySelector('.mc-empty')?.remove(); list.appendChild(msgEl({ ...m, acts })); list.scrollTop = list.scrollHeight;
   }
   function typing(on) { $('mcList').querySelector('.typing')?.remove(); $('mcStatus').textContent = on ? 'thinking…' : '';
@@ -944,7 +951,7 @@
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
       text: (c.text || c.title || c.label || '').slice(0, 300), name: c.name, kids: c.kids, desc: c.desc, body: c.body ? c.body.slice(0, 600) : undefined, shape: c.shape, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
-      recentChat: (board.chat || []).slice(-8).map(m => `${m.who === 'me' ? 'Person' : 'Mochi'}: ${m.text}`),
+      recentChat: (settings.chatKeep === 'off' ? chatLog().slice(-2) : chatLog().slice(-8)).map(m => `${m.who === 'me' ? 'Person' : 'Mochi'}: ${m.text}`),
       mochiStyle: ({ quiet: 'Keep "say" to one short sentence.', normal: 'Keep "say" short and warm.', chatty: 'Be warm, playful and encouraging in "say" (2 to 3 sentences, a little cheer is welcome).' }[settings.chat] || '') + (settings.emoji ? ' A couple of fitting emojis in "say" are welcome.' : ' Never use emojis.'),
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
@@ -1178,7 +1185,7 @@
     (async () => {
       const buf = new Uint8Array(an.fftSize), awake = () => { an.getByteTimeDomainData(buf); return buf.some(v => Math.abs(v - 128) > 1); };
       for (const n of [3, 2, 1]) { c.count = n; renderCard(c); await new Promise(r => setTimeout(r, 650)); if (!live.has(c.id)) return; }
-      const t0 = Date.now(); if (!awake()) { c.count = 'almost…'; renderCard(c); }
+      const t0 = Date.now(); if (!awake()) { c.count = 'connecting'; renderCard(c); }
       while (!awake() && Date.now() - t0 < 8000) { await new Promise(r => setTimeout(r, 60)); if (!live.has(c.id)) return; }
       c.count = 0; recorder.start(250);
     })();
@@ -1502,7 +1509,7 @@
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
-    if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:${SHAPE_FILL[n]}" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
+    if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:var(--sh-${n})" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}<label class="sf-any ${SHAPE_FILL[one.fill || 'gray'] ? '' : 'on'}" title="Any color"${SHAPE_FILL[one.fill || 'gray'] ? '' : ` style="--any:${one.fill}"`}><input type="color" data-sfany value="${SHAPE_FILL[one.fill || 'gray'] ? '#ff9ec4' : one.fill}"></label></div><span class="sb-sep"></span>`;
     const sized = cs.filter(c => SIZED.includes(c.type));
     if (sized.length) { const cur = sized.every(c => (c.fs || 'm') === (sized[0].fs || 'm')) ? (sized[0].fs || 'm') : '';
       // bold is on by default for titles and collection names, off for everything else
@@ -1513,8 +1520,15 @@
     h += `<span class="sb-sep"></span>` + btn('mochi', 'mochi', 'Ask Mochi to change ' + (one ? 'this' : 'these')) + btn('del', 'del', 'Delete');
     bar.innerHTML = h;
   }
-  (function tick() { placeSelbar(); requestAnimationFrame(tick); })();
+  let coverT = 0;
+  function checkTitleCover() {
+    const t = document.querySelector('.top'); if (!t || !board) return; const r = t.getBoundingClientRect(), pad = 6;
+    const hit = [...cardsEl.children].some(el => { const c = el.getBoundingClientRect(); return c.right > r.left - pad && c.left < r.right + pad && c.bottom > r.top - pad && c.top < r.bottom + pad; });
+    t.classList.toggle('covered', hit);
+  }
+  (function tick() { placeSelbar(); if (++coverT % 8 === 0) checkTitleCover(); requestAnimationFrame(tick); })();
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
+  $('selbar').addEventListener('input', e => { if (!e.target.matches('[data-sfany]')) return; const one = selCards()[0]; if (!one) return; one.fill = e.target.value; renderCard(one); selectOnly([one.id]); e.target.closest('.sf-any').style.setProperty('--any', one.fill); save(); });
   $('selbar').addEventListener('click', e => {
     const a = e.target.closest('[data-wb]')?.dataset.wb, l = selWire && linkById(selWire); if (!a || !l) return; e.stopImmediatePropagation();
     if (a === 'curve') l.bend = l.bend === 0 ? undefined : l.bend; if (a === 'curve' && l.bend === undefined) delete l.bend;

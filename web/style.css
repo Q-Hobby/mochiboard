@@ -817,3 +817,20 @@ body.calm #goo.hopping { animation: none; }
 .tile.folder .paper { transform: translate(calc((var(--i) - var(--mid, 1)) * 38px), calc(var(--i) * 3px)) rotate(calc((var(--i) - var(--mid, 1)) * 7deg)); transform-origin: 50% 120%; }
 .tile.folder:hover .paper { transform: translate(calc((var(--i) - var(--mid, 1)) * 46px), calc(-16px + var(--i) * 2px)) rotate(calc((var(--i) - var(--mid, 1)) * 9deg)); }
 .tile.folder .paper svg { width: 100%; height: 100%; }
+
+/* shape colors follow the theme: soft pastels in light, deeper calmer versions in dark */
+body { --sh-gray: #e4dfe7; --sh-pink: #ffb8d2; --sh-butter: #f8e08a; --sh-mint: #a8e6c3; --sh-sky: #aed3ff; --sh-lilac: #cdb8ff; --sh-peach: #ffc8a6; --sh-ink: #494848; }
+body.dark { --sh-gray: #4a4452; --sh-pink: #b7768f; --sh-butter: #b9a35a; --sh-mint: #6fa98a; --sh-sky: #6e93bd; --sh-lilac: #8a78bd; --sh-peach: #b98b6f; --sh-ink: #ece8f0; }
+body.dark .card.shape .text { color: #fff; }
+.sf-any { position: relative; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; background: conic-gradient(#ff9ec4, #f3d96a, #7ad3a3, #8cc1ff, #b89bff, #ff9ec4); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); flex: none; }
+.sf-any.on { background: var(--any); box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--select); }
+.sf-any input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; border: 0; padding: 0; }
+/* the board name stays readable when a card slides under it */
+.top { transition: background .2s, box-shadow .2s, padding .2s; border-radius: 16px; }
+.top.covered { background: rgba(251, 248, 252, .86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(120, 80, 120, .12); padding: 8px 14px 10px; margin: -8px 0 0 -14px; }
+body.dark .top.covered { background: rgba(38, 34, 43, .88); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+.top.covered { padding-bottom: 26px; }
+.top.covered .saved { top: auto; bottom: 9px; left: 15px; }
+.au-count.soft { display: flex; gap: 5px; align-items: center; justify-content: center; }
+.au-count.soft i { width: 7px; height: 7px; border-radius: 50%; background: var(--pink-deep); animation: mc-dot 1s ease-in-out infinite; }
+.au-count.soft i:nth-child(2) { animation-delay: .15s; } .au-count.soft i:nth-child(3) { animation-delay: .3s; }
