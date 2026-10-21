@@ -769,3 +769,6 @@ body.dark .mc-ideas button { border-color: #3e3846; }
 .au-dot.wait { animation: none; background: var(--ink-faint); }
 .au-count.soft { font-size: 16px; font-weight: 700; color: var(--ink-soft); }
 .m-chat .mc-msg.typing { flex-direction: row; align-items: center; }
+/* Mochi is drawn at the bottom of her canvas (headroom for her hop), so lift her to sit visually centered */
+.m-pill canvas { transform: translateY(-4px); }
+.mc-head canvas { margin-top: -9px; }
