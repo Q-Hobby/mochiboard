@@ -653,7 +653,8 @@
     $('mBubble').classList.add('on'); goo.hop(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
   }
   function mochiOpen(on) { $('mochi').classList.toggle('open', on); if (on) setTimeout(() => $('mInput').focus(), 30); }
-  $('mPill').onclick = e => { if (!$('mochi').classList.contains('open')) mochiOpen(true); };
+  // clicking Mochi opens her text box; clicking her again (not the box itself) closes it
+  $('mPill').onclick = e => { if (e.target.closest('#mForm')) return; mochiOpen(!$('mochi').classList.contains('open')); };
   // what Mochi sees: the cards (trimmed), where they are, what's selected, and what's in Unsorted
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
