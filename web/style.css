@@ -451,3 +451,5 @@ html.native .dv-bar { padding-top: 14px; }
 .stage.doc-open .dock, .stage.doc-open .shapepick { opacity: 0; pointer-events: none; }
 .sub-boards { margin-left: 16px; padding-left: 8px; border-left: 1.5px dashed #eadfee; display: flex; flex-direction: column; gap: 1px; }
 .sub-boards .board-row { font-size: 13px; }
+/* full-page docs: keep the bar clear of the floating boxes on the left */
+.docview.wide .dv-bar { padding-left: calc(var(--side) + 30px); }
