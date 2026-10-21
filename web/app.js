@@ -239,8 +239,8 @@
   function tile(kind, obj, sub, onOpen, btns = []) {
     const t = document.createElement('div'); t.className = 'tile ' + kind; t.style.rotate = (((obj.id.charCodeAt(0) + obj.id.charCodeAt(1)) % 5) - 2) * .6 + 'deg';
     t.innerHTML = `<div class="tile-art"></div><div class="tile-meta"><b></b><small>${sub}</small>${btns.map(([a, tt, s]) => `<button class="f-btn" data-a="${a}" title="${tt}">${FBTN[a] || s}</button>`).join('')}</div>`;
-    t.querySelector('b').textContent = obj.name;
-    t.onclick = e => { if (e.target.closest('.f-btn') || t.querySelector('b').isContentEditable) return; onOpen(); };
+    t.querySelector('.tile-meta b').textContent = obj.name;
+    t.onclick = e => { if (e.target.closest('.f-btn') || t.querySelector('.tile-meta b').isContentEditable) return; onOpen(); };
     return t;
   }
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -271,7 +271,7 @@
           if (c === 'pick') { coverFor = pp; $('coverPick').value = ''; $('coverPick').click(); }
           if (c === 'board') { delete pp.cover; saveLib().then(refreshBoards); } };
         setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener('pointerdown', off, true); } }, true)); };
-      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), pp); t.oncontextmenu = e => rowMenu(e, 'project', pp, t.querySelector('b'));
+      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('.tile-meta b'), pp); t.oncontextmenu = e => rowMenu(e, 'project', pp, t.querySelector('.tile-meta b'));
       dropZone(t, 'folder', fid => { const x = folders.find(y => y.id === fid); if (x) x.project = pp.id; });
       return t;
     };
@@ -279,24 +279,24 @@
       const bs = boardsIn(ff.id), t = tile('folder', ff, plural(bs.length, 'board'), () => openHome('folder:' + ff.id), [['ren', 'Rename', '✎']]);
       const art = t.querySelector('.tile-art'); art.innerHTML = '<div class="back"></div><div class="tab"></div><div class="peek"></div><div class="front"><span class="face"><b></b><i></i><b></b></span></div>';
       bs.slice(0, 3).forEach(async (b, i) => { const d = document.createElement('div'); d.className = 'paper'; d.style.setProperty('--i', i); d.innerHTML = await mini(b.id); art.querySelector('.peek').appendChild(d); });
-      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('b'), ff); t.oncontextmenu = e => rowMenu(e, 'folder', ff, t.querySelector('b'));
+      t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('.tile-meta b'), ff); t.oncontextmenu = e => rowMenu(e, 'folder', ff, t.querySelector('.tile-meta b'));
       draggable(t, 'folder', ff.id); dropZone(t, 'board', bid => moveBoard(bid, ff.id));
       return t;
     };
     const boardTile = b => {
       const t = tile('board', b, b.updated ? 'edited ' + ago(b.updated) : '', () => { closeHome(); openBoard(b.id); });
       mini(b.id).then(svg => t.querySelector('.tile-art').innerHTML = svg || '<em>empty board</em>');
-      draggable(t, 'board', b.id); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('b')); return t;
+      draggable(t, 'board', b.id); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('.tile-meta b')); return t;
     };
     const section = label => { const h = document.createElement('div'); h.className = 'home-sec'; h.textContent = label; grid.appendChild(h); };
     if (level === 'all') {
       projects.forEach(pp => grid.appendChild(projectTile(pp)));
-      add('New project', async () => { const pp = makeProject(uniqueName(projects, 'New project')); await saveLib(); await refreshBoards(); const t = [...grid.querySelectorAll('.tile.project')].pop(); inlineRename(t.querySelector('b'), pp); });
+      add('New project', async () => { const pp = makeProject(uniqueName(projects, 'New project')); await saveLib(); await refreshBoards(); const t = [...grid.querySelectorAll('.tile.project')].pop(); inlineRename(t.querySelector('.tile-meta b'), pp); });
       if (looseFolders().length) { section('Folders not in a project · drag onto a project to file'); looseFolders().forEach(ff => grid.appendChild(folderTile(ff))); }
       if (looseBoards().length) { section('Boards not in a folder'); looseBoards().forEach(b => grid.appendChild(boardTile(b))); }
     } else if (level === 'project') {
       foldersIn(p.id).forEach(ff => grid.appendChild(folderTile(ff)));
-      add('New folder', async () => { const ff = makeFolder(uniqueName(folders, 'New folder'), p.id); await saveLib(); await refreshBoards(); const t = [...grid.querySelectorAll('.tile.folder')].pop(); inlineRename(t.querySelector('b'), ff); });
+      add('New folder', async () => { const ff = makeFolder(uniqueName(folders, 'New folder'), p.id); await saveLib(); await refreshBoards(); const t = [...grid.querySelectorAll('.tile.folder')].pop(); inlineRename(t.querySelector('.tile-meta b'), ff); });
       if (looseBoards().length) { section('Boards not in a folder · drag onto a folder to file'); looseBoards().forEach(b => grid.appendChild(boardTile(b))); }
     } else {
       boardsIn(f.id).forEach(b => grid.appendChild(boardTile(b)));
