@@ -39,6 +39,8 @@ cat > build/Mochiboard.app/Contents/Info.plist <<PLIST
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>Mochiboard records voice memos onto your board.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Mochi writes out your voice memos on your Mac, so you can search and sort them.</string>
 </dict></plist>
 PLIST
 # sign with a local certificate (made once, kept in your login keychain) so macOS treats every rebuild as the same app

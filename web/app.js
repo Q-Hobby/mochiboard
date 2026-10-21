@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -309,6 +309,7 @@
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
     miniCache.clear(); board = b; board.palette = board.palette || []; setTimeout(resetHistory, 0); view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
+    board.cards.forEach(c => { if (c.type === 'audio' && c.rec) { c.rec = false; c.paused = false; if (!c.src) c.txNote = 'This recording got interrupted. Tap Replace to record again.'; } });
     board.cards.forEach(c => { if (c.type === 'canvas' && c.board) { const kb = boardList.find(x => x.id === c.board); if (kb && kb.name !== c.text) c.text = kb.name; } });
     $('boardName').value = board.name; renderAll(); refreshBoards(); try { localStorage.setItem('mochiboard:last', id); } catch (e) {}
   }
@@ -362,6 +363,9 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
+      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot"></span><b>${c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div><canvas class="au-live" width="520" height="68"></canvas><div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
+        : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">▶</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
+          + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
       case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
@@ -382,6 +386,7 @@
     el.style.setProperty('--fs', FS[c.fs] || 1);
     ['bold', 'italic', 'under', 'strike'].forEach(k => { el.classList.toggle('t-' + k, c[k] === true); el.classList.toggle('t-no' + k, c[k] === false); });
     if (c.type === 'doc') el.classList.toggle('has-body', !!(c.body || '').trim());
+    if (c.type === 'audio') { el.classList.toggle('paused', !!c.paused); if (!c.rec) requestAnimationFrame(() => fitAudio(c, el)); }
     if (c.type === 'stamp') { el.style.setProperty('--sz', c.w + 'px'); if (c.mv) el.classList.add('mv-' + c.mv); }
     if (c.type === 'link') el.classList.toggle('compact', !c.url || !c.image);
     if (c.type === 'canvas' && c.board) mini(c.board).then(svg => { const p = el.querySelector('.cv-prev'); if (p && svg) p.innerHTML = svg; });
@@ -568,6 +573,7 @@
     if (c.type === 'doc') return editField(el, el.querySelector('.text'), v => c.text = v);
     if (c.type === 'canvas') return editField(el, el.querySelector('.text'), v => c.text = v, () => renameChild(c));
     if (c.type === 'link' && !c.url) return wireLinkInput(c);
+    if (c.type === 'audio') { if (target && target.closest('.au-tx') && c.text) return editField(el, el.querySelector('.au-tx'), v => c.text = v); return editField(el, el.querySelector('.au-top .text'), v => c.title = v); }
     const li = target && target.closest('li');
     if (li && c.type === 'todo') { const i = +li.dataset.i; return editField(el, li.querySelector('span'), v => c.items[i].t = v, () => { if (!c.items[i]?.t.trim()) { c.items.splice(i, 1); renderCard(c); save(); } }); }
     if (c.type === 'link') { const desc = target && target.closest('.meta span'); return editField(el, el.querySelector(desc ? '.meta span' : '.meta b'), v => desc ? c.desc = v : c.title = v); }
@@ -696,6 +702,7 @@
   // card buttons: pull colours, checklist items
   cardsEl.addEventListener('click', e => {
     const el = e.target.closest('.card'); if (!el) return; const c = byId(el.dataset.id), act = e.target.closest('[data-act]')?.dataset.act;
+    if (act && act.startsWith('au-')) return audioAct(c, act, e);
     if (act === 'colors') pullColors(c);
     if (act === 'item') { c.items = c.items || []; c.items.push({ t: 'new thing', done: false }); renderCard(c); save(); }
     const li = e.target.closest('li'); if (li && c.type === 'todo') {
@@ -767,6 +774,7 @@
     if (k === 's') $('tools').querySelector('[data-add="shape"]').click();
     if (k === 'e') $('tools').querySelector('[data-add="stamp"]').click();
     if (k === 'l') startPlacing('link');
+    if (k === 'a') startPlacing('audio');
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
     if (k === 'm') { e.preventDefault(); mochiOpen(true); }
@@ -950,7 +958,7 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]] };
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]] };
   function startPlacing(type, extra = {}) {
     if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
@@ -965,7 +973,7 @@
   function placeAt(w) {
     if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
     const type = placing.type, more = placing.extra || {}; stopPlacing();
-    const extra = type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
+    const extra = type === 'audio' ? { r: 0 } : type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
     const c = card(type, extra); c.x = w.x - 14 / view.z; c.y = w.y - 14 / view.z;
     if (type === 'coll') c.r = 0;
@@ -978,6 +986,64 @@
     if (['note', 'todo', 'title', 'doc', 'canvas'].includes(type)) setTimeout(() => startEdit(c.id), 30);
     if (type === 'coll') setTimeout(() => startEdit(c.id), 30);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
+    if (type === 'audio') record(c);
+  }
+
+  // ---------- voice memos: record straight onto the board, play them back, and Mochi writes them out ----------
+  const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  const live = new Map();     // card id → { recorder, stream, timer, ... } while recording
+  const players = new Map();  // card id → Audio
+  function fitAudio(c, el) { const b = el.querySelector('.body'); if (!b) return; b.style.height = 'auto'; const h = Math.max(150, b.offsetHeight); b.style.height = ''; if (Math.abs(h - c.h) > 2) { c.h = h; el.style.height = h + 'px'; renderWires(); } }
+  async function record(c) {
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { say("I can't hear you yet. Let Mochiboard use the microphone (System Settings → Privacy & Security → Microphone), then try again.", 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
+    const chunks = [], recorder = new MediaRecorder(stream), ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 256; ac.createMediaStreamSource(stream).connect(an);
+    const L = { recorder, stream, ac, start: Date.now(), paused: 0, pausedAt: 0 }; live.set(c.id, L);
+    c.rec = true; c.paused = false; renderCard(c); selectOnly([c.id]);
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop()); ac.close(); live.delete(c.id);
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/mp4' }), url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+      let wave = [], dur = (Date.now() - L.start - L.paused) / 1000;
+      try { const buf = await new AudioContext().decodeAudioData(await blob.arrayBuffer()), d = buf.getChannelData(0), n = 44, step = Math.floor(d.length / n); dur = buf.duration;
+        for (let i = 0; i < n; i++) { let m = 0; for (let j = i * step; j < (i + 1) * step; j += 16) m = Math.max(m, Math.abs(d[j])); wave.push(m); }
+        const top = Math.max(...wave, .01); wave = wave.map(v => +(v / top).toFixed(2)); } catch (e) { wave = Array(44).fill(.3); }
+      const when = new Date();
+      Object.assign(c, { rec: false, paused: false, src: url, dur, wave, text: '', txNote: '', title: c.title || `Voice memo · ${when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` });
+      renderCard(c); save(); transcribe(c);
+    };
+    recorder.start(250);
+    const cv = () => cardsEl.querySelector(`[data-id="${c.id}"] .au-live`), data = new Uint8Array(an.frequencyBinCount);
+    (function draw() {
+      if (!live.has(c.id)) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`), canvas = cv();
+      if (canvas) { const g = canvas.getContext('2d'); an.getByteTimeDomainData(data); g.clearRect(0, 0, canvas.width, canvas.height); g.fillStyle = '#f27aa8';
+        for (let i = 0; i < 44; i++) { const v = Math.abs(data[Math.floor(i * data.length / 44)] - 128) / 128, h = Math.max(4, v * canvas.height * 2.2); g.fillRect(i * 12, (canvas.height - h) / 2, 7, Math.min(h, canvas.height)); } }
+      const t = el?.querySelector('.au-time'); if (t && !c.paused) t.textContent = fmtT((Date.now() - L.start - L.paused) / 1000);
+      requestAnimationFrame(draw);
+    })();
+  }
+  async function transcribe(c) {
+    try { const text = await MB.transcribe(c.src); c.text = (text || '').trim(); c.txNote = c.text ? '' : "I couldn't make out any words in that one."; }
+    catch (e) { c.txNote = e.message; }
+    renderCard(c); save();
+    if (c.text) say('I wrote out your voice memo ✦ Want me to turn it into notes?', 6000, [{ label: 'Turn into notes', run: () => audioAct(c, 'au-notes') }, { label: 'Not now', ghost: true, run: () => {} }]);
+  }
+  function audioAct(c, act, e) {
+    const L = live.get(c.id), el = cardsEl.querySelector(`[data-id="${c.id}"]`);
+    if (act === 'au-stop' && L) L.recorder.stop();
+    if (act === 'au-pause' && L) { if (c.paused) { L.recorder.resume(); L.paused += Date.now() - L.pausedAt; } else { L.recorder.pause(); L.pausedAt = Date.now(); } c.paused = !c.paused; renderCard(c); }
+    if (act === 'au-replace') { players.get(c.id)?.pause(); players.delete(c.id); record(c); }
+    if (act === 'au-notes') ask(`This is a voice memo I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
+    if (act === 'au-play' || act === 'au-seek') {
+      let p = players.get(c.id); if (!p) { p = new Audio(c.src); players.set(c.id, p); }
+      if (act === 'au-seek' && e) { const r = el.querySelector('.au-wave').getBoundingClientRect(); p.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * (c.dur || p.duration || 0); if (p.paused) p.play(); }
+      else if (p.paused) p.play(); else p.pause();
+      const tick = () => { const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!e2) return; const f = (p.currentTime || 0) / (c.dur || p.duration || 1);
+        e2.querySelectorAll('.au-wave i').forEach((b, i, all) => b.classList.toggle('past', i / all.length < f));
+        e2.querySelector('.au-time').textContent = `${fmtT(p.currentTime || 0)} / ${fmtT(c.dur || 0)}`; const pb = e2.querySelector('.au-play'); pb.textContent = p.paused ? '▶' : '❚❚'; pb.classList.toggle('on', !p.paused);
+        if (!p.paused) requestAnimationFrame(tick); };
+      p.onended = tick; requestAnimationFrame(tick);
+    }
   }
 
   // ---------- stamps: Mochi's emojis, moving Mochis and regular emoji, stamped with a little burst ----------
@@ -1053,12 +1119,13 @@
   $('dvWide').onclick = () => { const w = $('docview').classList.toggle('wide'); $('dvWide').textContent = w ? '⤡' : '⤢'; $('dvWide').title = w ? 'Half page' : 'Full page'; };
 
   // ---------- dropping cards into a doc: their words join the doc ----------
-  const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape'];
+  const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape', 'audio'];
   function cardWords(c) {
     if (c.type === 'note') return [c.name, c.text].filter(x => (x || '').trim()).join('\n');
     if (c.type === 'todo') return [(c.text || '').trim(), ...(c.items || []).map(i => (i.done ? '☑ ' : '☐ ') + i.t)].filter(Boolean).join('\n');
     if (c.type === 'link') return [c.title, c.url].filter(Boolean).join('\n');
     if (c.type === 'swatch') return `${c.label || ''} ${c.hex.toUpperCase()}`.trim();
+    if (c.type === 'audio') return [c.title, c.text].filter(Boolean).join('\n');
     if (c.type === 'doc') return [c.text, c.body].filter(x => (x || '').trim()).join('\n');
     return c.text || '';
   }
@@ -1127,7 +1194,7 @@
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;

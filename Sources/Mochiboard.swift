@@ -2,6 +2,7 @@
 // saving boards as files, fetching link previews, and asking Mochi (Claude Code, run locally with `claude -p`).
 import AppKit
 import UniformTypeIdentifiers
+import Speech
 @preconcurrency import WebKit
 
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
@@ -85,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             connections { reply(true, $0) }
         case "fetchImage":
             fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
+        case "transcribe":
+            transcribe(args["audio"] as? String ?? "") { ok, text in reply(ok, text) }
         case "reveal":
             NSWorkspace.shared.activateFileViewerSelecting([boardsDir]); reply(true, true)
         case "openURL":
@@ -255,6 +258,29 @@ app.run()
 
 // the image button's file picker (a web page can't open one inside the app on its own)
 extension AppDelegate {
+    // the microphone, for voice memos (macOS asks the person once)
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        decisionHandler(type == .microphone ? .grant : .deny)
+    }
+    // voice memo → words, using Apple's speech recognition on this Mac (on-device when the Mac supports it)
+    func transcribe(_ dataURL: String, done: @escaping (Bool, String) -> Void) {
+        guard let comma = dataURL.firstIndex(of: ","), let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])) else { return done(false, "couldn't read that recording") }
+        let ext = dataURL.contains("audio/webm") ? "webm" : dataURL.contains("audio/wav") ? "wav" : "m4a"
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("mochiboard-memo-\(UUID().uuidString).\(ext)")
+        do { try data.write(to: file) } catch { return done(false, "couldn't save the recording") }
+        SFSpeechRecognizer.requestAuthorization { status in
+            guard status == .authorized else { return done(false, "Speech recognition is off. Turn it on for Mochiboard in System Settings → Privacy & Security → Speech Recognition.") }
+            guard let rec = SFSpeechRecognizer(), rec.isAvailable else { return done(false, "Speech recognition isn't available right now") }
+            let req = SFSpeechURLRecognitionRequest(url: file); req.shouldReportPartialResults = false
+            if rec.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+            var finished = false
+            rec.recognitionTask(with: req) { result, error in
+                if finished { return }
+                if let result, result.isFinal { finished = true; try? FileManager.default.removeItem(at: file); done(true, result.bestTranscription.formattedString) }
+                else if let error { finished = true; try? FileManager.default.removeItem(at: file); done(false, error.localizedDescription) }
+            }
+        }
+    }
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = parameters.allowsMultipleSelection; panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]
