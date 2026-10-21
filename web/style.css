@@ -1082,3 +1082,8 @@ body.dark .set-update { background: #302b35; } body.dark .set-update.ready { bac
 .set-maker small { display: block; max-width: 340px; margin: 0 auto 14px; font: 500 13px/1.5 var(--font); color: var(--ink-soft); }
 .sm-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 body.dark .set-maker { background: #3a2a34; } body.dark .sm-sig { color: #ffb3d4; }
+
+/* groups: a soft dashed outline around a group you've selected */
+.group-boxes { position: absolute; left: 0; top: 0; pointer-events: none; }
+.group-box { position: absolute; border: 2px dashed rgba(255, 143, 194, .85); border-radius: 22px; }
+.group-box span { position: absolute; left: 14px; top: -11px; padding: 3px 9px; border-radius: 99px; background: #ff8fc2; color: #fff; font: 700 10px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; }

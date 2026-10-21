@@ -66,7 +66,8 @@ The installer builds the app on your Mac (about 30 seconds), signs it with a cer
 | **F** | Focus on the selection |
 | **0** | Fit the whole board |
 | **⌘Z / ⇧⌘Z** | Undo / redo |
-| **⌘G / ⇧⌘G** | Group / ungroup wireframe pieces |
+| **⌘G / ⇧⌘G** | Group / ungroup, so things move together |
+| **⌘C / ⌘X / ⌘V** | Copy, cut and paste cards, even onto another board |
 | **space + drag** | Pan |
 
 ## How it's built
