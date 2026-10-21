@@ -268,6 +268,8 @@
 
   // ---------- quick capture (⌘K) ----------
   const capture = on => { $('capture').classList.toggle('on', on); if (on) { $('capInput').value = ''; setTimeout(() => $('capInput').focus(), 30); } else $('capInput').blur(); };
+  // clicking anywhere outside the box closes it (what you typed isn't saved unless you pressed Enter)
+  addEventListener('pointerdown', e => { if ($('capture').classList.contains('on') && !e.target.closest('.capture')) capture(false); }, true);
   $('capForm').onsubmit = e => { e.preventDefault(); const v = $('capInput').value.trim(); if (v) { if (/^https?:\/\//.test(v)) linkCard(v, null, true); else { board.tray.unshift(card('note', { text: v })); renderTray(); save(); } $('tray').classList.remove('closed'); } capture(false); };
 
   // ---------- focus mode ----------
