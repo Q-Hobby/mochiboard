@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -363,9 +363,10 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
-      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot"></span><b>${c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div><canvas class="au-live" width="520" height="68"></canvas><div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
-        : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">▶</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
+      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot"></span><b>${c.starting ? 'Getting ready…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div><canvas class="au-live" width="520" height="68"></canvas><div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
+        : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
+      case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
       case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
@@ -596,6 +597,8 @@
     if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
+    if (board) { clearTimeout(snapT); remember(); }   // lock in the last change before a new one starts, so undo steps stay separate
+    if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
     const wireEl = e.target.closest('[data-wire]');
     if (wireEl && !space) {
@@ -753,6 +756,7 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Escape' && $('settings').classList.contains('on')) { closeSettings(); return; }
+    if (e.key === 'Escape' && drawOn) { exitDraw(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape' && selWire) { selectWire(null); return; }
@@ -775,6 +779,7 @@
     if (k === 's') $('tools').querySelector('[data-add="shape"]').click();
     if (k === 'e') $('tools').querySelector('[data-add="stamp"]').click();
     if (k === 'l') startPlacing('link');
+    if (k === 'p') drawOn ? exitDraw() : enterDraw();
     if (k === 'a') readyToRecord().then(ok => ok && startPlacing('audio'));
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
@@ -791,6 +796,7 @@
   // ---------- toolbar ----------
   $('tools').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; const t = b.dataset.add;
     if (t === 'image') return $('filePick').click();
+    if (t === 'draw') return drawOn ? exitDraw() : enterDraw();
     if (t === 'stamp') { const on = !$('stampWheel').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); ['stampWheel', 'stampPick'].forEach(id => $(id).style.left = (r.left + r.width / 2 - sr.left) + 'px'); renderWheel(); $('stampWheel').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'shape') { const on = !$('shapePick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('shapePick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('shapePick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'audio') return readyToRecord().then(ok => ok && startPlacing('audio'));
@@ -969,7 +975,7 @@
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
-  function stopPlacing() { $('shapePick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
+  function stopPlacing() { if (placing?.type === 'audio') setTimeout(coolMic, 15000); $('shapePick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
   function moveGhost() { if (!placing) return; const r = stage.getBoundingClientRect(), g = $('ghost'), o = placing.type === 'stamp' ? 28 * view.z : 14; g.style.left = mouse.x - r.left - o + 'px'; g.style.top = mouse.y - r.top - o + 'px'; g.style.transform = `scale(${view.z})`; }
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
@@ -1031,15 +1037,19 @@
   });
 
   // ---------- voice memos: record straight onto the board, play them back, and Mochi writes them out ----------
+  const PLAY = '<svg viewBox="0 0 12 12"><path d="M3 1.6v8.8L10.2 6z"/></svg>', PAUSE = '<svg viewBox="0 0 12 12"><rect x="2.2" y="1.8" width="2.6" height="8.4" rx=".8"/><rect x="7.2" y="1.8" width="2.6" height="8.4" rx=".8"/></svg>';
   const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   const live = new Map();     // card id → { recorder, stream, timer, ... } while recording
   const players = new Map();  // card id → Audio
   function fitAudio(c, el) { const b = el.querySelector('.body'); if (!b) return; b.style.height = 'auto'; const h = Math.max(150, b.offsetHeight); b.style.height = ''; if (Math.abs(h - c.h) > 2) { c.h = h; el.style.height = h + 'px'; renderWires(); } }
   // the first time someone picks the voice memo tool, ask for the mic (and speech) right then; macOS remembers the answer
-  let micOK = false;
+  let micOK = false, warm = null, warmT = 0;
+  // the mic switches on as soon as the tool is picked, so the first words aren't lost while it wakes up; it switches off again if nothing gets recorded
+  function warmMic(st) { clearTimeout(warmT); if (warm && warm !== st) warm.getTracks().forEach(t => t.stop()); warm = st; warmT = setTimeout(coolMic, 60000); }
+  function coolMic() { if (warm && !live.size) { warm.getTracks().forEach(t => t.stop()); warm = null; } }
   async function readyToRecord() {
-    if (micOK) return true;
-    try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach(t => t.stop()); }
+    if (micOK) { if (!warm) try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); } catch (e) {} return true; }
+    try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); }
     catch (e) { say("Mochiboard needs the microphone for voice memos. Turn it on in System Settings → Privacy & Security → Microphone, then try again ✦", 10000); return false; }
     micOK = true;
     const sp = await MB.speechAuth().catch(() => 'off');
@@ -1047,11 +1057,13 @@
     return true;
   }
   async function record(c) {
-    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    let stream = warm && warm.active ? warm : null; warm = null; clearTimeout(warmT);
+    try { if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch (e) { say("I can't hear you yet. Let Mochiboard use the microphone (System Settings → Privacy & Security → Microphone), then try again.", 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
     const chunks = [], recorder = new MediaRecorder(stream), ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 256; ac.createMediaStreamSource(stream).connect(an);
     const L = { recorder, stream, ac, start: Date.now(), paused: 0, pausedAt: 0 }; live.set(c.id, L);
-    c.rec = true; c.paused = false; renderCard(c); selectOnly([c.id]);
+    c.rec = true; c.paused = false; c.starting = true; renderCard(c); selectOnly([c.id]);
+    recorder.onstart = () => { c.starting = false; L.start = Date.now(); renderCard(c); };   // only say "Recording…" once it's really listening
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop()); ac.close(); live.delete(c.id);
@@ -1092,11 +1104,105 @@
       else if (p.paused) p.play(); else p.pause();
       const tick = () => { const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!e2) return; const f = (p.currentTime || 0) / (c.dur || p.duration || 1);
         e2.querySelectorAll('.au-wave i').forEach((b, i, all) => b.classList.toggle('past', i / all.length < f));
-        e2.querySelector('.au-time').textContent = `${fmtT(p.currentTime || 0)} / ${fmtT(c.dur || 0)}`; const pb = e2.querySelector('.au-play'); pb.textContent = p.paused ? '▶' : '❚❚'; pb.classList.toggle('on', !p.paused);
+        e2.querySelector('.au-time').textContent = `${fmtT(p.currentTime || 0)} / ${fmtT(c.dur || 0)}`; const pb = e2.querySelector('.au-play'); pb.innerHTML = p.paused ? PLAY : PAUSE; pb.classList.toggle('on', !p.paused);
         if (!p.paused) requestAnimationFrame(tick); };
       p.onended = tick; requestAnimationFrame(tick);
     }
   }
+
+  // ---------- drawing: the same soft ink as jessa.art (it swells when you slow down and tapers at the ends), plus a marker, a highlighter and an easy eraser ----------
+  const INKS = { ink: '#494848', pink: '#f27aa8', coral: '#ff7f6b', butter: '#f3c84a', mint: '#3fbf86', sky: '#4aa3f0', lilac: '#9b7bff', white: '#ffffff' };
+  const PEN_SIZE = { pen: { s: 5, m: 9, l: 16 }, marker: { s: 4, m: 8, l: 14 }, hi: { s: 14, m: 24, l: 38 } };
+  const pen = { tool: 'pen', size: 'm', color: 'ink' };
+  let drawOn = false, stroke = null, erasing = false, liveSvg = null;
+  try { Object.assign(pen, JSON.parse(localStorage.getItem('mochiboard:pen') || '{}')); } catch (e) {}
+  // a filled ribbon around the line: wider where you slowed down, thin at the start and end, with a little breathing wobble
+  function butter(raw, finished, BASE) {
+    const pts = []; let acc = 0;
+    for (let i = 0; i < raw.length; i++) {
+      if (i === 0) { pts.push({ x: raw[0][0], y: raw[0][1] }); continue; }
+      const a = raw[i - 1], b = raw[i], seg = Math.hypot(b[0] - a[0], b[1] - a[1]), dt = Math.max(1, b[2] - a[2]);
+      let d = acc; while (d < seg) { const k = d / seg; pts.push({ x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, v: seg / dt }); d += 3; }
+      acc = d - seg;
+    }
+    if (pts.length < 2) return '';
+    if (finished && pts.length > 6) { const a = pts[0], z = pts[pts.length - 1]; if (Math.hypot(a.x - z.x, a.y - z.y) < 14) pts.splice(-2, 2); }
+    let s = pts[1]?.v || .3; const lens = [0]; for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    const total = lens[lens.length - 1], MIN = Math.max(1, BASE / 9), ramp = Math.min(54, BASE * 6);
+    const width = i => { s += ((pts[i].v == null ? s : pts[i].v) - s) * .08; const slow = Math.max(0, Math.min(1, 1 - s / 1.8));
+      let w = MIN + (BASE - MIN) * (.22 + .78 * slow * slow); const inR = Math.min(1, lens[i] / ramp), outR = finished ? Math.min(1, (total - lens[i]) / ramp) : 1;
+      return w * Math.pow(inR, .8) * Math.pow(outR, .8) * (1 + .12 * Math.sin(lens[i] / 11)) + .4; };
+    const L = [], R = [];
+    for (let i = 0; i < pts.length; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[Math.min(pts.length - 1, i + 1)]; let nx = -(p1.y - p0.y), ny = p1.x - p0.x; const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
+      const w = width(i) / 2; L.push([pts[i].x + nx * w, pts[i].y + ny * w]); R.push([pts[i].x - nx * w, pts[i].y - ny * w]); }
+    const seq = L.concat(R.reverse()); let d = `M${seq[0][0].toFixed(1)} ${seq[0][1].toFixed(1)}`;
+    for (let i = 1; i < seq.length; i++) { const m = seq[i - 1], c = seq[i]; d += ` Q${m[0].toFixed(1)} ${m[1].toFixed(1)} ${((m[0] + c[0]) / 2).toFixed(1)} ${((m[1] + c[1]) / 2).toFixed(1)}`; }
+    return d + ' Z';
+  }
+  function centerline(p) {
+    if (p.length < 3) return `M${p[0][0]} ${p[0][1]} L${p[p.length - 1][0] + .1} ${p[p.length - 1][1]}`;
+    let d = `M${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`;
+    for (let i = 1; i < p.length - 1; i++) d += ` Q${p[i][0].toFixed(1)} ${p[i][1].toFixed(1)} ${((p[i][0] + p[i + 1][0]) / 2).toFixed(1)} ${((p[i][1] + p[i + 1][1]) / 2).toFixed(1)}`;
+    return d + ` L${p[p.length - 1][0].toFixed(1)} ${p[p.length - 1][1].toFixed(1)}`;
+  }
+  function inkPath(pts, tool, size, color, finished) {
+    const col = INKS[color] || color || INKS.ink, w = (PEN_SIZE[tool] || PEN_SIZE.pen)[size] || 9;
+    if (tool === 'pen') { if (pts.length < 2) { const [x, y] = pts[0]; return `<path fill="${col}" d="M${x - w / 3} ${y} a${w / 3} ${w / 3} 0 1 0 ${w / 1.5} 0 a${w / 3} ${w / 3} 0 1 0 ${-w / 1.5} 0"/>`; } return `<path fill="${col}" d="${butter(pts, finished, w)}"/>`; }
+    return `<path fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${tool === 'hi' ? ' opacity=".38" style="mix-blend-mode:multiply"' : ''} d="${centerline(pts)}"/>`;
+  }
+  function renderDrawbar() {
+    $('dbColors').innerHTML = Object.entries(INKS).map(([n, c]) => `<button data-ink="${n}" title="${n}" style="background:${c}" class="${pen.color === n ? 'on' : ''}"></button>`).join('');
+    $('drawbar').querySelectorAll('[data-pen]').forEach(b => b.classList.toggle('on', b.dataset.pen === pen.tool));
+    $('dbSizes').querySelectorAll('[data-sz]').forEach(b => b.classList.toggle('on', b.dataset.sz === pen.size));
+    stage.classList.toggle('erasing', drawOn && pen.tool === 'eraser'); stage.classList.toggle('drawing', drawOn && pen.tool !== 'eraser');
+    try { localStorage.setItem('mochiboard:pen', JSON.stringify(pen)); } catch (e) {}
+  }
+  function enterDraw() { stopPlacing(); selectOnly([]); selWire = null; drawOn = true; $('dock').classList.add('drawing'); renderDrawbar();
+    if (!liveSvg) { liveSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); liveSvg.classList.add('live-ink'); world.appendChild(liveSvg); const ring = document.createElement('div'); ring.className = 'erase-ring'; ring.id = 'eraseRing'; stage.appendChild(ring); } }
+  function exitDraw() { drawOn = false; stroke = null; erasing = false; $('dock').classList.remove('drawing'); stage.classList.remove('drawing', 'erasing'); if (liveSvg) liveSvg.innerHTML = ''; }
+  $('drawbar').addEventListener('pointerdown', e => e.stopPropagation());
+  $('drawbar').onclick = e => {
+    const t = e.target.closest('[data-pen]'), z = e.target.closest('[data-sz]'), k = e.target.closest('[data-ink]');
+    if (e.target.closest('[data-db="done"]')) return exitDraw();
+    if (t) pen.tool = t.dataset.pen; if (z) pen.size = z.dataset.sz; if (k) { pen.color = k.dataset.ink; if (pen.tool === 'eraser') pen.tool = 'pen'; }
+    renderDrawbar();
+  };
+  const O = 5000;
+  function drawDown(e) {
+    const w = toWorld(e.clientX, e.clientY); stage.setPointerCapture(e.pointerId);
+    if (pen.tool === 'eraser') { erasing = true; eraseAt(e); return; }
+    stroke = { pts: [[w.x, w.y, performance.now()]], tool: pen.tool, size: pen.size, color: pen.color };
+    liveSvg.innerHTML = '';
+  }
+  function eraseAt(e) {
+    const w = toWorld(e.clientX, e.clientY), r = 14 / view.z; let hit = false;
+    board.cards.filter(c => c.type === 'ink').forEach(c => {
+      const sx = c.w / c.ow, sy = c.h / c.oh, half = ((PEN_SIZE[c.pen] || PEN_SIZE.pen)[c.size] || 9) / 2;
+      if (w.x < c.x - r - half || w.x > c.x + c.w + r + half || w.y < c.y - r - half || w.y > c.y + c.h + r + half) return;
+      if (c.pts.some(p => Math.hypot(c.x + p[0] * sx - w.x, c.y + p[1] * sy - w.y) < r + half)) {
+        hit = true; board.cards = board.cards.filter(x => x !== c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.classList.add('fading'); setTimeout(() => el.remove(), 260); }
+      }
+    });
+    if (hit) save();
+  }
+  addEventListener('pointermove', e => {
+    if (!drawOn) return;
+    const ring = $('eraseRing'); if (ring) { const r = stage.getBoundingClientRect(); ring.style.left = e.clientX - r.left + 'px'; ring.style.top = e.clientY - r.top + 'px'; }
+    if (erasing) return eraseAt(e);
+    if (!stroke) return;
+    const w = toWorld(e.clientX, e.clientY), last = stroke.pts[stroke.pts.length - 1]; if (Math.hypot(w.x - last[0], w.y - last[1]) < 1.5 / view.z) return;
+    stroke.pts.push([w.x, w.y, performance.now()]);
+    liveSvg.innerHTML = inkPath(stroke.pts.map(p => [p[0] + O, p[1] + O, p[2]]), stroke.tool, stroke.size, stroke.color, false);
+  });
+  addEventListener('pointerup', () => {
+    if (!drawOn) return; erasing = false; if (!stroke) return;
+    const s2 = stroke; stroke = null; liveSvg.innerHTML = '';
+    const pad = ((PEN_SIZE[s2.tool] || PEN_SIZE.pen)[s2.size] || 9) + 4, xs = s2.pts.map(p => p[0]), ys = s2.pts.map(p => p[1]);
+    const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad, w = Math.max(...xs) - x0 + pad, h = Math.max(...ys) - y0 + pad;
+    const pts = s2.pts.map(p => [+(p[0] - x0).toFixed(1), +(p[1] - y0).toFixed(1), Math.round(p[2])]);
+    const c = card('ink', { x: x0, y: y0, w, h, ow: w, oh: h, r: 0, pts, pen: s2.tool, size: s2.size, ink: s2.color });
+    board.cards.push(c); renderCard(c); save();
+  });
 
   // ---------- stamps: Mochi's emojis, moving Mochis and regular emoji, stamped with a little burst ----------
   const M = n => 'stamps/mochi' + (n ? '-' + n : '') + '.png';
@@ -1246,13 +1352,13 @@
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
-    else if (one && !['coll', 'swatch', 'stamp'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
+    else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
