@@ -1010,7 +1010,17 @@
     say(`${why} Everything else on the board works without me thinking ✦`, 9000, haveClaude === false && settings.ai ? [{ label: 'Get Claude Code', run: () => MB.openURL('https://claude.com/claude-code') }] : []);
   }
   let haveClaude = null;
+  // the web demo: Mochi tidies for real, and for anything that needs AI she points you to the Mac app
+  const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard');
+  const DL = [{ label: 'Download Mochiboard ✦', run: getApp }, { label: 'Keep playing', ghost: true, run: () => {} }];
+  function webMochi(q) {
+    const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
+    if (/group|sort|organi[sz]e|tidy|line up/i.test(q) && notes.length) return offlineMochi(q, 'In the Mac app I can sort them by theme too, with Claude.');
+    const what = /mobbin/i.test(q) ? 'Mobbin lives in your Claude account, and I can only reach it from the Mac app.' : /higgsfield|photo|picture|image/i.test(q) ? 'Making pictures with Higgsfield happens in the Mac app, where I can check the price with you first.' : 'I think with Claude Code, and that lives in the Mac app.';
+    say(`I'd love to help with that! ${what} Download me and I'll connect to your Claude, Mobbin and Higgsfield ✦`, 0, DL);
+  }
   async function ask(q, confirmed = false) {
+    if (MB.web) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); return webMochi(q); }
     if (!settings.ai || haveClaude === false) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); }
     if (!settings.ai) return offlineMochi(q, "My thinking is switched off in Settings, so I can only do simple tidying.");
     if (haveClaude === false) return offlineMochi(q, "I need Claude Code on this Mac to think.");
@@ -1174,6 +1184,7 @@
   const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   async function exportCards(cs, name, pdf) {
     if (!cs.length) return say('Nothing to export yet ✦', 2500);
+    if (MB.web) return say('Saving images and PDFs works in the Mac app ✦', 0, DL);
     const all = new Set(cs); cs.forEach(c => { if (c.type === 'coll') (c.kids || []).forEach(k => byId(k) && all.add(byId(k))); if (c.type === 'frame') onFrame(c).forEach(k => all.add(k)); });
     const list = [...all], x0 = Math.min(...list.map(c => c.x)) - 24, y0 = Math.min(...list.map(c => c.y)) - 40, x1 = Math.max(...list.map(c => c.x + c.w)) + 24, y1 = Math.max(...list.map(c => c.y + c.h)) + 24;
     const keep = { ...view }, keepSel = [...sel], r = stage.getBoundingClientRect(), bw = x1 - x0, bh = y1 - y0;
@@ -1550,6 +1561,7 @@
   const styleHint = spots => { const f = byId(spots[0]?.onFrame); return [board.name, f?.name].filter(Boolean).join(', '); };
   function offerFill(spots, where = 'chat') {
     if (!spots.length) return;
+    if (MB.web) return say(`There ${spots.length === 1 ? 'is 1 image spot' : `are ${spots.length} image spots`} waiting for pictures. In the Mac app I can fill them with Higgsfield or draw them for you ✦`, 0, DL);
     const n = spots.length, acts = [];
     if (settings.ai && settings.higgs) acts.push({ label: `Fill ${n} with Higgsfield ✦`, run: () => quoteFill(spots) });
     if (settings.ai) acts.push({ label: 'Draw simple illustrations (free)', ghost: !!(settings.ai && settings.higgs), run: () => drawFill(spots) });
@@ -2107,6 +2119,8 @@
   $('coachSkip').onclick = endTour;
   $('coachCard').addEventListener('pointerdown', e => e.stopPropagation());
 
+  if (MB.web) document.body.classList.add('web');
+  document.querySelectorAll('.get-app').forEach(b => b.onclick = e => { e.stopPropagation(); getApp(); });
   // ---------- start ----------
   (async () => {
     let list = await MB.list();

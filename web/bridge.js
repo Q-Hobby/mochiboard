@@ -9,6 +9,8 @@
   const call = (op, args = {}) => new Promise((res, rej) => { const id = ++seq; waiting.set(id, { res, rej }); window.webkit.messageHandlers.mb.postMessage({ id, op, args }); });
 
   const LS = 'mochiboard:';
+  // the web demo: a real website (or ?web) can't reach Claude Code, Mobbin or Higgsfield on the visitor's computer
+  const web = !native && (!/^(localhost|127\.0\.0\.1|\[::1\]|)$/.test(location.hostname) || /[?&]web\b/.test(location.search));
   const browser = {
     async list() { return JSON.parse(localStorage.getItem(LS + 'index') || '[]'); },
     async load(id) { const s = localStorage.getItem(LS + 'board:' + id); return s ? JSON.parse(s) : null; },
@@ -21,7 +23,8 @@
     async folders() { return JSON.parse(localStorage.getItem(LS + 'folders') || '[]'); },
     async saveFolders(folders) { localStorage.setItem(LS + 'folders', JSON.stringify(folders)); return true; },
     async remove(id) { localStorage.removeItem(LS + 'board:' + id); localStorage.setItem(LS + 'index', JSON.stringify(JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== id))); return true; },
-    async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true }; },
+    web, getURL: 'https://github.com/jessawolfe-ux/mochiboard',
+    async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true, web }; },
     async fetchImage(url) { return url; },
     async openURL(url) { window.open(url, '_blank'); },
     async speechAuth() { return 'ok'; },

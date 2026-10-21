@@ -1050,3 +1050,15 @@ body.dark .set-start { background: #3a2a34; } body.dark .set-btn.hot { backgroun
 .set-start .set-btn { padding: 9px 16px; white-space: nowrap; }
 /* dark mode: names being renamed get a dark field, not white-on-white */
 body.dark [contenteditable="true"].fname, body.dark .tile b[contenteditable="true"], body.dark .board-row span[contenteditable="true"], body.dark .pal span[contenteditable="true"] { background: #3a3540; color: var(--ink); }
+
+/* the web demo */
+.web-only { display: none !important; }
+body.web .web-only { display: block !important; } body.web .native-only { display: none !important; }
+body.web .web-pill.web-only { display: flex !important; }
+.web-pill { align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 2px 0 6px; padding: 7px 10px; border: 0; border-radius: 12px; background: #fff0f6; color: #a8467a; font: 600 12px/1.2 var(--font); cursor: pointer; }
+.web-pill b { font-weight: 800; } .web-pill:hover { background: #ffe0ee; }
+.web-note { margin: 4px 0 8px; padding: 12px 14px; border-radius: 14px; background: #fff0f6; color: var(--ink); font: 500 13.5px/1.5 var(--font); }
+.web-note .set-link { font-weight: 700; }
+body.dark .web-pill, body.dark .web-note { background: #3a2a34; color: #ffb3d4; }
+body.web .conns { display: none; }
+.web-note .set-link { color: #d64f8d; } body.dark .web-note .set-link { color: #ffb3d4; }
