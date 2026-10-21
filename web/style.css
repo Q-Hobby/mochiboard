@@ -522,3 +522,5 @@ html.native .dv-bar { padding-top: 14px; }
 @keyframes mv-spin { 0% { transform: rotate(0); } 60%, 100% { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card.stamp .st img { animation: none !important; } }
 .dock .tools button.on::after { display: none; }
+.crumbs:empty { display: none; }
+.crumbs button:first-child { margin-left: -6px; }

@@ -203,11 +203,11 @@
   const where = () => { const f = folders.find(x => x.id === board?.folder), p = f && projects.find(x => x.id === f.project); return { f, p }; };
   function renderCrumbs() {
     if (!board) return; const { f, p } = where(), el = $('crumbs');
-    el.innerHTML = `<button data-go="all" title="All projects">⌂</button>` + (p ? `<i>/</i><button data-go="project:${p.id}"></button>` : '') + (f ? `<i>/</i><button data-go="folder:${f.id}"></button>` : '');
-    const btns = el.querySelectorAll('button'); if (p) { btns[1].textContent = p.name; btns[1].title = p.name; } if (f) { btns[btns.length - 1].textContent = f.name; btns[btns.length - 1].title = f.name; }
+    el.innerHTML = (p ? `<button data-go="project:${p.id}"></button>` : '') + (f ? `${p ? '<i>/</i>' : ''}<button data-go="folder:${f.id}"></button>` : '');
+    const btns = el.querySelectorAll('button'); if (p) { btns[0].textContent = p.name; btns[0].title = p.name; } if (f) { btns[btns.length - 1].textContent = f.name; btns[btns.length - 1].title = f.name; }
     // inside a canvas: the boards it lives in, so you can climb back out
     const chain = []; let up = board.parent; while (up && chain.length < 4) { const pb = boardList.find(x => x.id === up); if (!pb) break; chain.unshift(pb); up = pb.parent; }
-    chain.forEach(pb => { el.insertAdjacentHTML('beforeend', `<i>/</i><button data-board="${pb.id}"></button>`); const bt = el.lastElementChild; bt.textContent = pb.name; bt.title = 'Back to ' + pb.name; });
+    chain.forEach(pb => { el.insertAdjacentHTML('beforeend', `${el.children.length ? '<i>/</i>' : ''}<button data-board="${pb.id}"></button>`); const bt = el.lastElementChild; bt.textContent = pb.name; bt.title = 'Back to ' + pb.name; });
   }
   $('crumbs').onclick = async e => { const pb = e.target.closest('[data-board]')?.dataset.board; if (pb) { board.view = view; await MB.save(board); return openBoard(pb); } const g = e.target.closest('[data-go]')?.dataset.go; if (g) openHome(g); };
   $('homeBtn').onclick = () => openHome('all');
