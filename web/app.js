@@ -1017,7 +1017,7 @@
     document.querySelectorAll('[data-set]').forEach(t => t.checked = !!settings[t.dataset.set]);
     try { localStorage.setItem('mochiboard:settings', JSON.stringify(settings)); localStorage.setItem('mochiboard:keys', settings.keys ? 'show' : 'hide'); } catch (e) {}
   }
-  $('gearBtn').onclick = e => { e.stopPropagation(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  $('gearBtn').onclick = e => { e.stopPropagation(); checkUpdate(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
@@ -2133,6 +2133,42 @@
   addEventListener('scroll', () => { if (scrollX || scrollY) scrollTo(0, 0); });
 
   world.appendChild($('guides')); setTimeout(placeTray, 0); renderDesign();
+  // ---------- updates: check GitHub for a newer Mochiboard (about once a day), show what's new, update with one tap ----------
+  let updInfo = null;
+  if (!MB.native) $('setUpdate').style.display = 'none';   // updating is a Mac app thing: the web version changes when the site does
+  async function checkUpdate(force) {
+    if (!MB.native) return;
+    let last = 0; try { last = +localStorage.getItem('mochiboard:updChecked') || 0; } catch (e) {}
+    if (!force && Date.now() - last < 20 * 3600 * 1000 && updInfo) return showUpdate();
+    $('suSub').textContent = 'Checking for a new version…';
+    try { updInfo = await MB.updateCheck(); localStorage.setItem('mochiboard:updChecked', Date.now()); } catch (e) { updInfo = { error: true }; }
+    showUpdate(true);
+  }
+  function showUpdate(fresh) {
+    const u = { ...(updInfo || {}) }, n = u.behind || 0;
+    if (u.since) { const d = new Date(u.since + 'T12:00'); if (!isNaN(d)) u.since = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+    $('gearBtn').classList.toggle('has-update', n > 0);
+    $('setUpdate').classList.toggle('ready', n > 0);
+    $('suGo').hidden = !(n > 0);
+    $('suTitle').textContent = n > 0 ? `A new Mochiboard is ready ✦` : 'Updates';
+    $('suSub').textContent = !u.repo ? 'To get updates, update once from Terminal with ./install.sh --update. After that it works from here.'
+      : u.offline ? 'I couldn’t reach GitHub just now. I’ll try again later.'
+      : n > 0 ? `${n} update${n > 1 ? 's' : ''} since your version${u.since ? ' from ' + u.since : ''}. Your boards and settings stay just as they are.`
+      : `You’re up to date${u.since ? ' (version from ' + u.since + ')' : ''}.`;
+    const notes = (u.notes || []).slice(0, 8);
+    $('suNotes').hidden = !(n > 0 && notes.length);
+    $('suNotes').innerHTML = notes.map(t => `<li>${esc(t)}</li>`).join('');
+    // a little nudge from Mochi, once per new version
+    if (fresh && n > 0) { const key = (u.since || '') + ':' + n; let seen = ''; try { seen = localStorage.getItem('mochiboard:updSeen') || ''; } catch (e) {}
+      if (seen !== key) { try { localStorage.setItem('mochiboard:updSeen', key); } catch (e) {} chirp('There’s a new version of me ✦ It’s in Settings whenever you’re ready.', 0, [{ label: 'See what’s new', run: () => $('gearBtn').click() }, { label: 'Later', ghost: true, run: () => {} }]); } }
+  }
+  $('suCheck').onclick = () => checkUpdate(true);
+  $('suGo').onclick = async () => {
+    $('suGo').disabled = true; $('suGo').textContent = 'Updating…'; $('suSub').textContent = 'Getting the new version and rebuilding. Mochiboard will close and reopen in about 30 seconds.';
+    try { await MB.updateNow(); } catch (e) { $('suGo').disabled = false; $('suGo').textContent = 'Update now'; $('suSub').textContent = e.message; }
+  };
+  document.querySelectorAll('[data-url]').forEach(b => b.onclick = () => MB.openURL(b.dataset.url));
+
   // ---------- first run: set up with Mochi, then an optional hands-on tour ----------
   const OB_N = 6; let obAt = 0;
   function obGo(i) {
@@ -2223,6 +2259,7 @@
     if (!onboarded) { setTimeout(() => { fit(board.cards); openSetup(); }, 400); showConnections(true); return; }
     setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say(`Hi${settings.name ? ' ' + settings.name : ''}, it's Mochi! Dump ideas with ⌘K, then ask me to sort them ✦`, 7000); }, 400);
     showConnections(true);
+    setTimeout(() => checkUpdate(), 4000);
   })();
   window.__mb = { openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
 })();

@@ -146,6 +146,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             SFSpeechRecognizer.requestAuthorization { st in reply(true, st == .authorized ? "ok" : st == .notDetermined ? "ask" : "off") }
         case "transcribe":
             transcribe(args["audio"] as? String ?? "") { ok, text in reply(ok, text) }
+        // updates: the installer records where the repo lives; check GitHub for new commits, and update with one tap
+        case "updateCheck":
+            checkForUpdate { reply(true, $0) }
+        case "updateNow":
+            startUpdate { ok, msg in reply(ok, msg) }
         case "reveal":
             NSWorkspace.shared.activateFileViewerSelecting([boardsDir]); reply(true, true)
         case "openURL":
@@ -297,6 +302,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 return done(false, String(e.prefix(300)))
             }
             done(true, text)
+        }
+    }
+
+    // MARK: updates
+    // the folder the app was built from (written into Info.plist by install.sh), if it's still a git checkout
+    var repoDir: String? {
+        guard let p = Bundle.main.object(forInfoDictionaryKey: "MBRepo") as? String, FileManager.default.fileExists(atPath: p + "/.git") else { return nil }
+        return p
+    }
+    @discardableResult func git(_ args: [String], in dir: String, timeout: Double = 30) -> (ok: Bool, out: String) {
+        let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: "/usr/bin/git"); p.arguments = ["-C", dir] + args
+        p.standardOutput = out; p.standardError = Pipe(); p.standardInput = FileHandle.nullDevice
+        var env = ProcessInfo.processInfo.environment; env["GIT_TERMINAL_PROMPT"] = "0"; p.environment = env
+        do { try p.run() } catch { return (false, "") }
+        let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }; DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
+        let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
+        return (p.terminationStatus == 0, (String(data: d, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    func checkForUpdate(done: @escaping ([String: Any]) -> Void) {
+        guard let dir = repoDir else { return done(["repo": false]) }
+        DispatchQueue.global().async {
+            let here = self.git(["log", "-1", "--format=%cs"], in: dir).out
+            guard self.git(["fetch", "--quiet", "origin"], in: dir, timeout: 40).ok else { return done(["repo": true, "offline": true, "since": here]) }
+            let behind = Int(self.git(["rev-list", "--count", "HEAD..@{u}"], in: dir).out) ?? 0
+            // the friendly notes: lines added to WHATSNEW.md since this copy
+            let diff = self.git(["diff", "HEAD", "@{u}", "--", "WHATSNEW.md"], in: dir).out
+            let notes = diff.split(separator: "\n").filter { $0.hasPrefix("+- ") }.map { String($0.dropFirst(3)) }
+            done(["repo": true, "behind": behind, "notes": notes, "since": here])
+        }
+    }
+    func startUpdate(done: @escaping (Bool, String) -> Void) {
+        guard let dir = repoDir else { return done(false, "I can't find the folder Mochiboard was installed from. Run ./install.sh --update in Terminal instead.") }
+        DispatchQueue.global().async {
+            // only a clean fast-forward: never touch someone's own changes
+            if !self.git(["status", "--porcelain", "--untracked-files=no"], in: dir).out.isEmpty { return done(false, "Your Mochiboard folder has changes of its own, so I won't update over them. Run ./install.sh --update in Terminal to see what's up.") }
+            if !self.git(["merge-base", "--is-ancestor", "HEAD", "@{u}"], in: dir).ok { return done(false, "This copy has gone its own way from GitHub, so I'll leave it alone.") }
+            // the installer pulls, rebuilds and reopens the app; it runs on its own so it can quit this one
+            let log = support.appendingPathComponent("update.log").path
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/bash")
+            p.arguments = ["-c", "cd \"$0\" && nohup ./install.sh --update > \"$1\" 2>&1 &", dir, log]
+            do { try p.run(); p.waitUntilExit(); done(true, "updating") } catch { done(false, error.localizedDescription) }
         }
     }
 

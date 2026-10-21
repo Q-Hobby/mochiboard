@@ -1063,3 +1063,22 @@ body.dark .web-pill, body.dark .web-note { background: #3a2a34; color: #ffb3d4; 
 body.web .conns { display: none; }
 .web-note .set-link { color: #d64f8d; } body.dark .web-note .set-link { color: #ffb3d4; }
 .tray-list { min-height: 0; overscroll-behavior: contain; }
+
+/* updates, at the very top of Settings */
+.set-update { padding: 14px 16px !important; border-radius: 18px; background: #f6f2f8; border: 0 !important; margin-bottom: 8px; }
+.set-update.ready { background: #e6f7ee; }
+.su-top { display: flex; align-items: center; gap: 12px; }
+.su-icon { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: grid; place-items: center; color: var(--ink); flex: none; }
+.set-update.ready .su-icon { color: #1f9a5e; }
+.su-text { flex: 1; min-width: 0; display: grid; gap: 3px; } .su-text b { font: 700 14px/1.2 var(--font); color: var(--ink); } .su-text small { font: 500 12px/1.4 var(--font); color: var(--ink-soft); }
+.su-notes { margin: 12px 0 2px 46px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.su-notes li { font: 500 13px/1.4 var(--font); color: var(--ink); } .su-notes li::before { content: "✦ "; color: #1f9a5e; }
+.gear.has-update { position: relative; } .gear.has-update::after { content: ""; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: #3fc48a; box-shadow: 0 0 0 2px #fff; }
+body.dark .set-update { background: #302b35; } body.dark .set-update.ready { background: #1f3529; } body.dark .su-icon { background: #3a3540; }
+/* the person who made it */
+.set-maker { text-align: center; padding: 22px 18px 20px !important; border-radius: 20px; background: #fff0f6; border: 0 !important; margin-top: 6px; }
+.sm-sig { font: 700 22px/1 'Caveat', cursive; color: #d0558f; }
+.sm-name { font: 800 26px/1.1 var(--font); color: var(--ink); margin: 6px 0 8px; letter-spacing: -.01em; }
+.set-maker small { display: block; max-width: 340px; margin: 0 auto 14px; font: 500 13px/1.5 var(--font); color: var(--ink-soft); }
+.sm-links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+body.dark .set-maker { background: #3a2a34; } body.dark .sm-sig { color: #ffb3d4; }

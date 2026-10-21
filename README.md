@@ -41,7 +41,7 @@ cd mochiboard
 ./install.sh
 ```
 
-The first time it opens, Mochi walks you through setup and a short tour. Update any time with `./install.sh --update`.
+The first time it opens, Mochi walks you through setup and a short tour. After that, Mochiboard checks for new versions on its own. When one is ready, a little dot shows on the ⚙ and Settings lists what's new, with an **Update now** button (it pulls from GitHub, rebuilds and reopens in about 30 seconds; your boards are never touched). You can always update from Terminal too: `./install.sh --update`.
 
 The installer builds the app on your Mac (about 30 seconds), signs it with a certificate it makes just for your Mac (so macOS remembers its permissions between updates), and puts it in `~/Applications`.
 

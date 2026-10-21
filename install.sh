@@ -37,6 +37,7 @@ cat > build/Mochiboard.app/Contents/Info.plist <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundleVersion</key><string>1</string>
+  <key>MBRepo</key><string>$PWD</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Mochiboard records voice memos onto your board.</string>
