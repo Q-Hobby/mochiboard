@@ -126,6 +126,13 @@
   async function refreshBoards() {
     await loadLib();
     const el = $('boards'); el.innerHTML = '';
+    // inside a project (on Home or on one of its boards) the left box shows just that project; in All projects it shows everything
+    const sf = homeAt ? (homeAt.level === 'folder' ? folders.find(x => x.id === homeAt.id) : null) : folders.find(x => x.id === board?.folder);
+    const sp = homeAt?.level === 'project' ? projects.find(x => x.id === homeAt.id) : sf && projects.find(x => x.id === sf.project);
+    const scoped = homeAt?.level !== 'all' && (sp || sf);
+    $('treeLabel').textContent = scoped ? 'In this project' : 'Everything';
+    if (scoped) { if (sp) { sp.open = true; el.appendChild(projectNode(sp)); } else { sf.open = true; el.appendChild(folderNode(sf)); } $('homeBtn').classList.add('out'); renderCrumbs(); if (homeAt) renderHome(); return; }
+    $('homeBtn').classList.remove('out');
     projects.forEach(p => el.appendChild(projectNode(p)));
     looseFolders().forEach(f => el.appendChild(folderNode(f)));
     const loose = document.createElement('div'); loose.className = 'loose-zone';
@@ -148,8 +155,8 @@
   $('homeBtn').onclick = () => openHome('all');
   $('brand').onclick = () => openHome('all');
   $('homeBack').onclick = () => { if (!homeAt) return; const f = homeAt.level === 'folder' && folders.find(x => x.id === homeAt.id); openHome(f && f.project && projects.some(p => p.id === f.project) ? 'project:' + f.project : 'all'); };
-  function openHome(go = 'all') { const [level, id] = go.split(':'); homeAt = { level, id }; $('home').classList.add('on'); renderHome(); }
-  function closeHome() { homeAt = null; $('home').classList.remove('on'); }
+  function openHome(go = 'all') { const [level, id] = go.split(':'); homeAt = { level, id }; $('home').classList.add('on'); refreshBoards(); }
+  function closeHome() { if (!homeAt) return; homeAt = null; $('home').classList.remove('on'); refreshBoards(); }
   const miniCache = new Map();
   async function mini(id) {
     // a tiny map of the board: every card as a little colored block
@@ -537,8 +544,14 @@
     addAtCenter(t, t === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : t === 'note' ? { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] } : { text: '' }); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
-  $('newBoard').onclick = async () => { const b = newBoard(); await MB.save(b); openBoard(b.id); };
-  $('newFolder').onclick = async () => { const f = makeFolder(uniqueName(folders, 'New folder')); await saveLib(); await refreshBoards(); renameNewest('.node.folder', f); };
+  // + Board / + Folder add into wherever you are: the folder you're in, or the project you're in
+  function scope() {
+    const f = homeAt ? (homeAt.level === 'folder' ? folders.find(x => x.id === homeAt.id) : null) : folders.find(x => x.id === board?.folder);
+    const p = homeAt?.level === 'project' ? projects.find(x => x.id === homeAt.id) : homeAt?.level === 'all' ? null : f && projects.find(x => x.id === f.project);
+    return { f, p };
+  }
+  $('newBoard').onclick = async () => { const { f, p } = scope(), into = f || (p && foldersIn(p.id)[0]); if (into) return newBoardIn(into.id); const b = newBoard(); await MB.save(b); closeHome(); openBoard(b.id); };
+  $('newFolder').onclick = async () => { const f = makeFolder(uniqueName(folders, 'New folder'), scope().p?.id || null); await saveLib(); await refreshBoards(); renameNewest('.node.folder', f); };
   $('newProject').onclick = async () => { const p = makeProject(uniqueName(projects, 'New project')); await saveLib(); await refreshBoards(); renameNewest('.node.project', p); };
   Object.keys(TEMPLATES).forEach(name => { const r = document.createElement('div'); r.className = 'board-row'; r.innerHTML = `<i style="background:var(--butter-deep)"></i><span>${name}</span>`; r.onclick = async () => { const b = newBoard(name, name); await MB.save(b); await openBoard(b.id); fit(board.cards); }; $('templates').appendChild(r); });
 
