@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "linkPreview":
             linkPreview(args["url"] as? String ?? "") { reply(true, $0) }
         case "ask":
-            askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:], confirmed: args["confirmed"] as? Bool ?? false) { ok, text in reply(ok, text) }
+            askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:], confirmed: args["confirmed"] as? Bool ?? false, mobbin: args["mobbin"] as? Bool ?? true, higgs: args["higgs"] as? Bool ?? true) { ok, text in reply(ok, text) }
         case "connections":
             connections { reply(true, $0) }
         case "fetchImage":
@@ -176,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             done("data:\(type.split(separator: ";").first ?? "image/jpeg");base64,\(data.base64EncodedString())")
         }.resume()
     }
-    func askMochi(_ request: String, _ board: Any, confirmed: Bool, done: @escaping (Bool, String) -> Void) {
+    func askMochi(_ request: String, _ board: Any, confirmed: Bool, mobbin: Bool, higgs: Bool, done: @escaping (Bool, String) -> Void) {
         guard let claude = claudePath else { return done(false, "I need Claude Code to think. Install it from claude.com/claude-code, then try again.") }
         let boardJSON = (try? JSONSerialization.data(withJSONObject: board)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let prompt = """
@@ -216,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 
-        You may also have two design helpers (only if their tools are available to you):
+        You may also have two design helpers (only if their tools are available to you\(mobbin ? "" : "; Mobbin is TURNED OFF by the person, never use it")\(higgs ? "" : "; Higgsfield is TURNED OFF by the person, never generate images or suggest it")):
         - Mobbin (real app screenshots): when they ask for UI references, inspiration or examples of screens or flows, search Mobbin and return the best 4 to 8 \
         as "images": [{"url": "the screen image url", "caption": "App name · what the screen is", "x": 0, "y": 0}].
         - Higgsfield (image generation, costs the person credits): \(confirmed
@@ -227,10 +227,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process(), out = Pipe(), err = Pipe()
             p.executableURL = URL(fileURLWithPath: claude)
-            var tools = ["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"]
+            // only the helpers the person has switched on in Settings
+            var tools = mobbin ? ["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"] : []
             // the generator is only switched on after the person taps "yes" in the app: spending credits needs their say-so
-            if confirmed { tools += ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"] }
-            p.arguments = ["-p", prompt, "--output-format", "text", "--allowedTools", tools.joined(separator: ",")]
+            if confirmed && higgs { tools += ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"] }
+            p.arguments = ["-p", prompt, "--output-format", "text"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
             p.currentDirectoryURL = support
             var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
             p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
