@@ -29,6 +29,10 @@
     <header><div class="label">Start from</div><button class="mini" title="Minimize">–</button></header>
     <div class="box-body"><div class="templates" id="templates"></div></div>
   </section>
+  <section class="box" data-box="colors">
+    <header><div class="label">Board colors</div><button class="mini" title="Minimize">–</button></header>
+    <div class="box-body"><div class="palette" id="palette"></div></div>
+  </section>
   <section class="box" data-box="helpers">
     <header><div class="label">Mochi's helpers</div><button class="mini" title="Minimize">–</button></header>
     <div class="box-body"><div class="conns" id="conns"></div></div>
@@ -79,6 +83,13 @@
     <form id="capForm"><input id="capInput" placeholder="Dump an idea… it goes in Unsorted (paste a link or image too)" autocomplete="off"></form>
   </div>
   <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> + drag to pan</span><button id="keysX" title="Hide">×</button></div>
+  <!-- the color editor: pops up beside a color card -->
+  <div class="cpop" id="cpop">
+    <div class="cp-row"><label class="cp-well" id="cpWell"><input type="color" id="cpColor"></label>
+      <div class="cp-fields"><input id="cpHex" maxlength="7" spellcheck="false" aria-label="Hex"><input id="cpName" placeholder="Name it (e.g. Blush Pop)" spellcheck="false" aria-label="Color name"></div></div>
+    <div class="cp-quick" id="cpQuick"></div>
+    <div class="cp-acts"><button id="cpSave" class="solid">Save to board colors</button><button id="cpDone">Done</button></div>
+  </div>
   <input type="file" id="filePick" accept="image/*" multiple hidden>
 </main>
 

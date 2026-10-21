@@ -47,7 +47,7 @@
   }
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
-    board = b; view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null;
+    board = b; board.palette = board.palette || []; view = Object.assign({ x: 160, y: 140, z: 1 }, b.view); sel.clear(); editing = null; focusSet = null; closeColor(); renderPalette();
     $('boardName').value = board.name; renderAll(); refreshBoards(); try { localStorage.setItem('mochiboard:last', id); } catch (e) {}
   }
   let saveT = 0;
@@ -85,7 +85,7 @@
       case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
       case 'link': return `<div class="thumb" style="${c.image ? `background-image:url('${esc(c.image)}')` : ''}"></div><div class="meta"><b>${esc(c.title || c.url)}</b><span>${esc(c.desc || c.url)}</span></div>`;
       case 'todo': return `<div class="head">${esc(c.text)}</div><ul>${(c.items || []).map((it, i) => `<li class="${it.done ? 'done' : ''}" data-i="${i}"><input type="checkbox" ${it.done ? 'checked' : ''}><span>${esc(it.t)}</span></li>`).join('')}</ul><button class="add-item" data-act="item">+ add</button>`;
-      case 'swatch': return `<div class="chipcol"></div><div class="hex"><span>${esc(c.hex)}</span><em>${esc(c.label || '')}</em></div>`;
+      case 'swatch': return `<div class="chipcol"></div><div class="hex"><b>${esc(c.label || c.hex.toUpperCase())}</b><span>${esc(c.hex.toUpperCase())}</span></div>`;
     }
     return '';
   }
@@ -172,7 +172,7 @@
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys')) return;
+    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
@@ -222,6 +222,7 @@
         sel.clear(); renderTray(); renderWires(); save(); return;
       }
       if (d.moved) save();
+      else if (d.start.length === 1 && d.start[0].c.type === 'swatch') openColor(d.start[0].c);
       else if (e.detail >= 2) startEdit(d.start[0].c.id);
     }
     if (d.mode === 'resize') save();
@@ -232,7 +233,7 @@
     }
   });
   stage.addEventListener('dblclick', e => {
-    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys')) return;
+    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop')) return;
     const w = toWorld(e.clientX, e.clientY), c = card('note', { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] }); c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
   // card buttons: pull colours, checklist items
@@ -248,7 +249,7 @@
   });
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
   stage.addEventListener('wheel', e => {
-    if (e.target.closest('.tray-list, .m-bubble')) return; e.preventDefault();
+    if (e.target.closest('.tray-list, .m-bubble, .cpop')) return; e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01));
     else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
   }, { passive: false });
@@ -284,7 +285,7 @@
   addEventListener('keydown', e => {
     const typing = e.target.closest('input, [contenteditable="true"]');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
-    if (e.key === 'Escape') { capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
+    if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing) return;
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) { board.cards = board.cards.filter(c => !sel.has(c.id)); board.links = board.links.filter(l => !sel.has(l.a) && !sel.has(l.b)); sel.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove()); sel.clear(); renderWires(); save(); }
@@ -307,7 +308,7 @@
   // ---------- toolbar ----------
   $('tools').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; const t = b.dataset.add;
     if (t === 'image') return $('filePick').click(); if (t === 'link') return addLinkPrompt();
-    if (t === 'swatch') return addAtCenter('swatch', { hex: '#ff9ec4', label: 'pink' });
+    if (t === 'swatch') { const c = addAtCenter('swatch', { hex: '#ff9ec4', label: 'Pink' }); return setTimeout(() => openColor(c), 60); }
     addAtCenter(t, t === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : t === 'note' ? { color: COLOR_NAMES[Math.floor(Math.random() * 6) + 1] } : { text: '' }); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
@@ -341,7 +342,7 @@
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
       text: (c.text || c.title || c.label || '').slice(0, 300), items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
-    return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief) };
+    return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette };
   }
   async function ask(q, confirmed = false) {
     $('mochi').classList.add('thinking'); goo.think(true); say(confirmed ? 'Making it… (this can take a minute)' : 'On it…', 0);
@@ -398,6 +399,58 @@
       el.appendChild(r); });
   }
   addEventListener('focus', () => showConnections());
+
+  // ---------- colors: the editor beside a color card, and the board's own palette ----------
+  const QUICK = ['#ff9ec4', '#f27aa8', '#ff9a7b', '#fff5c8', '#f3d96a', '#7ad3a3', '#dcf5e7', '#8cc1ff', '#dcedff', '#b89bff', '#eadfff', '#494848', '#ffffff'];
+  let colorCard = null;
+  const normHex = v => { let h = String(v || '').trim().replace(/^#/, ''); if (/^[0-9a-f]{3}$/i.test(h)) h = [...h].map(x => x + x).join(''); return /^[0-9a-f]{6}$/i.test(h) ? '#' + h.toLowerCase() : null; };
+  function placeColorPop(c) {
+    const el = cardsEl.querySelector(`[data-id="${c.id}"]`), r = el.getBoundingClientRect(), s = stage.getBoundingClientRect(), pop = $('cpop');
+    let x = r.right + 14 - s.left, y = r.top - s.top; if (x + 280 > s.width - 250) x = r.left - 284 - s.left; pop.style.left = Math.max(260, x) + 'px'; pop.style.top = clamp(y, 70, s.height - 260) + 'px';
+  }
+  function openColor(c) {
+    colorCard = c; $('cpColor').value = c.hex; $('cpHex').value = c.hex.toUpperCase(); $('cpName').value = c.label || ''; $('cpWell').style.background = c.hex;
+    $('cpQuick').innerHTML = [...board.palette.map(p => p.hex), ...QUICK].filter((h, i, all) => all.indexOf(h) === i).slice(0, 18).map(h => `<button style="background:${h}" data-hex="${h}" title="${h}"></button>`).join('');
+    $('cpSave').textContent = board.palette.some(p => p.hex === c.hex) ? 'Update board color' : 'Save to board colors'; $('cpSave').classList.remove('saved-ok');
+    placeColorPop(c); $('cpop').classList.add('on');
+  }
+  function closeColor() { $('cpop').classList.remove('on'); colorCard = null; }
+  function setColor(hex, from) {
+    if (!colorCard || !hex) return; colorCard.hex = hex; $('cpWell').style.background = hex;
+    if (from !== 'picker') $('cpColor').value = hex; if (from !== 'hex') $('cpHex').value = hex.toUpperCase();
+    const named = board.palette.find(p => p.hex === hex); if (named && from !== 'name') { colorCard.label = named.name; $('cpName').value = named.name; }
+    renderCard(colorCard); selectOnly([colorCard.id]); save();
+  }
+  $('cpColor').oninput = e => setColor(e.target.value, 'picker');
+  $('cpHex').oninput = e => { const h = normHex(e.target.value); if (h) setColor(h, 'hex'); };
+  $('cpName').oninput = e => { if (!colorCard) return; colorCard.label = e.target.value; renderCard(colorCard); selectOnly([colorCard.id]); save(); };
+  $('cpQuick').onclick = e => { const b = e.target.closest('[data-hex]'); if (b) setColor(b.dataset.hex, 'quick'); };
+  $('cpSave').onclick = () => {
+    if (!colorCard) return; const name = (colorCard.label || '').trim() || colorCard.hex.toUpperCase(), hit = board.palette.find(p => p.hex === colorCard.hex);
+    if (hit) hit.name = name; else board.palette.push({ hex: colorCard.hex, name });
+    colorCard.label = name; renderCard(colorCard); selectOnly([colorCard.id]); renderPalette(); save();
+    $('cpSave').textContent = 'Saved ✓'; $('cpSave').classList.add('saved-ok'); say(`Saved “${name}” to this board's colors ✦`, 3500);
+  };
+  $('cpDone').onclick = closeColor;
+  addEventListener('pointerdown', e => { if ($('cpop').classList.contains('on') && !e.target.closest('.cpop, .card.swatch')) closeColor(); }, true);
+  function renderPalette() {
+    const el = $('palette'); el.innerHTML = '';
+    if (!board.palette.length) { el.innerHTML = '<div class="palette-empty">Click a color card to name it and save it here. Each board keeps its own palette.</div>'; return; }
+    board.palette.forEach((p, i) => {
+      const r = document.createElement('div'); r.className = 'pal'; r.title = 'Click to add to the board';
+      r.innerHTML = `<i style="background:${p.hex}"></i><span></span><small>${p.hex.slice(1)}</small><button class="pal-ed" title="Rename">✎</button><button class="pal-x" title="Remove">×</button>`;
+      const name = r.querySelector('span'); name.textContent = p.name;
+      r.onclick = e => {
+        if (e.target.closest('.pal-x')) { board.palette.splice(i, 1); renderPalette(); save(); return; }
+        if (e.target.closest('.pal-ed')) { name.contentEditable = 'true'; name.focus(); getSelection().selectAllChildren(name);
+          const done = () => { name.contentEditable = 'false'; const v = name.textContent.trim(); if (v) { p.name = v; board.cards.filter(c => c.type === 'swatch' && c.hex === p.hex).forEach(c => { c.label = v; renderCard(c); }); } renderPalette(); save(); };
+          name.onblur = done; name.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); name.blur(); } ev.stopPropagation(); }; return; }
+        if (name.isContentEditable) return;
+        const c = addAtCenter('swatch', { hex: p.hex, label: p.name });
+      };
+      el.appendChild(r);
+    });
+  }
 
   // ---------- the floating boxes: minimize to their title, remembered between launches ----------
   const boxState = (() => { try { return JSON.parse(localStorage.getItem('mochiboard:boxes') || '{}'); } catch (e) { return {}; } })();
