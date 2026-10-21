@@ -203,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
         Reply with ONLY one JSON object, no other words before or after it. Use only the keys you need:
         {"say": "a short, friendly reply in first person (1 to 3 sentences, no em dashes)",
-         "add": [{"type": "note" | "todo" | "title" | "swatch" | "doc", "text": "... (a doc's title)", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
+         "add": [{"type": "note" | "todo" | "title" | "swatch" | "doc" | "font", "text": "... (a doc's title)", "items": ["for todo"], "hex": "#rrggbb for swatch", "label": "swatch name",
                   "color": "white|pink|butter|mint|lilac|sky|peach", "x": 0, "y": 0, "tag": "optional tiny handwritten label", "body": "for a doc: its full text",
                   "name": "optional bold name above a note's words", "in": "optional: a collection id, or the name of a collection in this reply, to stack it inside"}],
          "titles": [{"text": "group name", "x": 0, "y": 0}],
@@ -232,6 +232,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         "Input" {label, text}, "Search" {text}, "Button" {text, style: "primary"|"secondary"}, "Card" {title, text}, "List row" {title, sub, icon} (use "rows": [{title, sub}] for several), \
         "Toggle" {text, on}, "Checkbox" {text, on}, "Avatar" {size, align}, "Image" {h}, "Icon" {name, size, align}, "Divider", "Space" {h}. Icons are Material Icons names (home, search, settings, favorite_border, person_outline, notifications_none, shopping_bag, add, close). \
         Use real, specific words for the product (not "Lorem"). Put the explanation of each screen in its "note" (that becomes a note under the screen); don't also add separate notes for them. \
+        FONTS: when they ask to explore, compare or suggest fonts or type, add "font" cards ({"type": "font", "font": "exact family name", "sample": "a short line in their product's voice", "tag": "why it fits, 2 to 4 words"}), never plain notes with font names. \
+        Prefer families in "fontsOnThisMac"; you may also suggest Google Fonts by their exact name (the app loads them). A good exploration is 4 to 8 fonts, grouped by mood with titles. \
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 

@@ -942,3 +942,13 @@ body.dark .dz-piece-grid button { background: #302b35; } body.dark .dz-icons inp
 .stage.moving .card.shape svg.sh, .stage.far .card.shape svg.sh { filter: none !important; }
 .stage.moving .world { will-change: transform; }
 .stage.far .card.wf .rot-h, .stage.far .card .knob { display: none; }
+
+/* font cards: the type itself, big */
+.card.font .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.fs-aa { font-size: 64px; line-height: 1; color: var(--ink); }
+.fs-meta { display: flex; align-items: baseline; gap: 8px; }
+.fs-meta b { font: 700 14px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-src { flex: none; margin-left: auto; font: 600 9.5px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+.fs-sample { font-size: 18px; line-height: 1.35; color: var(--ink); outline: none; }
+body.dark .card.font.c-white > .frame { background: #322d38 !important; }
+.fs-meta { min-width: 0; } .fs-meta b { flex: 1; min-width: 0; }

@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24], icon: [28, 28] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24], icon: [28, 28], font: [300, 210] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -402,6 +402,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'box': return `<div class="bx"></div>`;
+      case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
@@ -613,6 +614,7 @@
     if (target && target.closest('.nname')) return editField(el, el.querySelector('.nname'), v => c.name = v);
     if (c.type === 'coll') return editField(el, el.querySelector('.coll-head .text'), v => c.text = v);
     if (c.type === 'frame') return editField(el, el.querySelector('.fr-name'), v => c.name = v);
+    if (c.type === 'font') return editField(el, el.querySelector('.fs-sample'), v => c.text = v);
     if ((c.type === 'doc' || c.type === 'canvas') && target && !target.closest('.text')) return c.type === 'doc' ? openDoc(c) : openCanvas(c);
     if (c.type === 'doc') return editField(el, el.querySelector('.text'), v => c.text = v);
     if (c.type === 'canvas') return editField(el, el.querySelector('.text'), v => c.text = v, () => renameChild(c));
@@ -975,8 +977,9 @@
   // what Mochi sees: the cards (trimmed), where they are, what's selected, and what's in Unsorted
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
-      text: (c.text || c.title || c.label || '').slice(0, 300), name: c.name, kids: c.kids, desc: c.desc, body: c.body ? c.body.slice(0, 600) : undefined, shape: c.shape, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
+      text: (c.text || c.title || c.label || '').slice(0, 300), font: c.font, name: c.name, kids: c.kids, desc: c.desc, body: c.body ? c.body.slice(0, 600) : undefined, shape: c.shape, tag: c.tagText, items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
     return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
+      fontsOnThisMac: FONTS.filter(f => !/^(\.|Apple |System|STIX|Noto Sans [A-Z][a-z]+ [A-Z])/.test(f)).slice(0, 400),
       recentChat: (settings.chatKeep === 'off' ? chatLog().slice(-2) : chatLog().slice(-8)).map(m => `${m.who === 'me' ? 'Person' : 'Mochi'}: ${m.text}`),
       mochiStyle: ({ quiet: 'Keep "say" to one short sentence.', normal: 'Keep "say" short and warm.', chatty: 'Be warm, playful and encouraging in "say" (2 to 3 sentences, a little cheer is welcome).' }[settings.chat] || '') + (settings.emoji ? ' A couple of fitting emojis in "say" are welcome.' : ' Never use emojis.'),
       library: { projects: projects.map(p => ({ name: p.name, folders: foldersIn(p.id).map(f => f.name) })), foldersNotInAProject: looseFolders().map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
@@ -1021,14 +1024,14 @@
       await saveLib(); await refreshBoards();
     }
     const center = centerWorld(), added = []; let i = 0;
-    const place = o => { if (o.x == null || o.y == null) { o.x = center.x - 300 + (i % 3) * 250; o.y = center.y - 100 + Math.floor(i / 3) * 170; i++; } };
+    const place = o => { if (o.x == null || o.y == null) { const wide = o.type === 'font'; o.x = center.x - 300 + (i % 3) * (wide ? 330 : 250); o.y = center.y - 100 + Math.floor(i / 3) * (wide ? 240 : 170); i++; } };
     // collections Mochi makes, and cards she files into them (by collection id, or by the name of one she just made)
     const made = {};
     (r.collections || []).forEach(o => { place(o); const s2 = card('coll', { x: o.x, y: o.y, text: o.name || o.text || '', color: COLL[o.color] ? o.color : 'pink', kids: [], cols: o.cols || 1, r: 0 }); addCard(s2); made[(o.name || '').toLowerCase()] = s2; added.push(s2); });
     const collFor = k => k && (byId(k)?.type === 'coll' ? byId(k) : made[String(k).toLowerCase()] || colls().find(s2 => s2.text.toLowerCase() === String(k).toLowerCase()));
     const file = (c, k) => { const s2 = collFor(k); if (!s2 || c.id === s2.id) return; const from = parentOf(c.id); if (from) from.kids = from.kids.filter(x => x !== c.id); s2.kids.push(c.id); };
-    (r.add || []).forEach(o => { place(o); const c = card(['todo', 'title', 'swatch', 'doc'].includes(o.type) ? o.type : 'note', { body: o.type === 'doc' ? (o.body || '') : undefined,
-      x: o.x, y: o.y, text: o.text || '', color: COLOR_NAMES.includes(o.color) ? o.color : 'white', hex: o.hex, label: o.label,
+    (r.add || []).forEach(o => { place(o); const c = card(['todo', 'title', 'swatch', 'doc', 'font'].includes(o.type) ? o.type : 'note', { font: o.type === 'font' ? (o.font || o.text) : undefined, body: o.type === 'doc' ? (o.body || '') : undefined,
+      x: o.x, y: o.y, text: o.type === 'font' ? (o.sample || '') : o.text || '', color: COLOR_NAMES.includes(o.color) ? o.color : 'white', hex: o.hex, label: o.label,
       items: o.items ? o.items.map(t => ({ t: typeof t === 'string' ? t : t.t, done: false })) : undefined, tagText: o.tag, name: o.name }); addCard(c); added.push(c); if (o.in) file(c, o.in); });
     (r.titles || []).forEach(o => { place(o); added.push(addCard(card('title', { x: o.x, y: o.y, text: o.text }))); });
     (r.place || []).forEach(o => { const c = board.tray.find(x => x.id === o.id); if (!c) return; place(o); c.x = o.x; c.y = o.y; board.tray = board.tray.filter(x => x !== c); addCard(c); added.push(c); });
@@ -1297,6 +1300,13 @@
     if (by) { dy += by.d; g += `<line x1="${Math.min(x0, by.o.x) + O - 10}" y1="${by.at + O}" x2="${Math.max(x1, by.o.x + by.o.w) + O + 10}" y2="${by.at + O}"/>`; }
     $('guides').innerHTML = g; return { dx, dy };
   }
+  // fonts: use what's on this Mac; anything else is fetched from Google Fonts so the real type shows
+  const fontsLoaded = new Set();
+  const onMac = f => FONTS.some(x => x.toLowerCase() === String(f || '').toLowerCase()) || ['DM Sans', 'Caveat'].includes(f);
+  function useFont(f) {
+    if (!f || onMac(f) || fontsLoaded.has(f)) return; fontsLoaded.add(f);
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@400;700&display=swap`; document.head.appendChild(l);
+  }
   // groups: ready-made pieces arrive grouped; ⌘G groups a selection, ⇧⌘G ungroups
   const groupOf = id => { const g = byId(id)?.group; return g ? board.cards.filter(c => c.group === g).map(c => c.id) : [id]; };
   function groupSel(on) { const cs = selCards(); if (on && cs.length < 2) return; const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
@@ -1402,10 +1412,12 @@
     dh: AL('<path d="M3 4v12M17 4v12M8 7v6M12 7v6"/>'), dv: AL('<path d="M4 3h12M4 17h12M7 8h6M7 12h6"/>') };
   const field = (k, label, v, type = 'number', extra = '') => `<label class="dz-f ${extra}"><span>${label}</span><input data-k="${k}" type="${type}" value="${esc(v)}"${type === 'number' ? ' step="1"' : ''}></label>`;
   function renderDesign() {
+    const fc = selCards().length === 1 && selCards()[0].type === 'font' ? selCards()[0] : null;
+    if (fc) { $('dzProps').innerHTML = `<div class="dz-sec"><div class="label">Font</div><div class="dz-grid"><label class="dz-f wide"><span>Font</span><select data-k="font">${[...new Set([fc.font || 'DM Sans', ...FONTS])].map(f => `<option${fc.font === f ? ' selected' : ''} style="font-family:'${esc(f)}'">${esc(f)}</option>`).join('')}</select></label><label class="dz-f wide"><span>Or any Google font</span><input data-k="gfont" placeholder="e.g. Playfair Display" spellcheck="false"></label></div><div class="dz-hint">Double-click the sample line on the card to try your own words.</div></div>`; return; }
     const cs = selCards().filter(c => WF.includes(c.type)), el = $('dzProps');
     if (!cs.length) { el.innerHTML = selCards().length ? '' : '<div class="dz-hint">Pick a tool or a piece. Drag to draw a box; things snap into line as you move them.</div>'; return; }
     const one = cs.length === 1 ? cs[0] : null; let h = '';
-    if (one) h += `<div class="dz-sec"><div class="label">${{ frame: 'Screen', box: 'Box', text: 'Text' }[one.type]}</div><div class="dz-grid">${field('x', 'X', Math.round(one.x))}${field('y', 'Y', Math.round(one.y))}${field('w', 'W', Math.round(one.w))}${one.type === 'text' ? '' : field('h', 'H', Math.round(one.h))}</div></div>`;
+    if (one) h += `<div class="dz-sec"><div class="label">${{ frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type]}</div><div class="dz-grid">${field('x', 'X', Math.round(one.x))}${field('y', 'Y', Math.round(one.y))}${field('w', 'W', Math.round(one.w))}${one.type === 'text' ? '' : field('h', 'H', Math.round(one.h))}</div></div>`;
     if (one && one.type !== 'frame') h += `<div class="dz-sec"><div class="dz-grid">${field('rot', 'Rotate°', one.rot || 0, 'number', 'wide')}</div></div>`;
     if (one?.type === 'icon') h += `<div class="dz-sec"><div class="label">Icon</div><div class="dz-grid">${field('isz', 'Size', Math.round(one.w))}${field('color', 'Color', one.color || '#27272a', 'color')}</div><div class="dz-row"><button data-swap="1" style="font:600 11.5px/1 var(--font);gap:6px;display:flex;align-items:center;justify-content:center"><span class="mi" style="font-size:16px">${esc(one.name)}</span> Change icon</button></div></div>`;
     const groupedSel = cs.length > 1 && cs.every(c => c.group && c.group === cs[0].group);
@@ -1420,6 +1432,8 @@
     el.innerHTML = h;
   }
   $('dzProps').addEventListener('input', e => {
+    const fc = selCards().length === 1 && selCards()[0].type === 'font' ? selCards()[0] : null;
+    if (fc && (e.target.dataset.k === 'font' || e.target.dataset.k === 'gfont')) { const v = e.target.value.trim(); if (!v) return; if (e.target.dataset.k === 'gfont') { clearTimeout(fc._t); fc._t = setTimeout(() => { fc.font = v; renderCard(fc); selectOnly([fc.id]); save(); }, 500); return; } fc.font = v; renderCard(fc); selectOnly([fc.id]); save(); return; }
     const k = e.target.dataset.k, one = selCards().filter(c => WF.includes(c.type))[0]; if (!k || !one) return; let v = e.target.value;
     if (['x', 'y', 'w', 'h', 'radius', 'sw', 'size', 'rot', 'isz'].includes(k)) v = +v || 0; if (k === 'opacity') v = Math.max(0, Math.min(100, +v)) / 100; if (k === 'lh') v = +v || 1.3; if (k === 'weight') v = +v;
     if (k === 'rot') { one.rot = v; } else if (k === 'isz') { one.w = one.h = Math.max(8, v); }
@@ -1721,7 +1735,7 @@
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit).join();
     if (bar.dataset.key === key) { syncDesign(); return; } bar.dataset.key = key; renderDesign();
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
