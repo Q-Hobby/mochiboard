@@ -841,6 +841,8 @@
     const u = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'); if (/^https?:/.test(u)) linkCard(u.trim(), w); });
 
   // ---------- Mochi on the board ----------
+  // her hop: she jumps right up out of her pill, then squishes a little as she lands
+  function hopMochi() { goo.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
   const goo = Goo($('goo')), goos = [goo, Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo'))];
 
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
@@ -864,7 +866,7 @@
   const closeSettings = () => $('settings').classList.remove('on');
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
-  $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); goo.hop(); } };
+  $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
   document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
   $('recheck').onclick = () => showConnections(true);
   document.querySelectorAll('[data-seg]').forEach(g => g.onclick = e => { const b = e.target.closest('[data-v]'); if (b) { settings[g.dataset.seg] = b.dataset.v; applySettings(); } });
@@ -881,7 +883,7 @@
     if (chatOpen()) { if (text) addMsg('mochi', text, acts); return; }
     $('mSay').textContent = text; $('mActs').innerHTML = '';
     acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; if (a.ghost) b.className = 'ghost'; b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
-    $('mBubble').classList.add('on'); goo.hop(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
+    $('mBubble').classList.add('on'); hopMochi(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
   }
   // ---------- Mochi's chat window: click her to open it, click again (or Esc) to close ----------
   const chatOpen = () => $('mochi').classList.contains('chat');

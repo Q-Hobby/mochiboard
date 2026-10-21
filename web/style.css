@@ -772,3 +772,14 @@ body.dark .mc-ideas button { border-color: #3e3846; }
 /* Mochi is drawn at the bottom of her canvas (headroom for her hop), so lift her to sit visually centered */
 .m-pill canvas { transform: translateY(-4px); }
 .mc-head canvas { margin-top: -9px; }
+.m-pill { overflow: visible; }
+#goo.hopping { animation: mochi-hop .62s cubic-bezier(.3, .7, .4, 1) both; transform-origin: 50% 100%; }
+@keyframes mochi-hop {
+  0% { transform: translateY(-4px) scale(1, 1); }
+  14% { transform: translateY(-2px) scale(1.12, .86); }
+  45% { transform: translateY(-26px) scale(.94, 1.08); }
+  78% { transform: translateY(-4px) scale(1.1, .9); }
+  100% { transform: translateY(-4px) scale(1, 1); }
+}
+@media (prefers-reduced-motion: reduce) { #goo.hopping { animation: none; } }
+body.calm #goo.hopping { animation: none; }
