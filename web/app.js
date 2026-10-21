@@ -1048,7 +1048,6 @@
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
     if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:${SHAPE_FILL[n]}" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
-    if (one && ['note', 'todo', 'title', 'link', 'coll', 'doc', 'canvas', 'shape'].includes(one.type) && !(one.type === 'link' && !one.url)) h += btn('edit', 'edit', 'Edit the words');
     h += `<span class="sb-sep"></span>` + btn('mochi', 'mochi', 'Ask Mochi to change ' + (one ? 'this' : 'these')) + btn('del', 'del', 'Delete');
     bar.innerHTML = h;
   }
