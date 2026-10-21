@@ -325,3 +325,6 @@ html.native .home-in { padding-top: 40px; }
 /* Unsorted hugs its ideas: small when empty, grows as ideas come in, scrolls once it reaches the bottom */
 .tray { bottom: auto; max-height: calc(100% - 32px); }
 .tray-list { flex: 0 1 auto; min-height: 0; overflow: auto; }
+/* the shortcut hints sit in one quiet line at the far bottom left, under the floating boxes */
+.side { bottom: 50px; }
+.keys { left: 22px; bottom: 16px; max-width: none; flex-wrap: nowrap; white-space: nowrap; gap: 10px; font-size: 11px; }
