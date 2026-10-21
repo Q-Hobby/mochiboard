@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let list: [[String: Any]] = files.filter { $0.pathExtension == "json" }.compactMap { f in
                 guard let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
                 let mod = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return ["id": j["id"] ?? "", "name": j["name"] ?? "Untitled", "color": j["color"] ?? "pink", "updated": mod.timeIntervalSince1970]
+                return ["id": j["id"] ?? "", "name": j["name"] ?? "Untitled", "color": j["color"] ?? "pink", "folder": j["folder"] ?? NSNull(), "updated": mod.timeIntervalSince1970]
             }.sorted { ($0["updated"] as! Double) > ($1["updated"] as! Double) }
             reply(true, list)
         case "load":
@@ -67,6 +67,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             guard let b = args["board"] as? [String: Any], let d = try? JSONSerialization.data(withJSONObject: b) else { return reply(false, "bad board") }
             let f = boardsDir.appendingPathComponent("\(safe(b["id"])).json"), tmp = f.appendingPathExtension("tmp")
             do { try d.write(to: tmp); _ = try? FileManager.default.removeItem(at: f); try FileManager.default.moveItem(at: tmp, to: f); reply(true, true) } catch { reply(false, error.localizedDescription) }
+        // folders live in one small file next to the boards: [{id, name, open}]
+        case "folders":
+            let f = support.appendingPathComponent("folders.json")
+            if let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) { reply(true, j) } else { reply(true, [Any]()) }
+        case "saveFolders":
+            guard let d = try? JSONSerialization.data(withJSONObject: args["folders"] ?? []) else { return reply(false, "bad folders") }
+            do { try d.write(to: support.appendingPathComponent("folders.json"), options: .atomic); reply(true, true) } catch { reply(false, error.localizedDescription) }
         case "remove":
             try? FileManager.default.removeItem(at: boardsDir.appendingPathComponent("\(safe(args["id"])).json")); reply(true, true)
         case "linkPreview":
@@ -159,7 +166,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
          "titles": [{"text": "group name", "x": 0, "y": 0}],
          "move": [{"id": "existing card id", "x": 0, "y": 0, "color": "optional new color"}],
          "place": [{"id": "an unsorted card id", "x": 0, "y": 0}],
-         "connect": [["card id", "card id"]]}
+         "connect": [["card id", "card id"]],
+         "folders": {"create": ["folder name"], "rename": [{"from": "old folder name", "to": "new name"}], "move": [{"board": "board id", "folder": "folder name, or null to take it out of its folder"}]}}
+        "library" lists ALL their boards and folders (not just this board). Use "folders" when they ask to organize, group, file or move boards into folders. \
+        Moving a board into a folder that doesn't exist yet creates it. Never invent board ids: only use ids from "library".
         When you organize, lay groups out as tidy columns about 250 px apart with a title 90 px above each group, and keep new things clear of cards you are not moving. \
         Keep note text short (under 20 words). Never invent ids: only use ids from the board.
 

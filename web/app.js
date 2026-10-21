@@ -39,11 +39,61 @@
     if (tpl) { const t = TEMPLATES[tpl](); b.cards = t.cards; b.tray = t.tray; b.name = tpl; }
     return b;
   }
+  // ---------- boards and folders: a folder holds one project's boards together ----------
+  let folders = [], boardList = [];
+  const saveFolders = () => MB.saveFolders(folders);
+  const findFolder = name => folders.find(f => f.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+  function makeFolder(name) { const f = findFolder(name) || { id: uid(), name: String(name).trim() || 'New folder', open: true }; if (!folders.includes(f)) folders.push(f); return f; }
+  async function moveBoard(id, folderId) {
+    if (board && board.id === id) { board.folder = folderId; await MB.save(board); return; }
+    const b = await MB.load(id); if (!b) return; b.folder = folderId; await MB.save(b);
+  }
+  function boardRow(b) {
+    const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : ''); r.draggable = true;
+    r.innerHTML = `<i style="background:${COLORS[b.color] && b.color !== 'white' ? `var(--${b.color === 'pink' ? 'pink' : b.color + '-deep'})` : 'var(--pink)'}"></i><span></span>`;
+    r.querySelector('span').textContent = b.name; r.onclick = () => openBoard(b.id);
+    r.ondragstart = e => { e.dataTransfer.setData('mb/board', b.id); e.dataTransfer.effectAllowed = 'move'; r.classList.add('dragging'); };
+    r.ondragend = () => r.classList.remove('dragging');
+    return r;
+  }
+  const dropZone = (el, onDrop, cls = 'drop', target = el) => {
+    el.addEventListener('dragover', e => { if (!e.dataTransfer.types.includes('mb/board')) return; e.preventDefault(); e.stopPropagation(); target.classList.add(cls); });
+    el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) target.classList.remove(cls); });
+    el.addEventListener('drop', async e => { const id = e.dataTransfer.getData('mb/board'); if (!id) return; e.preventDefault(); e.stopPropagation(); target.classList.remove(cls); await onDrop(id); refreshBoards(); });
+  };
   async function refreshBoards() {
-    const list = await MB.list(); $('boards').innerHTML = '';
-    list.forEach(b => { const r = document.createElement('div'); r.className = 'board-row' + (board && b.id === board.id ? ' on' : '');
-      r.innerHTML = `<i style="background:${COLORS[b.color] && b.color !== 'white' ? `var(--${b.color === 'pink' ? 'pink' : b.color + '-deep'})` : 'var(--pink)'}"></i><span></span>`;
-      r.querySelector('span').textContent = b.name; r.onclick = () => openBoard(b.id); $('boards').appendChild(r); });
+    [boardList, folders] = await Promise.all([MB.list(), MB.folders().catch(() => [])]);
+    const el = $('boards'); el.innerHTML = '';
+    folders.forEach(f => {
+      const inside = boardList.filter(b => b.folder === f.id), wrap = document.createElement('div');
+      if (board && inside.some(b => b.id === board.id)) f.open = true;
+      wrap.className = 'folder' + (f.open ? ' open' : '');
+      wrap.innerHTML = `<div class="folder-head"><span class="chev">▶</span><span class="fic"></span><span class="fname"></span><small>${inside.length}</small><button class="f-btn" data-a="add" title="New board in this folder">+</button><button class="f-btn" data-a="ren" title="Rename">✎</button><button class="f-btn" data-a="del" title="Remove folder (keeps its boards)">×</button></div><div class="folder-body"></div>`;
+      const name = wrap.querySelector('.fname'), body = wrap.querySelector('.folder-body'); name.textContent = f.name;
+      inside.forEach(b => body.appendChild(boardRow(b)));
+      if (!inside.length) body.innerHTML = '<div class="folder-empty">Drag boards in here</div>';
+      wrap.querySelector('.folder-head').onclick = async e => {
+        const a = e.target.closest('.f-btn')?.dataset.a;
+        if (a === 'add') { const b = newBoard(); b.folder = f.id; f.open = true; await saveFolders(); await MB.save(b); await openBoard(b.id); $('boardName').focus(); $('boardName').select(); return; }
+        if (a === 'del') { for (const b of inside) await moveBoard(b.id, null); folders = folders.filter(x => x !== f); await saveFolders(); refreshBoards(); return; }
+        if (a === 'ren') { renameFolder(f, name); return; }
+        if (name.isContentEditable) return;
+        f.open = !f.open; wrap.classList.toggle('open', f.open); saveFolders();
+      };
+      name.ondblclick = e => { e.stopPropagation(); renameFolder(f, name); };
+      dropZone(wrap, id => moveBoard(id, f.id).then(() => { f.open = true; return saveFolders(); }));
+      el.appendChild(wrap);
+    });
+    // boards that aren't in a folder yet sit underneath
+    const loose = document.createElement('div'); loose.className = 'loose-zone';
+    boardList.filter(b => !b.folder || !folders.some(f => f.id === b.folder)).forEach(b => loose.appendChild(boardRow(b)));
+    el.appendChild(loose);
+    dropZone(loose, id => moveBoard(id, null));
+  }
+  function renameFolder(f, name) {
+    name.contentEditable = 'true'; name.focus(); getSelection().selectAllChildren(name);
+    name.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); name.blur(); } if (ev.key === 'Escape') { name.textContent = f.name; name.blur(); } ev.stopPropagation(); };
+    name.onblur = () => { name.contentEditable = 'false'; const v = name.textContent.trim(); if (v) f.name = v; saveFolders(); refreshBoards(); };
   }
   async function openBoard(id) {
     const b = await MB.load(id); if (!b) return;
@@ -313,6 +363,11 @@
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
   $('newBoard').onclick = async () => { const b = newBoard(); await MB.save(b); openBoard(b.id); };
+  $('newFolder').onclick = async () => {
+    let n = 'New folder', k = 2; while (findFolder(n)) n = 'New folder ' + k++;
+    makeFolder(n); await saveFolders(); await refreshBoards();
+    const last = [...$('boards').querySelectorAll('.folder')].pop(); renameFolder(folders[folders.length - 1], last.querySelector('.fname'));
+  };
   Object.keys(TEMPLATES).forEach(name => { const r = document.createElement('div'); r.className = 'board-row'; r.innerHTML = `<i style="background:var(--butter-deep)"></i><span>${name}</span>`; r.onclick = async () => { const b = newBoard(name, name); await MB.save(b); await openBoard(b.id); fit(board.cards); }; $('templates').appendChild(r); });
 
   // ---------- paste and drop ----------
@@ -342,7 +397,8 @@
   function snapshot() {
     const brief = c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h), color: c.color,
       text: (c.text || c.title || c.label || '').slice(0, 300), items: c.items ? c.items.map(i => i.t) : undefined, hex: c.hex, url: c.url, selected: sel.has(c.id) || undefined });
-    return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette };
+    return { name: board.name, cards: board.cards.map(brief), links: board.links.map(l => [l.a, l.b]), unsorted: board.tray.map(brief), boardColors: board.palette,
+      library: { folders: folders.map(f => f.name), boards: boardList.map(b => ({ id: b.id, name: b.name, folder: (folders.find(f => f.id === b.folder) || {}).name || null, current: b.id === board.id || undefined })) } };
   }
   async function ask(q, confirmed = false) {
     $('mochi').classList.add('thinking'); goo.think(true); say(confirmed ? 'Making it… (this can take a minute)' : 'On it…', 0);
@@ -354,6 +410,15 @@
   const parse = raw => { const s = String(raw), a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0) return { say: s.trim() }; try { return JSON.parse(s.slice(a, b + 1)); } catch (e) { return { say: s.trim() }; } };
   // her actions: say, add cards, move cards, place unsorted ideas, add titles, connect cards
   async function applyMochi(r, q) {
+    // folders first: create, rename, and move boards around the library
+    const fo = r.folders;
+    if (fo) {
+      (fo.create || []).forEach(n => makeFolder(n));
+      (fo.rename || []).forEach(o => { const f = findFolder(o.from); if (f && o.to) f.name = String(o.to).trim(); });
+      for (const m of fo.move || []) { if (!boardList.some(b => b.id === m.board)) continue; await moveBoard(m.board, m.folder ? makeFolder(m.folder).id : null); }
+      folders.forEach(f => { if ((fo.move || []).some(m => m.folder && findFolder(m.folder) === f)) f.open = true; });
+      await saveFolders(); await refreshBoards();
+    }
     const center = centerWorld(), added = []; let i = 0;
     const place = o => { if (o.x == null || o.y == null) { o.x = center.x - 300 + (i % 3) * 250; o.y = center.y - 100 + Math.floor(i / 3) * 170; i++; } };
     (r.add || []).forEach(o => { place(o); const c = card(o.type === 'todo' || o.type === 'title' || o.type === 'swatch' ? o.type : 'note', {
@@ -500,5 +565,5 @@
     setTimeout(() => { fit(board.cards); say("Hi, I'm Mochi! Dump ideas with ⌘K, then ask me to sort them ✦", 7000); }, 400);
     showConnections(true);
   })();
-  window.__mb = { get board() { return board; }, applyMochi, fit };   // handy for testing
+  window.__mb = { get board() { return board; }, applyMochi, fit, lib: () => snapshot().library };   // handy for testing
 })();

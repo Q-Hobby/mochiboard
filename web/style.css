@@ -24,13 +24,13 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 6px; border-radius: 6px; backgr
 .label { font: 700 10.5px/1 var(--font); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
 .box-body > .label { margin: 4px 6px 8px; }
 .brand { display: flex; align-items: center; gap: 9px; font: 800 17px/1 var(--font); letter-spacing: -.03em; }
-.brand canvas { width: 26px; height: 23px; image-rendering: pixelated; }
+.brand canvas { display: block; width: 26px; height: 23px; image-rendering: pixelated; margin-top: -5px; }   /* the goo sits low in her canvas, so lift her to line up with the word */
 .boards, .templates { display: flex; flex-direction: column; gap: 1px; }
 .board-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 10px; cursor: pointer; font-size: 13.5px; }
 .board-row i { width: 9px; height: 9px; border-radius: 3px; flex: none; rotate: -6deg; }
 .board-row:hover { background: #faf5fb; }
 .board-row.on { background: var(--blush); font-weight: 700; }
-.pill-btn { margin: 6px 0 0; width: 100%; padding: 8px 10px; border: 1.5px dashed var(--ink-faint); border-radius: 12px; background: none; font-size: 12.5px; cursor: pointer; text-align: left; }
+.pill-btn { margin: 0; width: 100%; padding: 8px 10px; border: 1.5px dashed var(--ink-faint); border-radius: 12px; background: none; font-size: 12.5px; cursor: pointer; text-align: left; }
 .pill-btn:hover { border-color: var(--ink); }
 /* the shortcut hints, floating at the bottom left of the canvas */
 .keys { position: absolute; left: calc(var(--side) + 28px); bottom: 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; max-width: calc(50% - var(--side) - 180px); font-size: 11.5px; color: var(--ink-soft); z-index: 10; }
@@ -198,3 +198,26 @@ html.native .top { top: 18px; }
 .cp-acts button { flex: 1; padding: 9px 10px; border-radius: 999px; border: 1.5px solid var(--ink); background: none; font: 600 12px/1 var(--font); cursor: pointer; }
 .cp-acts .solid { background: var(--ink); color: #fff; }
 .cp-acts .saved-ok { background: var(--mint-deep); border-color: var(--mint-deep); }
+
+/* folders: a project holds its boards together */
+.new-row { display: flex; gap: 6px; margin-top: 6px; }
+.new-row #newFolder { width: auto; flex: none; }
+.folder { border-radius: 12px; }
+.folder-head { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; cursor: pointer; font: 600 13.5px/1.2 var(--font); }
+.folder-head:hover { background: #faf5fb; }
+.folder-head .chev { width: 10px; flex: none; color: var(--ink-faint); font-size: 10px; transition: rotate .2s; }
+.folder.open .folder-head .chev { rotate: 90deg; }
+.folder-head .fic { width: 16px; height: 12px; flex: none; position: relative; border-radius: 2px 4px 4px 4px; background: var(--butter-deep); }
+.folder-head .fic::before { content: ""; position: absolute; left: 0; top: -3px; width: 7px; height: 4px; border-radius: 2px 2px 0 0; background: inherit; }
+.folder-head .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; outline: none; }
+.folder-head .fname[contenteditable="true"] { background: #fff; box-shadow: 0 0 0 1.5px var(--select); border-radius: 4px; padding: 0 3px; cursor: text; user-select: text; -webkit-user-select: text; }
+.folder-head small { font: 500 11px/1 var(--font); color: var(--ink-faint); }
+.folder-head .f-btn { display: none; border: 0; background: none; color: var(--ink-soft); cursor: pointer; padding: 0 2px; font-size: 13px; }
+.folder-head:hover .f-btn { display: block; }
+.folder-head:hover small { display: none; }
+.folder-body { display: none; flex-direction: column; gap: 1px; margin-left: 13px; padding-left: 8px; border-left: 1.5px dashed #eadfee; }
+.folder.open .folder-body { display: flex; }
+.folder-empty { padding: 5px 8px; font-size: 12px; color: var(--ink-faint); }
+.folder.drop .folder-head, .boards.drop-loose .loose-zone { background: var(--blush); box-shadow: inset 0 0 0 1.5px var(--pink); }
+.loose-zone { border-radius: 10px; min-height: 6px; }
+.board-row.dragging { opacity: .4; }

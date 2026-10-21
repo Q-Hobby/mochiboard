@@ -15,9 +15,11 @@
     async save(board) {
       localStorage.setItem(LS + 'board:' + board.id, JSON.stringify(board));
       const idx = JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== board.id);
-      idx.unshift({ id: board.id, name: board.name, color: board.color, updated: Date.now() });
+      idx.unshift({ id: board.id, name: board.name, color: board.color, folder: board.folder || null, updated: Date.now() });
       localStorage.setItem(LS + 'index', JSON.stringify(idx)); return true;
     },
+    async folders() { return JSON.parse(localStorage.getItem(LS + 'folders') || '[]'); },
+    async saveFolders(folders) { localStorage.setItem(LS + 'folders', JSON.stringify(folders)); return true; },
     async remove(id) { localStorage.removeItem(LS + 'board:' + id); localStorage.setItem(LS + 'index', JSON.stringify(JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== id))); return true; },
     async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true }; },
     async fetchImage(url) { return url; },
@@ -39,6 +41,7 @@
   window.MB = native ? {
     native: true,
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
+    folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false) => call('ask', { prompt, board, confirmed }),
     connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }),
   } : Object.assign({ native: false }, browser);
