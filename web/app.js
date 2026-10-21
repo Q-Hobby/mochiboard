@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -347,6 +347,7 @@
       case 'doc': return `<div class="pill">${CIC.doc}<span class="text">${esc(c.text)}</span></div>`;
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
+      case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
       case 'coll': return `<div class="coll-head"><span class="text">${esc(c.text)}</span></div><div class="coll-frame"></div>${(c.kids || []).length ? '' : '<div class="coll-empty">Drop cards here</div>'}`;
       case 'title': return `<div class="text">${esc(c.text)}</div>`;
       case 'image': return `<img src="${esc(c.src)}" alt=""><button class="chip" data-act="colors">pull colors ✦</button>`;
@@ -365,6 +366,7 @@
     el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff');
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     if (c.type === 'doc') el.classList.toggle('has-body', !!(c.body || '').trim());
+    if (c.type === 'stamp') { el.style.setProperty('--sz', c.w + 'px'); if (c.mv) el.classList.add('mv-' + c.mv); }
     if (c.type === 'link') el.classList.toggle('compact', !c.url || !c.image);
     if (c.type === 'canvas' && c.board) mini(c.board).then(svg => { const p = el.querySelector('.cv-prev'); if (p && svg) p.innerHTML = svg; });
     if (c.type === 'link' && !c.url) setTimeout(() => wireLinkInput(c), 0);
@@ -586,6 +588,7 @@
       else if (loose.length && !skip.size) { const t = collAt(w, skip); if (t) cardsEl.querySelector(`[data-id="${t.s.id}"]`)?.classList.add(t.side ? 'drop-col' : 'drop-in'); }
     }
     if (drag.mode === 'resize' && byId(drag.id).type === 'coll') { const c = byId(drag.id); c.cols = Math.max(1, Math.round((drag.w0 + w.x - drag.sx - CPAD * 2 + CGAP) / (CW + CGAP))); layoutColl(c); renderWires(); return; }
+    if (drag.mode === 'resize' && byId(drag.id).type === 'stamp') { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
     if (drag.mode === 'marquee') {
@@ -686,7 +689,7 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
-    if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on'))) { stopPlacing(); return; }
+    if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing || homeAt) return;
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
@@ -701,7 +704,8 @@
     if (k === 'c') startPlacing('todo');
     if (k === 'g') startPlacing('coll');
     if (k === 'd') startPlacing('doc');
-    if (k === 's') { $('shapePick').classList.add('on'); }
+    if (k === 's') $('tools').querySelector('[data-add="shape"]').click();
+    if (k === 'e') $('tools').querySelector('[data-add="stamp"]').click();
     if (k === 'l') startPlacing('link');
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
@@ -718,6 +722,7 @@
   // ---------- toolbar ----------
   $('tools').onclick = e => { const b = e.target.closest('[data-add]'); if (!b) return; const t = b.dataset.add;
     if (t === 'image') return $('filePick').click();
+    if (t === 'stamp') { const on = !$('stampWheel').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); ['stampWheel', 'stampPick'].forEach(id => $(id).style.left = (r.left + r.width / 2 - sr.left) + 'px'); renderWheel(); $('stampWheel').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'shape') { const on = !$('shapePick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('shapePick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('shapePick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     startPlacing(t); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
@@ -861,18 +866,20 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]] };
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]] };
   function startPlacing(type, extra = {}) {
     if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
-    g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape }); moveGhost(); stage.classList.add('placing');
+    g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape });
+    if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
-  function stopPlacing() { $('shapePick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
-  function moveGhost() { if (!placing) return; const r = stage.getBoundingClientRect(), g = $('ghost'); g.style.left = mouse.x - r.left - 14 + 'px'; g.style.top = mouse.y - r.top - 14 + 'px'; g.style.transform = `scale(${view.z})`; }
+  function stopPlacing() { $('shapePick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
+  function moveGhost() { if (!placing) return; const r = stage.getBoundingClientRect(), g = $('ghost'), o = placing.type === 'stamp' ? 28 * view.z : 14; g.style.left = mouse.x - r.left - o + 'px'; g.style.top = mouse.y - r.top - o + 'px'; g.style.transform = `scale(${view.z})`; }
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
+    if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
     const type = placing.type, more = placing.extra || {}; stopPlacing();
     const extra = type === 'doc' ? { text: '', body: '' } : type === 'canvas' ? { text: '' } : type === 'link' ? { url: '' } : type === 'shape' ? { shape: more.shape, fill: 'gray', text: '', r: 0 } : type === 'note' ? { name: '', color: 'white' } : type === 'todo' ? { text: '', items: [{ t: 'first thing', done: false }] } : type === 'title' ? { text: '' }
       : type === 'coll' ? { text: '', color: 'pink', kids: [], cols: 1 } : type === 'swatch' ? { hex: '#ff9ec4', label: 'Pink' } : {};
@@ -887,6 +894,43 @@
     if (['note', 'todo', 'title', 'doc', 'canvas'].includes(type)) setTimeout(() => startEdit(c.id), 30);
     if (type === 'coll') setTimeout(() => startEdit(c.id), 30);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
+  }
+
+  // ---------- stamps: Mochi's emojis, moving Mochis and regular emoji, stamped with a little burst ----------
+  const M = n => 'stamps/mochi' + (n ? '-' + n : '') + '.png';
+  const STAMPS = {
+    mochi: [['Mochi', M('')], ['Happy', M('happy')], ['Love', M('love')], ['Party', M('party')], ['Wave', M('wave')], ['Shook', M('shook')], ['Sleepy', M('sleepy')], ['Cry', M('cry')], ['Sigh', M('sigh')]].map(([n, src]) => ({ n, src })),
+    moving: [{ n: 'Bounce', src: 'stamps/mochi-bounce.gif' }, { n: 'Sigh', src: 'stamps/mochi-sigh.gif' }, { n: 'Hi!', src: M('wave'), mv: 'wiggle' }, { n: 'Love', src: M('love'), mv: 'pulse' },
+      { n: 'Party', src: M('party'), mv: 'spin' }, { n: 'Shook', src: M('shook'), mv: 'shake' }, { n: 'Sleepy', src: M('sleepy'), mv: 'float' }, { n: 'Happy', src: M('happy'), mv: 'squish' }, { n: 'Hop', src: M(''), mv: 'hop' }],
+    emoji: [...'❤️ 👍 👎 ⭐ ✨ 🌈 🔥 🎉 💯 ✅ ❌ ❓ ❗ 💡 👀 🙌 👏 🤔 😍 😂 🥹 😭 😅 🫶 💖 🩷 💜 💙 🌸 🌷 🍓 🍑 🧁 ☕ 🚀 📌 📍 🎯 🏆 🧠 💬 🗓️ ⏰ 🔗 🎨 🖍️ 📸 🎧'.split(' ')].map(e => ({ n: e, emoji: e })),
+  };
+  const WHEEL_DEFAULT = [{ emoji: '❤️' }, { emoji: '👍' }, { src: M('love') }, { emoji: '⭐' }, { src: 'stamps/mochi-bounce.gif' }, { emoji: '❓' }, { emoji: '🌈' }, { src: M('happy'), mv: 'squish' }];
+  // the wheel keeps your favorites; anything you pick from the full list joins it
+  let wheel = WHEEL_DEFAULT; try { const w0 = JSON.parse(localStorage.getItem('mochiboard:wheel') || 'null'); if (Array.isArray(w0) && w0.length === 8) wheel = w0; } catch (e) {}
+  const stampHTML = st => st.src ? `<img src="${esc(st.src)}" alt="">` : esc(st.emoji);
+  function renderWheel() {
+    $('wsRing').innerHTML = wheel.map((st, i) => { const a = (i / 8) * Math.PI * 2 - Math.PI / 2, x = 110 + Math.cos(a) * 76, y = 110 + Math.sin(a) * 76;
+      return `<button data-w="${i}" class="${st.mv ? 'mv-' + st.mv : ''}" style="left:${x}px;top:${y}px">${stampHTML(st)}</button>`; }).join('');
+  }
+  function renderPick(tab = 'mochi') {
+    $('stampPick').querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    $('spGrid').innerHTML = STAMPS[tab].map((st, i) => `<button data-p="${tab}:${i}" title="${esc(st.n)}" class="${st.mv ? 'mv-' + st.mv : ''}">${stampHTML(st)}</button>`).join('');
+  }
+  const pickStamp = st => { $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); startPlacing('stamp', { stamp: st }); $('tools').querySelector('[data-add="stamp"]').classList.add('on'); };
+  $('wsRing').onclick = e => { const b = e.target.closest('[data-w]'); if (b) pickStamp(wheel[+b.dataset.w]); };
+  $('wsMid').onclick = () => { $('stampWheel').classList.remove('on'); renderPick(); $('stampPick').classList.add('on'); };
+  $('stampPick').onclick = e => {
+    const t = e.target.closest('[data-tab]'); if (t) return renderPick(t.dataset.tab);
+    const b = e.target.closest('[data-p]'); if (!b) return; const [tab, i] = b.dataset.p.split(':'), st = STAMPS[tab][+i], clean = { src: st.src, emoji: st.emoji, mv: st.mv };
+    if (!wheel.some(w2 => w2.src === clean.src && w2.emoji === clean.emoji && w2.mv === clean.mv)) { wheel = [clean, ...wheel].slice(0, 8); try { localStorage.setItem('mochiboard:wheel', JSON.stringify(wheel)); } catch (e2) {} }
+    pickStamp(clean);
+  };
+  ['stampWheel', 'stampPick'].forEach(id => $(id).addEventListener('pointerdown', e => e.stopPropagation()));
+  function stampAt(w, st) {
+    const c = card('stamp', { src: st.src, emoji: st.emoji, mv: st.mv, r: Math.round(Math.random() * 16 - 8) }); c.x = w.x - 28; c.y = w.y - 28;
+    addCard(c);
+    const r = stage.getBoundingClientRect(), b = document.createElement('div'); b.className = 'burst'; b.style.left = mouse.x - r.left + 'px'; b.style.top = mouse.y - r.top + 'px';
+    b.innerHTML = [0, 45, 90, 135, 180, 225, 270, 315].map(a => `<i style="--a:${a}deg"></i>`).join(''); stage.appendChild(b); setTimeout(() => b.remove(), 500);
   }
 
   // ---------- shapes: pick one from the little row, then place it ----------
@@ -996,13 +1040,13 @@
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url).join();
     if (bar.dataset.key === key) return; bar.dataset.key = key;
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image') h += btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
-    else if (one && !['coll', 'swatch'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
+    else if (one && !['coll', 'swatch', 'stamp'].includes(one.type)) h += btn('tag', 'tag', one.tagText ? 'Remove the label (double-click it to edit)' : 'Add a little label (like “step 1”)', !!one.tagText);
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');

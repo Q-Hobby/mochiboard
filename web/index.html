@@ -85,6 +85,7 @@
       <button data-add="image" aria-label="Image · I" data-tip="Image · I"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2.5"/><circle cx="7.5" cy="8" r="1.5"/><path d="m17 13-3.8-3.6L5 16.5"/></svg></button>
       <button data-add="swatch" aria-label="Color" data-tip="Color"><svg class="ic" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a7 7 0 1 0 0 14c1 0 1.6-.7 1.6-1.5 0-.9-.6-1.2-.6-2 0-.9.7-1.5 1.6-1.5H15a2 2 0 0 0 2-2C17 6 13.9 3 10 3z"/><circle cx="6.8" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="6.3" r=".9" fill="currentColor" stroke="none"/><circle cx="12.4" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></button>
       <button data-add="shape" aria-label="Shapes · S" data-tip="Shapes · S"><svg class="ic" viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2.8l3.2 5.6H3.3z"/><circle cx="14" cy="6" r="3.2"/><rect x="3.3" y="11.5" width="6" height="6" rx="1"/><path d="M14 11.2v6.6M10.7 14.5h6.6"/></svg></button>
+    <button data-add="stamp" aria-label="Stamps · E" data-tip="Stamps · E"><svg class="ic" viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><circle cx="7.6" cy="8.6" r=".9" fill="currentColor" stroke="none"/><circle cx="12.4" cy="8.6" r=".9" fill="currentColor" stroke="none"/><path d="M7.2 11.8c1.5 1.8 4.1 1.8 5.6 0"/></svg></button>
     <span class="zoom" id="zoom">100%</span>
     </div>
     <div class="selbar" id="selbar"></div>
@@ -102,6 +103,12 @@
     <form class="linkbox" id="linkbox"><input id="linkInput" placeholder="Paste a link… (a site, a Figma file, a video)" autocomplete="off" spellcheck="false"><button>Add</button></form>
   </div>
   <div class="ghost" id="ghost"></div>
+  <!-- stamps: a wheel of favorites; the middle opens every stamp -->
+  <div class="wheel-stamps" id="stampWheel"><div class="ws-ring" id="wsRing"></div><button class="ws-mid" id="wsMid" title="All stamps">+</button></div>
+  <div class="stamp-pick" id="stampPick">
+    <div class="sp-tabs"><button data-tab="mochi" class="on">Mochi</button><button data-tab="moving">Moving Mochi</button><button data-tab="emoji">Emoji</button></div>
+    <div class="sp-grid" id="spGrid"></div>
+  </div>
   <!-- shapes: pick one, then place it -->
   <div class="shapepick" id="shapePick">
     <button data-shape="line" title="Line"><svg viewBox="0 0 20 20"><path d="M3 17L17 3"/></svg></button>
