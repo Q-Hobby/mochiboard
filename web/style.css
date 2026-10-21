@@ -937,3 +937,8 @@ body.dark .dz-piece-grid button { background: #302b35; } body.dark .dz-icons inp
 .card.wf.sel .rot-h { display: block; }
 .card.wf.grouped.sel::after { border-style: dashed; }
 .card.frame .rot-h { display: none !important; }
+/* speed: the hand-cut wobble is lovely but costly; it steps aside while the view moves, and when zoomed far out */
+.stage.moving .card .frame, .stage.far .card .frame, .stage.moving .coll-frame::before, .stage.far .coll-frame::before,
+.stage.moving .card.shape svg.sh, .stage.far .card.shape svg.sh { filter: none !important; }
+.stage.moving .world { will-change: transform; }
+.stage.far .card.wf .rot-h, .stage.far .card .knob { display: none; }

@@ -364,8 +364,10 @@
   }
 
   // ---------- view ----------
+  let movingT = 0;
   function applyView() {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+    stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => stage.classList.remove('moving'), 180);
     const s = 26 * view.z; grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
     $('zoom').textContent = Math.round(view.z * 100) + '%';
   }
@@ -771,7 +773,7 @@
   });
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
   stage.addEventListener('wheel', e => {
-    if (e.target.closest('.tray-list, .m-bubble, .cpop, .home')) return; e.preventDefault();
+    if (e.target.closest('.tray-list, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick')) return; e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01));
     else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
   }, { passive: false });
@@ -1737,11 +1739,14 @@
     bar.innerHTML = h;
   }
   let coverT = 0;
+  let coverKey = '';
   function checkTitleCover() {
-    const t = document.querySelector('.top'); if (!t || !board) return; const r = t.getBoundingClientRect(), pad = 6;
-    const hit = [...cardsEl.children].some(el => { const c = el.getBoundingClientRect(); return c.right > r.left - pad && c.left < r.right + pad && c.bottom > r.top - pad && c.top < r.bottom + pad; });
-    t.classList.toggle('covered', hit);
+    const t = document.querySelector('.top'); if (!t || !board) return; const key = view.x + ',' + view.y + ',' + view.z + ',' + board.cards.length + ',' + (drag ? 1 : 0);
+    if (key === coverKey && !drag) return; coverKey = key;
+    const r = t.getBoundingClientRect(), a = toWorld(r.left - 6, r.top - 6), b = toWorld(r.right + 6, r.bottom + 6);
+    t.classList.toggle('covered', board.cards.some(c => c.x < b.x && c.x + c.w > a.x && c.y < b.y && c.y + c.h > a.y));
   }
+
   (function tick() { placeSelbar(); if (++coverT % 8 === 0) checkTitleCover(); requestAnimationFrame(tick); })();
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
   $('selbar').addEventListener('input', e => { if (!e.target.matches('[data-sfany]')) return; const one = selCards()[0]; if (!one) return; one.fill = e.target.value; renderCard(one); selectOnly([one.id]); e.target.closest('.sf-any').style.setProperty('--any', one.fill); save(); });
