@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
         switch op {
         case "usage": reply(true, usageSummary())
+        case "version": reply(true, appVersion)
         case "resetUsage": usageLock.lock(); try? FileManager.default.removeItem(at: usageFile); usageLock.unlock(); reply(true, true)
         case "list":
             let files = (try? FileManager.default.contentsOfDirectory(at: boardsDir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []

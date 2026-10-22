@@ -11,6 +11,7 @@ Write them for people, not for code: one line, what changed and why it's nice.
 - Settings has tabs now (General, Mochi, Helpers, Board, About), so it's easier to find things.
 - See how much Claude Mochi has used, in Settings → Helpers, with a link to your plan's limits.
 - Peach boards get their color dot back in the sidebar.
+- A little “What’s new” card the first time you open a new version.
 - You can download Mochiboard straight from jessa.art now, no Terminal needed. It runs on Apple chip and Intel Macs.
 - Group anything together so it moves as one: select a few things, then Group (or ⌘G). Right-click to ungroup.
 - Updates now live in Settings: Mochiboard tells you when there's a new version and updates with one tap.

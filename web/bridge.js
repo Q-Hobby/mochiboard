@@ -25,7 +25,7 @@
     async remove(id) { localStorage.removeItem(LS + 'board:' + id); localStorage.setItem(LS + 'index', JSON.stringify(JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== id))); return true; },
     web, getURL: 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip',
     async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true, web }; },
-    async usage() { return null; }, async resetUsage() { return true; },
+    async usage() { return null; }, async resetUsage() { return true; }, async version() { return null; },
     async fetchImage(url) { return url; },
     async openURL(url) { window.open(url, '_blank'); },
     async speechAuth() { return 'ok'; },
@@ -54,7 +54,7 @@
     native: true,
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
-    usage: () => call('usage'), resetUsage: () => call('resetUsage'),
+    usage: () => call('usage'), resetUsage: () => call('resetUsage'), version: () => call('version'),
     linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
     connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'), higgsQuote: o => call('higgsQuote', o || {}), updateCheck: () => call('updateCheck'), updateNow: () => call('updateNow'), higgsMake: o => call('higgsMake', o), drawFill: o => call('drawFill', o),
   } : Object.assign({ native: false }, browser);

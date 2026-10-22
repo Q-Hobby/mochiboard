@@ -2399,6 +2399,28 @@
 
   if (MB.web) document.body.classList.add('web');
   document.querySelectorAll('.get-app').forEach(b => b.onclick = e => { e.stopPropagation(); getApp(); });
+  // ---------- what's new: a little card, once, the first time a new version opens ----------
+  const NEWS = { '1.1.0': [
+    ['🧩', 'Design thinking templates', 'Affinity maps, journey maps, impact / effort and more, from the new button in the toolbar. Each one comes with an example and a how-to note from me.'],
+    ['📶', 'Works without internet', 'Your boards keep working offline. I’ll tell you when I can’t think with Claude and pick back up when you’re online.'],
+    ['🗂️', 'Canvases go anywhere', 'Drag a canvas onto another board, into a folder, or right-click to make it its own board.'],
+    ['⚙️', 'Tidier Settings', 'Settings has tabs now, and Helpers shows how much Claude I’ve used, with a link to your plan’s limits.'],
+  ] };
+  const newsKey = 'mochiboard:newsSeen';
+  async function maybeNews() {
+    let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
+    let seen = null; try { seen = localStorage.getItem(newsKey); } catch (e) {}
+    try { localStorage.setItem(newsKey, v); } catch (e) {}
+    if (seen === v || !NEWS[v]) return;
+    $('newsV').textContent = `Mochiboard ${v}`;
+    $('newsList').innerHTML = NEWS[v].map(([e, t, d]) => `<li><span class="nw-e">${e}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
+    $('news').classList.add('on');
+  }
+  const closeNews = () => $('news').classList.remove('on');
+  $('newsOk').onclick = closeNews;
+  $('newsTry').onclick = () => { closeNews(); $('tools').querySelector('[data-add="tpl"]').click(); };
+  $('news').onclick = e => { if (e.target === $('news')) closeNews(); };
+
   // ---------- start ----------
   (async () => {
     let list = await MB.list();
@@ -2407,9 +2429,10 @@
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
     applySettings();
     let onboarded = true; try { onboarded = !!localStorage.getItem('mochiboard:onboarded'); } catch (e) {}
-    if (!onboarded) { setTimeout(() => { fit(board.cards); openSetup(); }, 400); showConnections(true); return; }
+    if (!onboarded) { try { localStorage.setItem(newsKey, (await MB.version().catch(() => null)) || Object.keys(NEWS).pop()); } catch (e) {} setTimeout(() => { fit(board.cards); openSetup(); }, 400); showConnections(true); return; }   // brand new: the tour covers it, no what's new
     setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say(`Hi${settings.name ? ' ' + settings.name : ''}, it's Mochi! Dump ideas with ⌘K, then ask me to sort them ✦`, 7000); }, 400);
     showConnections(true);
+    setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
   window.__mb = { openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
