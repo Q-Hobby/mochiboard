@@ -5,6 +5,7 @@ Write them for people, not for code: one line, what changed and why it's nice.
 
 ## October 2026
 
+- The What’s new card uses Mochiboard’s own icons.
 - Dark mode fixes: the templates menu and the stamp wheel’s + button are easy to see now.
 - Design thinking templates in the toolbar: affinity map, opportunity map, impact / effort, empathy map, journey map, how might we, and rose, thorn, bud. Each comes with an example and a how-to note from Mochi.
 - Mochiboard works without internet. Everything on the board keeps working; Mochi just tells you she'll think again once you're back online.
