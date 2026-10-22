@@ -2411,9 +2411,12 @@
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
     let seen = null; try { seen = localStorage.getItem(newsKey); } catch (e) {}
     try { localStorage.setItem(newsKey, v); } catch (e) {}
-    if (seen === v || !NEWS[v]) return;
+    // everything new since the version you last saw (a small fix release has no card of its own)
+    const num = x => String(x || '0').replace(/^v/, '').split('.').map(n => +n || 0), after = (x, y) => { const a = num(x), b = num(y); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
+    const items = Object.keys(NEWS).filter(k => (!seen || after(k, seen)) && !after(k, v)).flatMap(k => NEWS[k]);
+    if (seen === v || !items.length) return;
     $('newsV').textContent = `Mochiboard ${v}`;
-    $('newsList').innerHTML = NEWS[v].map(([e, t, d]) => `<li><span class="nw-e">${e}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
+    $('newsList').innerHTML = items.map(([e, t, d]) => `<li><span class="nw-e">${e}</span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
     $('news').classList.add('on');
   }
   const closeNews = () => $('news').classList.remove('on');
