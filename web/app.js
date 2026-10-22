@@ -467,9 +467,9 @@
   function fit(cards, pad = 120, maxZ = 1.4) {
     if (!cards.length) return; const r = stage.getBoundingClientRect();
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y)), x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
-    const L = 270, ch = chatOpen() && $('mChat').getBoundingClientRect(), R = ch && ch.width ? Math.max(260, Math.min(r.right - ch.left + 30, r.width - L - 520)) : 260;   // the open space between the left boxes and the tray (or Mochi's chat, when it's open)
+    const ph = document.body.classList.contains('phone'), L = ph ? 0 : 270, ch = !ph && chatOpen() && $('mChat').getBoundingClientRect(), R = ph ? 0 : ch && ch.width ? Math.max(260, Math.min(r.right - ch.left + 30, r.width - L - 520)) : 260;   // a phone has no side panels to leave room for   // the open space between the left boxes and the tray (or Mochi's chat, when it's open)
     view.z = clamp(Math.min((r.width - L - R - pad) / (x1 - x0), (r.height - pad * 2) / (y1 - y0)), .2, maxZ);
-    view.x = L + (r.width - L - R - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (y1 - y0) * view.z) / 2 - y0 * view.z;
+    view.x = L + (r.width - L - R - (x1 - x0) * view.z) / 2 - x0 * view.z; view.y = (r.height - (ph ? 90 : 0) - (y1 - y0) * view.z) / 2 - y0 * view.z + (ph ? 20 : 0);
     world.style.transition = 'transform .5s cubic-bezier(.2,.8,.3,1)'; applyView(); setTimeout(() => world.style.transition = '', 520);
   }
 
@@ -633,6 +633,7 @@
   function selectWire(id) { selWire = id; if (id) selectOnly([]); renderWires(); }
   const byId = id => board.cards.find(c => c.id === id);
   function renderTray() {
+    if (window.__phone?.on) setTimeout(window.__phone.count);
     const list = $('trayList'); list.innerHTML = ''; $('trayCount').textContent = board.tray.length;
     board.tray.forEach(c => { const d = document.createElement('div'); d.className = 'tray-item'; d.dataset.id = c.id; d.style.setProperty('--tilt', (c.r / 2) + 'deg');
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
@@ -781,8 +782,9 @@
     const cs = ids.map(byId).filter(Boolean); if (!cs.length) return; const r = stage.getBoundingClientRect();
     const x0 = Math.min(...cs.map(c => c.x)), y0 = Math.min(...cs.map(c => c.y)), x1 = Math.max(...cs.map(c => c.x + c.w)), y1 = Math.max(...cs.map(c => c.y + c.h));
     const sx0 = x0 * view.z + view.x, sy0 = y0 * view.z + view.y, sx1 = x1 * view.z + view.x, sy1 = y1 * view.z + view.y;
-    if (sx0 > 280 && sx1 < r.width - 40 && sy0 > 60 && sy1 < r.height - 100) return;   // already on screen
-    const tx = 270 + (r.width - 270) / 2 - (x0 + x1) / 2 * view.z, ty = r.height / 2 - (y0 + y1) / 2 * view.z, fx = view.x, fy = view.y, t0 = performance.now();
+    const L = document.body.classList.contains('phone') ? 0 : 270;   // the side panels' room (none on a phone)
+    if (sx0 > L + 10 && sx1 < r.width - 40 && sy0 > 60 && sy1 < r.height - 100) return;   // already on screen
+    const tx = L + (r.width - L) / 2 - (x0 + x1) / 2 * view.z, ty = r.height / 2 - (y0 + y1) / 2 * view.z, fx = view.x, fy = view.y, t0 = performance.now();
     const step = t => { const k = Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - k, 3); view.x = fx + (tx - fx) * e; view.y = fy + (ty - fy) * e; applyView(); if (k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   }
@@ -915,6 +917,7 @@
     }
     endEdit();
     if (!e.shiftKey) selectOnly([]);
+    if (e.pointerType === 'touch') { if (!e.shiftKey) selectOnly([]); drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }   // a finger on empty board moves the board
     drag = { mode: 'marquee', sx: e.clientX, sy: e.clientY, base: new Set(sel) }; stage.setPointerCapture(e.pointerId);
   });
   stage.addEventListener('pointermove', e => {
@@ -1245,7 +1248,9 @@
   addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse' || !document.body.classList.contains('fancy-cursor')) return;
     myCur.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`; myCur.classList.add('show');
-    const t = e.target, native = !!(t.closest && t.closest(NATIVE));
+    // at the window's edges, hand back the Mac's own cursor so its resize arrows show (and you can see where to grab)
+    const edge = MB.native && (e.clientX < 8 || e.clientY < 8 || e.clientX > innerWidth - 8 || e.clientY > innerHeight - 8); document.body.classList.toggle('cur-edge', edge);
+    const t = e.target, native = edge || !!(t.closest && t.closest(NATIVE));
     myCur.classList.toggle('hide', native); document.body.classList.toggle('cur-native', native);
     const onCard = !native && !placing && !drawOn && t.closest && t.closest('.card') && !t.closest('button, a, input');
     myCur.classList.toggle('grabby', !!onCard || stage.classList.contains('space') || stage.classList.contains('panning'));
@@ -1377,9 +1382,11 @@
       notes.forEach((c, i) => { c.x = x0 + (i % 4) * 250; c.y = y0 + Math.floor(i / 4) * 180; c.r = tilt(); renderCard(c); }); renderWires(); save();
       return say(`I lined your ${notes.length} notes up in tidy rows ✦ ${why}`, 9000);
     }
-    say(`${why} Everything else on the board works without me thinking ✦`, 9000, haveClaude === false && settings.ai ? [{ label: 'Get Claude Code', run: () => MB.openURL('https://claude.com/claude-code') }] : []);
+    say(`${why} Everything else on the board works without me thinking ✦`, 0, (haveClaude === false || offlineMochi.signin) && settings.ai ? [{ label: 'Show me how to connect', run: () => MB.openURL(GUIDE) }] : []); offlineMochi.signin = false;
   }
   let haveClaude = null;
+  const GUIDE = 'https://mochiboard.app/connect.html';   // the step-by-step page for connecting Claude Code
+  const SIGNIN = /log ?in|api key|auth|credential|subscription|not (signed|logged)|oauth|unauthori[sz]ed|401|403/i;
   // the web demo: Mochi tidies for real, and for anything that needs AI she points you to the Mac app
   const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip');
   const DL = [{ label: 'Download Mochiboard ✦', run: getApp }, { label: 'Keep playing', ghost: true, run: () => {} }];
@@ -1393,13 +1400,15 @@
     if (MB.web) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); return webMochi(q); }
     if (!settings.ai || haveClaude === false) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); }
     if (!settings.ai) return offlineMochi(q, "My thinking is switched off in Settings, so I can only do simple tidying.");
-    if (haveClaude === false) return offlineMochi(q, "I need Claude Code on this Mac to think.");
+    if (haveClaude === false) { await showConnections(true); if (haveClaude === false) return offlineMochi(q, "I need Claude Code on this Mac to think. It's a one-time setup with your Claude account."); }   // look again first: they may have just set it up
     if (!navigator.onLine) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); return offlineMochi(q, "You're offline, so I can't think with Claude right now. I'll be back when the internet is."); }
     if (!chatOpen()) mochiOpen(true);
     if (!confirmed) addMsg('me', q); else addMsg('mochi', 'Making it… this can take a minute ✦');
     $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true); typing(true);
     try { const raw = await MB.ask(q, snapshot(), confirmed, { mobbin: settings.mobbin, higgs: settings.higgs }); await applyMochi(parse(raw), q); }
-    catch (err) { if (/Claude Code/.test(err.message)) { haveClaude = false; return offlineMochi(q, 'I need Claude Code on this Mac to think.'); } say("Hmm, I couldn't reach Claude: " + err.message); }
+    catch (err) { if (/Claude Code/.test(err.message)) { haveClaude = false; return offlineMochi(q, "I need Claude Code on this Mac to think. It's a one-time setup with your Claude account."); }
+      if (SIGNIN.test(err.message)) { offlineMochi.signin = true; return offlineMochi(q, "Claude Code is here, but it isn't signed in yet. Open Terminal, type claude, and sign in with a Claude Pro or Max account."); }
+      say("Hmm, I couldn't reach Claude: " + err.message); }
     finally { $('mochi').classList.remove('thinking'); goo.think(false); favGoo?.think(false); typing(false); }
   }
   $('mForm').onsubmit = e => { e.preventDefault(); const q = $('mInput').value.trim(); if (!q) return; $('mInput').value = ''; mochiOpen(false); $('mInput').placeholder = 'Ask Mochi… “group these by theme”'; ask(q); };
@@ -1495,11 +1504,11 @@
     const els = [...document.querySelectorAll('.conns')];
     els.forEach(el => { if (!el.children.length) el.innerHTML = ['Claude Code', 'Mobbin', 'Higgsfield'].map(n => `<div class="conn"><span class="dot"></span>${n}<em style="color:var(--ink-faint)">checking…</em></div>`).join(''); });
     const c = await MB.connections().catch(() => ({})); if (!c.browser) haveClaude = !!c.claude;
-    const rows = [['claude', 'Claude Code', 'https://claude.com/claude-code', 'Install'], ['mobbin', 'Mobbin', 'https://claude.ai/settings/connectors', 'Connect'], ['higgsfield', 'Higgsfield', 'https://claude.ai/settings/connectors', 'Connect']];
+    const rows = [['claude', 'Claude Code', GUIDE, 'Set up'], ['mobbin', 'Mobbin', 'https://claude.ai/settings/connectors', 'Connect'], ['higgsfield', 'Higgsfield', 'https://claude.ai/settings/connectors', 'Connect']];
     els.forEach(el => { el.innerHTML = '';
     rows.forEach(([k, name, url, verb]) => { const r = document.createElement('div'); r.className = 'conn' + (c[k] ? ' on' : ''); r.innerHTML = `<span class="dot"></span>${name}`;
       if (c[k]) r.insertAdjacentHTML('beforeend', '<em>ready</em>');
-      else if (!c.browser) { const b = document.createElement('button'); b.textContent = verb; b.onclick = () => { MB.openURL(url); say(k === 'claude' ? 'Install Claude Code, then reopen Mochiboard and I can think on your boards!' : `Connect ${name} in your Claude settings (Connectors), then come back. I'll check again when you reopen me ✦`, 9000); }; r.appendChild(b); }
+      else if (!c.browser) { const b = document.createElement('button'); b.textContent = verb; b.onclick = () => { MB.openURL(url); say(k === 'claude' ? 'Follow the steps on that page, then come back. I’ll notice as soon as Claude Code is ready!' : `Connect ${name} in your Claude settings (Connectors), then come back. I'll check again when you reopen me ✦`, 9000); }; r.appendChild(b); }
       el.appendChild(r); }); });
   }
   addEventListener('focus', () => showConnections());
@@ -1539,6 +1548,9 @@
     if (type === 'coll') c.r = 0;
     if (type === 'link') c.h = 52;
     if (type === 'shape' && more.shape === 'line') { c.w = 200; c.h = 24; }
+    if (window.__phone?.on) {   // a finger has no ghost to aim with: center it on the tap, and keep it on screen
+      const r = stage.getBoundingClientRect(), z = view.z, mx = 12 / z, wl = (r.left + 12 - view.x) / z, wr = (r.right - 12 - view.x) / z, wt = (r.top + 70 - view.y) / z, wb = (r.bottom - 100 - view.y) / z;
+      c.x = snapTo(clamp(w.x - c.w / 2, wl, Math.max(wl, wr - c.w))); c.y = snapTo(clamp(w.y - c.h / 2, wt, Math.max(wt, wb - c.h))); }
     if (type === 'swatch') { c.label = colorName(c.hex); c.autoName = true; }
     if (type === 'canvas') { const child = newBoard('Untitled canvas'); child.parent = board.id; child.folder = board.folder || null; c.board = child.id; MB.save(child).then(refreshBoards); }
     addCard(c); selectOnly([c.id]);
@@ -2744,13 +2756,115 @@
   $('newsOk').onclick = closeNews;
   $('news').onclick = e => { if (e.target === $('news')) closeNews(); };
 
+  // ---------- phone: the board gets the whole screen. Panels slide up as bottom sheets, and the bottom bar becomes a hub ----------
+  // The sheets hold the app's real panels (moved in while on a phone, put back on a bigger screen), so everything works the same.
+  const phone = (() => {
+    const mq = matchMedia('(max-width: 700px)'), home = new Map();
+    const PI = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+    const hub = document.createElement('div'); hub.className = 'hub'; hub.id = 'hub';
+    hub.innerHTML = `<button data-sheet="boards">${PI('<rect x="3" y="3" width="6" height="6" rx="1.6"/><rect x="11" y="3" width="6" height="6" rx="1.6"/><rect x="3" y="11" width="6" height="6" rx="1.6"/><rect x="11" y="11" width="6" height="6" rx="1.6"/>')}<span>Boards</span></button>`
+      + `<button data-sheet="layers">${PI('<path d="M10 3l7 3.8-7 3.8-7-3.8z"/><path d="M3 10.2l7 3.8 7-3.8"/><path d="M3 13.6l7 3.8 7-3.8"/>')}<span>Layers</span></button>`
+      + `<button class="hub-add" data-sheet="add" aria-label="Add something">${PI('<path d="M10 4v12M4 10h12" stroke-width="2.4"/>')}</button>`
+      + `<button data-sheet="tray">${PI('<path d="M3 11.5l2.2-6.3A1.5 1.5 0 0 1 6.6 4h6.8a1.5 1.5 0 0 1 1.4 1.2l2.2 6.3V15a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15z"/><path d="M3 11.5h4l1 2h4l1-2h4"/>')}<span>Unsorted</span><b class="hub-n" id="hubN"></b></button>`
+      + `<button data-hub="mochi"><canvas id="hubGoo" width="64" height="56"></canvas><span>Mochi</span></button>`;
+    const sh = document.createElement('div'); sh.className = 'sheet'; sh.id = 'sheet';
+    sh.innerHTML = '<div class="sh-veil"></div><div class="sh-panel" role="dialog"><div class="sh-grab"><i></i></div><div class="sh-head"><b id="shTitle"></b><div class="sh-tabs" id="shTabs"></div><button class="sh-x" aria-label="Close">×</button></div><div class="sh-body" id="shBody"></div></div>';
+    document.body.appendChild(sh);
+    const hubGoo = Goo(hub.querySelector('#hubGoo')); goos.push(hubGoo);
+    const box = k => document.querySelector(`.box[data-box="${k}"]`);
+    const SHEETS = {
+      boards: { title: 'Boards', tabs: [['Boards', () => box('boards')]] },
+      layers: { title: 'Layers', tabs: [['Layers', () => box('layers')]] },
+      add: { title: 'Add', tabs: [['Basics', () => $('tools')], ['Wireframe', () => $('design')], ['Colors', () => box('colors')]] },
+      tray: { title: 'Unsorted', tabs: [['Ideas', () => $('tray')]] },
+    };
+    let open = null, tab = 0;
+    // move a real panel into the sheet (remembering where it lived) or put it back
+    const adopt = el => { if (!home.has(el)) home.set(el, [el.parentNode, el.nextSibling]); };
+    const restoreAll = () => home.forEach(([p, n], el) => { p.insertBefore(el, n && n.parentNode === p ? n : null); el.classList.remove('in-sheet'); });
+    function show(name, t = 0) {
+      const S = SHEETS[name]; if (!S) return; open = name; tab = t;
+      $('shTitle').textContent = S.title;
+      $('shTabs').innerHTML = S.tabs.length > 1 ? S.tabs.map(([l], i) => `<button data-t="${i}" class="${i === t ? 'on' : ''}">${l}</button>`).join('') : '';
+      const body = $('shBody'); [...body.children].forEach(c => c.classList.remove('shown'));
+      S.tabs.forEach(([, get], i) => { const el = get(); if (!el) return; adopt(el); if (el.parentNode !== body) body.appendChild(el); el.classList.add('in-sheet'); el.classList.toggle('shown', i === t); });
+      if (name === 'tray') $('tray').classList.remove('closed');
+      sh.classList.add('on'); hub.querySelectorAll('[data-sheet]').forEach(b => b.classList.toggle('on', b.dataset.sheet === name));
+      if (name === 'layers') renderLayers();
+    }
+    function hide() { open = null; sh.classList.remove('on'); sh.querySelector('.sh-panel').style.transform = ''; hub.querySelectorAll('[data-sheet]').forEach(b => b.classList.remove('on')); }
+    hub.addEventListener('click', e => {
+      const b = e.target.closest('[data-sheet], [data-hub]'); if (!b) return;
+      if (b.dataset.hub === 'mochi') { hide(); hubGoo.hop(); return mochiOpen(!$('mochi').classList.contains('chat')); }
+      if (open === b.dataset.sheet) return hide();
+      mochiOpen(false); show(b.dataset.sheet);
+    });
+    $('shTabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b) show(open, +b.dataset.t); };
+    sh.querySelector('.sh-veil').onclick = hide; sh.querySelector('.sh-x').onclick = hide;
+    // drag the sheet down by its handle to close it
+    { const grab = sh.querySelector('.sh-grab'), panel = sh.querySelector('.sh-panel'); let y0 = null, dy = 0;
+      grab.addEventListener('pointerdown', e => { y0 = e.clientY; dy = 0; grab.setPointerCapture(e.pointerId); panel.style.transition = 'none'; });
+      grab.addEventListener('pointermove', e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); panel.style.transform = `translateY(${dy}px)`; });
+      grab.addEventListener('pointerup', () => { if (y0 === null) return; y0 = null; panel.style.transition = ''; if (dy > 90) hide(); else panel.style.transform = ''; }); }
+    // picking something to place closes the sheet, so the next tap lands on the board
+    const ready = () => placing || drawOn || ['shapePick', 'tplPick', 'stampWheel', 'linkbox'].some(id => $(id).classList.contains('on'));
+    $('shBody').addEventListener('click', () => { setTimeout(() => ready() && hide(), 0); setTimeout(() => open && ready() && hide(), 700); });   // the second look catches tools that get ready a moment later (a voice memo asks for the mic first)
+    // layers and boards: once you pick one, get out of the way so you can see it
+    box('layers').addEventListener('click', e => { if (phone.on && e.target.closest('.ly') && !e.target.closest('.ly-tw, .ly-b')) setTimeout(hide, 60); });
+    box('boards').addEventListener('click', e => { if (phone.on && e.target.closest('.board-row')) setTimeout(hide, 60); });
+    // Unsorted on a phone: tap an idea to drop it in the middle of the board (Mochi points it out)
+    $('trayList').addEventListener('pointerdown', e => {
+      if (!phone.on) return; const it = e.target.closest('.tray-item'); if (!it) return; e.stopImmediatePropagation(); e.preventDefault();
+      const c = board.tray.find(x => x.id === it.dataset.id); if (!c) return;
+      const r = stage.getBoundingClientRect(), w = toWorld(r.left + r.width / 2, r.top + r.height * .42);
+      c.x = w.x - c.w / 2; c.y = w.y - c.h / 2; board.tray = board.tray.filter(x => x !== c); addCard(c); renderTray(); hide(); selectOnly([c.id]); lyFlash([c.id]);
+    }, true);
+    function set(on) {
+      phone.on = on; document.body.classList.toggle('phone', on);
+      if (on) { $('dock').prepend(hub);
+        $('tools').querySelectorAll('[data-tip]').forEach(b => b.dataset.name = b.dataset.tip.split(' · ')[0]);   // no keyboard on a phone, so just the names
+        if (board?.cards.length && view.z < .6) { fit(board.cards, 40, 1); applyView(); } }   // start where the cards are, at a size you can read
+      else { hide(); restoreAll(); hub.remove(); }
+      $('hubN').textContent = board?.tray?.length || '';
+    }
+    mq.addEventListener('change', e => set(e.matches));
+    $('selbar').addEventListener('scroll', e => e.target.classList.toggle('end', e.target.scrollLeft + e.target.clientWidth >= e.target.scrollWidth - 4), { passive: true });
+    return { on: false, set, hide, count: () => { $('hubN').textContent = board?.tray?.length || ''; }, init: () => set(mq.matches) };
+  })();
+  window.__phone = phone;
+
+  // ---------- touch: one finger pans an empty board, two fingers pinch to zoom, press and hold for the menu ----------
+  { const pts = new Map(); let pinch = null, hold = null;
+    stage.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      clearTimeout(hold); const x0 = e.clientX, y0 = e.clientY, tgt = e.target;
+      if (pts.size === 1 && !e.target.closest('.dock, .hub, .sheet, .top, .m-chat')) hold = setTimeout(() => {   // press and hold: the same menu as a right-click
+        if (pts.size !== 1) return; const p = [...pts.values()][0]; if (Math.hypot(p.x - x0, p.y - y0) > 8) return;
+        drag = null; stage.classList.remove('panning'); $('marquee').style.display = 'none'; navigator.vibrate?.(10);
+        tgt.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x0, clientY: y0, button: 2 }));
+      }, 520);
+      if (pts.size === 2) {   // a second finger: whatever the first was doing becomes a pinch
+        clearTimeout(hold); drag = null; stage.classList.remove('panning'); $('marquee').style.display = 'none';
+        const [a, b] = [...pts.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: view.z, wx: (mx - view.x) / view.z, wy: (my - view.y) / view.z };
+      }
+    }, true);
+    addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && pts.size >= 2) { const [a, b] = [...pts.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        view.z = clamp(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, .2, 3); view.x = mx - pinch.wx * view.z; view.y = my - pinch.wy * view.z; applyView(); }
+    }, true);
+    const end = e => { if (!pts.delete(e.pointerId)) return; clearTimeout(hold); if (pts.size < 2 && pinch) { pinch = null; save(); } };
+    addEventListener('pointerup', end, true); addEventListener('pointercancel', end, true);
+  }
+
   // ---------- start ----------
   (async () => {
     let list = await MB.list();
     if (!list.length) { const b = newBoard('Brain dump', 'Brain dump'); b.name = 'My first board'; await MB.save(b); list = await MB.list(); }
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
-    applySettings();
+    applySettings(); phone.init();
     let onboarded = true; try { onboarded = !!localStorage.getItem('mochiboard:onboarded'); } catch (e) {}
     if (!onboarded) { try { localStorage.setItem(newsKey, (await MB.version().catch(() => null)) || Object.keys(NEWS).pop()); } catch (e) {} setTimeout(() => { fit(board.cards); openSetup(); }, 400); showConnections(true); return; }   // brand new: the tour covers it, no what's new
     setTimeout(() => { fit(board.cards); if (settings.greet && settings.chat !== 'quiet') say(`Hi${settings.name ? ' ' + settings.name : ''}, it's Mochi! Dump ideas with ⌘K, then ask me to sort them ✦`, 7000); }, 400);

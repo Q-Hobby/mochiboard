@@ -1283,3 +1283,110 @@ body.dark .dbs-knob { background: #ece8f0; }
 @keyframes lfSpark { 0% { opacity: 0; transform: scale(.3) rotate(0); } 40% { opacity: 1; transform: scale(1.15) rotate(40deg); } 100% { opacity: 0; transform: scale(.8) rotate(90deg); } }
 
 .tgl, label.set-row { cursor: pointer; }   /* switches are buttons, never a text cursor (with the Mac cursor too) */
+
+/* ---------- phone: the board fills the screen, panels live in bottom sheets, the bottom bar is a hub ---------- */
+.hub, .sheet { display: none; }
+body.phone { --hub-h: 64px; --safe: env(safe-area-inset-bottom, 0px); touch-action: manipulation; }
+body.phone .stage { touch-action: none; }
+body.phone .side, body.phone .keys, body.phone .capture, body.phone #rh::before { display: none !important; }
+body.phone .tray:not(.in-sheet), body.phone .design:not(.in-sheet) { display: none !important; }
+/* the top: board name, small and out of the way */
+body.phone .top { left: 14px; right: 14px; top: 12px; max-width: none; padding: 8px 12px; border-radius: 16px; background: rgba(255, 255, 255, .86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 6px 18px rgba(120, 80, 120, .1); }
+body.phone .top .crumbs { display: none; }
+body.phone .board-name { font-size: 20px; width: 100%; }
+body.phone .saved { display: none; }
+/* the hub */
+body.phone .dock { left: 10px; right: 10px; bottom: calc(10px + var(--safe)); transform: none; display: block; }
+body.phone .hub { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; height: var(--hub-h); padding: 6px 6px; border-radius: 24px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 14px 34px rgba(120, 80, 120, .18), 0 0 0 1px rgba(120, 80, 120, .05); }
+.hub button { position: relative; display: grid; justify-items: center; align-content: center; gap: 3px; height: 52px; border: 0; border-radius: 16px; background: none; color: var(--ink-soft); font: 600 10.5px/1 var(--font); -webkit-tap-highlight-color: transparent; }
+.hub button svg { width: 22px; height: 22px; }
+.hub button.on { color: var(--ink); background: var(--blush); }
+.hub .hub-add { width: 58px; height: 58px; justify-self: center; margin-top: -26px; border-radius: 50%; background: var(--pink-deep); color: #fff; box-shadow: 0 10px 24px rgba(226, 100, 154, .45), 0 0 0 5px rgba(255, 255, 255, .95); transition: transform .2s; }
+.hub .hub-add svg { width: 26px; height: 26px; }
+.hub .hub-add.on { background: var(--ink); color: #fff; transform: rotate(45deg); }
+.hub canvas { width: 30px; height: 26px; image-rendering: pixelated; }
+.hub-n { position: absolute; top: 3px; right: calc(50% - 22px); min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: var(--butter-deep); color: var(--ink); font: 700 10px/17px var(--font); }
+.hub-n:empty { display: none; }
+body.phone .dock .tools:not(.in-sheet) { display: none; }
+/* what's selected (or the pen) takes over the bottom bar */
+body.phone .dock.ctx .hub, body.phone .dock.drawing .hub { display: none; }
+body.phone .dock .selbar, body.phone .dock .drawbar { width: 100%; height: var(--hub-h); overflow-x: auto; scrollbar-width: none; border-radius: 24px; padding: 6px 8px; justify-content: flex-start; }
+body.phone .dock .selbar::-webkit-scrollbar, body.phone .dock .drawbar::-webkit-scrollbar { display: none; }
+body.phone .dock .selbar > *, body.phone .dock .drawbar > * { flex: none; }
+/* Mochi: her pill is the hub's button; her chat and bubble sit above it */
+body.phone .dock .mochi { position: static; }
+body.phone .m-pill { display: none; }
+body.phone .dock .m-bubble { position: fixed; left: 14px; right: 14px; bottom: calc(var(--hub-h) + 24px + var(--safe)); width: auto; max-width: none; }
+body.phone .m-chat { position: fixed; left: 8px; right: 8px; bottom: calc(8px + var(--safe)); top: auto; width: auto; height: min(78vh, 640px); z-index: 60; border-radius: 26px; }
+/* pickers float centered over the hub */
+body.phone .shapepick, body.phone .tplpick { left: 50% !important; bottom: calc(var(--hub-h) + 26px + var(--safe)); max-width: calc(100vw - 20px); }
+body.phone .tplpick { width: calc(100vw - 20px); max-height: 62vh; }
+body.phone .wheel-stamps, body.phone .stamp-pick { left: 50% !important; bottom: calc(var(--hub-h) + 26px + var(--safe)); }
+body.phone .stamp-pick { width: calc(100vw - 20px); margin-left: calc(-50vw + 10px); }
+/* the sheet */
+body.phone .sheet { display: block; position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.sh-veil { position: absolute; inset: 0; background: rgba(60, 30, 60, .18); opacity: 0; transition: opacity .25s; }
+.sh-panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh; display: flex; flex-direction: column; padding: 0 14px calc(14px + var(--safe)); border-radius: 28px 28px 0 0; background: #fff;
+  box-shadow: 0 -18px 50px rgba(90, 40, 80, .2); transform: translateY(105%); transition: transform .38s cubic-bezier(.2, .9, .25, 1); }
+.sheet.on { pointer-events: auto; } .sheet.on .sh-veil { opacity: 1; } .sheet.on .sh-panel { transform: none; }
+.sh-grab { display: grid; place-items: center; height: 26px; touch-action: none; cursor: grab; } .sh-grab i { width: 44px; height: 5px; border-radius: 99px; background: #e6dbe5; }
+.sh-head { display: flex; align-items: center; gap: 10px; padding: 0 4px 10px; }
+.sh-head b { font: 800 22px/1 var(--font); letter-spacing: -.03em; }
+.sh-tabs { display: flex; gap: 4px; margin-left: 6px; padding: 3px; border-radius: 999px; background: #f6f0f6; }
+.sh-tabs:empty { display: none; }
+.sh-tabs button { padding: 7px 12px; border: 0; border-radius: 999px; background: none; font: 600 13px/1 var(--font); color: var(--ink-soft); }
+.sh-tabs button.on { background: #fff; color: var(--ink); box-shadow: 0 2px 6px rgba(120, 80, 120, .14); }
+.sh-x { margin-left: auto; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #f6f0f6; font: 500 22px/1 var(--font); color: var(--ink); }
+.sh-body { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; min-height: 0; }
+.sh-body > .in-sheet:not(.shown) { display: none !important; }
+/* panels, unboxed inside the sheet */
+.sh-body .box.in-sheet, .sh-body .tray.in-sheet, .sh-body .design.in-sheet { position: static; width: auto; max-height: none; margin: 0; padding: 0 2px; background: none !important; box-shadow: none !important; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0; }
+.sh-body .box.in-sheet > header { display: none; } .sh-body .box.in-sheet .box-body { padding-top: 0; display: block !important; }
+.sh-body .box[data-box="boards"].in-sheet > header { display: flex; margin-bottom: 8px; }
+.sh-body .box[data-box="boards"].in-sheet > header .mini:not(.gear) { display: none; }
+.sh-body .layers { max-height: none; }
+.sh-body .ly { min-height: 44px; font-size: 15px; } .sh-body .ly-b { opacity: 1; width: 34px; height: 34px; }
+.sh-body .board-row { padding: 12px 10px; font-size: 16px; }
+.sh-body .tray.in-sheet .tray-head { pointer-events: none; } .sh-body .tray.in-sheet .tray-hint { margin-bottom: 8px; }
+.sh-body .tray.in-sheet .tray-list { max-height: none; }
+.sh-body .tray-item { padding: 14px 16px; font-size: 16px; }
+.sh-body .design.in-sheet .dz-head { display: none; } .sh-body .design.in-sheet .dz-body { display: block !important; }
+/* the toolbar as a grid of big buttons with their names */
+.sh-body .tools.in-sheet.shown { position: static; display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 8px; width: auto; padding: 4px 0 6px; background: none; box-shadow: none; transform: none; border-radius: 0; }
+.sh-body .tools.in-sheet button { display: grid; justify-items: center; align-content: center; gap: 7px; width: auto; height: 78px; border-radius: 18px; background: #faf6fa; }
+.sh-body .tools.in-sheet button .ic { width: 24px; height: 24px; }
+.sh-body .tools.in-sheet button::after { content: attr(data-name); position: static; display: block; transform: none !important; opacity: 1; padding: 0; background: none; box-shadow: none; color: var(--ink-soft); font: 600 11.5px/1 var(--font); white-space: nowrap; }
+.sh-body .tools.in-sheet .zoom, .sh-body .tools.in-sheet .sep, .sh-body .tools.in-sheet .t-sep { display: none; }
+.sh-body .pal { padding: 12px 10px; font-size: 15px; }
+/* dark */
+body.dark.phone .top, body.dark .hub { background: rgba(38, 34, 43, .94); }
+body.dark .sh-panel { background: #26222b; } body.dark .sh-grab i { background: #4a4452; }
+body.dark .sh-tabs, body.dark .sh-x { background: rgba(255, 255, 255, .07); color: #ece8f0; } body.dark .sh-tabs button.on { background: #3a3441; color: #fff; }
+body.dark .sh-body .tools.in-sheet button { background: rgba(255, 255, 255, .05); }
+body.phone .sheet.on { pointer-events: auto; }
+body.fancy-cursor.cur-edge, body.fancy-cursor.cur-edge * { cursor: auto !important; }   /* the window edge: the Mac's resize arrows */
+/* phone: the action bar for what's selected matches the hub — big, thumb-sized buttons and icons */
+body.phone .dock .selbar { gap: 4px; padding: 6px 10px; }
+body.phone .selbar .sb-ic { width: 46px; height: 46px; border-radius: 15px; }
+body.phone .selbar .sb-ic svg { width: 23px; height: 23px; }
+body.phone .selbar .sb-txt { height: 44px; padding: 0 15px; font-size: 14px; border-radius: 15px; }
+body.phone .selbar .sb-label { font-size: 13px; padding: 0 6px; }
+body.phone .sb-dots { gap: 7px; } body.phone .sb-dots button { width: 26px; height: 26px; }
+body.phone .sb-sizes button { min-width: 42px; height: 44px; font-size: 13.5px; border-radius: 14px; }
+body.phone .sb-style button { font-size: 17px; }
+body.phone .selbar .sb-sep { height: 26px; margin: 0 5px; }
+body.phone .dock .drawbar .db-tool { width: 46px; height: 46px; } body.phone .dock .drawbar .db-tool svg { width: 23px; height: 23px; }
+body.phone .dock .drawbar .db-colors button { width: 28px; height: 28px; } body.phone .dock .drawbar .db-done { height: 44px; padding: 0 18px; font-size: 14px; }
+/* the action bar's icons are the toolbar's icons: same size, same soft ink, same hover and "on" states */
+.selbar .sb-ic { width: 40px; height: 38px; border-radius: 999px; color: var(--ink-soft); }
+.selbar .sb-ic svg { width: 19px; height: 19px; }
+.selbar .sb-ic:hover, .selbar .sb-ic.on { color: var(--ink); background: var(--blush); }
+body.dark .selbar .sb-ic { color: #b9b0bf; } body.dark .selbar .sb-ic:hover, body.dark .selbar .sb-ic.on { color: #fff; }
+/* phone: hub, action bar and pen bar all use the same 22px icons */
+body.phone .selbar .sb-ic { width: 46px; height: 46px; border-radius: 15px; }
+body.phone .selbar .sb-ic svg, body.phone .dock .drawbar .db-tool svg { width: 22px; height: 22px; }
+.sb-style button { color: var(--ink-soft); } .sb-style button:hover { color: var(--ink); } .sb-style button.on { color: #fff; }
+/* phone: the action bar scrolls sideways, so its far edge fades to say "there's more" */
+body.phone .dock .selbar { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); }
+body.phone .dock .selbar.end { -webkit-mask-image: none; mask-image: none; }

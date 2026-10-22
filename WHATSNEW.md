@@ -7,6 +7,10 @@ Write them for people, not for code: one line, what changed and why it's nice.
 
 - Switches in Settings show the Mochiboard pointer instead of a text cursor.
 - Colors and the dot grid live under Settings → Board now.
+- A phone layout: the board fills the screen, panels slide up from a hub at the bottom, and fingers pan, pinch and press-and-hold.
+- The action bar's icons match the toolbar's, in size and color.
+- Mochi finds Claude Code wherever it's installed, notices right away when you set it up, and explains when it isn't signed in. "Set up" opens a step-by-step guide.
+- The window can shrink much smaller, and its edges show the Mac's resize arrows.
 
 ## October 2026 · 1.2.1
 

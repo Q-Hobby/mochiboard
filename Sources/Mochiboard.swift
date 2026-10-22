@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = "Mochiboard"
         window.backgroundColor = NSColor(red: 0.984, green: 0.973, blue: 0.988, alpha: 1)
-        window.minSize = NSSize(width: 900, height: 560)
+        window.minSize = NSSize(width: 380, height: 520)   // narrow enough to sit beside other apps; below 700 wide it switches to the phone layout
         let host = NSView(); window.contentView = host
         web.frame = host.bounds; web.autoresizingMask = [.width, .height]; host.addSubview(web)
         // a strip at the top of the sidebar to drag the window by (the page fills the whole window, title bar included)
@@ -190,13 +190,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     // MARK: Mochi: asks Claude Code on this Mac (`claude -p`), which answers with JSON actions for the canvas
-    lazy var claudePath: String? = {
-        let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: "/bin/zsh"); p.arguments = ["-lc", "command -v claude"]; p.standardOutput = out; p.standardError = Pipe()
-        try? p.run(); p.waitUntilExit()
-        let s = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !s.isEmpty { return s }
-        return ["~/.claude/local/claude", "~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"].map { NSString(string: $0).expandingTildeInPath }.first { FileManager.default.isExecutableFile(atPath: $0) }
-    }()
+    // where Claude Code lives. Looked up again whenever it's missing, so installing it while Mochiboard is open just works (no restart)
+    var foundClaude: String?
+    var claudePath: String? {
+        if let c = foundClaude, FileManager.default.isExecutableFile(atPath: c) { return c }
+        foundClaude = findClaude(); return foundClaude
+    }
+    func findClaude() -> String? {
+        let fm = FileManager.default, home = NSHomeDirectory()
+        // the usual homes first: the official installer, the older local install, Homebrew, npm / nvm / volta / bun
+        var spots = ["\(home)/.local/bin/claude", "\(home)/.claude/local/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude",
+                     "\(home)/.npm-global/bin/claude", "\(home)/.volta/bin/claude", "\(home)/.bun/bin/claude"]
+        if let vs = try? fm.contentsOfDirectory(atPath: "\(home)/.nvm/versions/node") { spots += vs.sorted().reversed().map { "\(home)/.nvm/versions/node/\($0)/bin/claude" } }
+        if let hit = spots.first(where: { fm.isExecutableFile(atPath: $0) }) { return hit }
+        // anywhere else the person's own shell knows about (their .zshrc included), with a time limit in case the shell is slow
+        for args in [["-lc", "command -v claude"], ["-lic", "command -v claude"]] {
+            let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: "/bin/zsh"); p.arguments = args
+            p.standardOutput = out; p.standardError = Pipe(); p.standardInput = FileHandle.nullDevice
+            do { try p.run() } catch { continue }
+            let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }; DispatchQueue.global().asyncAfter(deadline: .now() + 6, execute: killer)
+            let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
+            let path = (String(data: d, encoding: .utf8) ?? "").split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.last { $0.hasPrefix("/") }
+            if let path, fm.isExecutableFile(atPath: path) { return path }
+        }
+        return nil
+    }
     // which helpers Mochi can use: Claude Code itself, and the Mobbin / Higgsfield connections in the person's Claude account
     func connections(done: @escaping ([String: Any]) -> Void) {
         guard let claude = claudePath else { return done(["claude": false, "mobbin": false, "higgsfield": false]) }
@@ -219,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }.resume()
     }
     func askMochi(_ request: String, _ board: Any, confirmed: Bool, mobbin: Bool, higgs: Bool, done: @escaping (Bool, String) -> Void) {
-        guard let claude = claudePath else { return done(false, "I need Claude Code to think. Install it from claude.com/claude-code, then try again.") }
+        guard let claude = claudePath else { return done(false, "I need Claude Code to think. Set it up from mochiboard.app/connect.html, then try again.") }
         let boardJSON = (try? JSONSerialization.data(withJSONObject: jsonSafe(board))).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let prompt = """
         You are Mochi, a cute, warm little pixel goo who lives on a creative planning canvas app called Mochiboard. \
@@ -300,6 +318,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: killer)
             let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
             let text = self.claudeResult(data)
+            // a failed answer (not signed in, no plan…) comes back as an error, not as words for Mochi to read
+            if ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["is_error"] as? Bool == true { return done(false, String(text.prefix(300))) }
             if p.terminationStatus != 0 && text.isEmpty {
                 let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer"
                 return done(false, String(e.prefix(300)))
@@ -431,6 +451,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
             let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
             let text = self.claudeResult(data)
+            // a failed answer (not signed in, no plan…) comes back as an error, not as words for Mochi to read
+            if ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["is_error"] as? Bool == true { return done(false, String(text.prefix(300))) }
             if p.terminationStatus != 0 && text.isEmpty { return done(false, String((String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer").prefix(300))) }
             done(true, text)
         }
