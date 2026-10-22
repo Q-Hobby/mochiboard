@@ -418,7 +418,7 @@
   function save() {
     if (!drag && board) { layoutAll(); cleanNumbers(); }
     if (!restoring) { clearTimeout(snapT); snapT = setTimeout(remember, 350); }
-    $('saved').textContent = 'saving…'; clearTimeout(saveT);
+    layersSoon(); $('saved').textContent = 'saving…'; clearTimeout(saveT);
     saveT = setTimeout(async () => { board.view = view; await MB.save(board); $('saved').textContent = 'saved'; refreshBoards(); }, 400);
   }
 
@@ -436,10 +436,29 @@
   let movingT = 0;
   function applyView() {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+    if (typeof rhEl !== 'undefined') rhEl.style.setProperty('--iz', (1 / view.z).toFixed(4));   // the resize corner stays the same size on screen at any zoom (set on it alone: on the whole board, Safari restyled every card each zoom step)
     stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => stage.classList.remove('moving'), 180);
-    const s = 26 * view.z; grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
+    let s = 26 * view.z; while (s < 20) s *= 2; while (s > 40) s /= 2;   // dots keep their size; zooming out skips every other dot instead of crowding them
+    grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
     $('zoom').textContent = Math.round(view.z * 100) + '%';
   }
+  // ---------- the resize corner lives on its own layer above every card (like Figma), so a neighbor that overlaps can never hide it ----------
+  const rh = document.createElement('div'); var rhEl = rh; rh.id = 'rh'; rh.setAttribute('aria-label', 'Resize'); world.appendChild(rh);
+  let rhFor = null;
+  function syncRH() {
+    const ids = board ? [...sel] : [], c = ids.length === 1 ? byId(ids[0]) : null;
+    const ok = c && !['ink'].includes(c.type) && editing !== c.id && !drawOn && !(drag && drag.mode === 'move') && !cropping;
+    // a whole group selected (a button, an input…): one corner for the group
+    const g = !c && ids.length > 1 && byId(ids[0])?.group, grp = g && ids.every(i => byId(i)?.group === g) && !drawOn && !(drag && drag.mode === 'move');
+    if (grp) { const cs = ids.map(byId); rhFor = 'g:' + g; rh.classList.add('on'); rh.style.left = Math.max(...cs.map(k => k.x + k.w)) + 'px'; rh.style.top = Math.max(...cs.map(k => k.y + (k.type === 'title' ? (cardsEl.querySelector(`[data-id="${k.id}"]`)?.offsetHeight || k.h) : k.h))) + 'px'; requestAnimationFrame(syncRH); return; }
+    rhFor = ok ? c.id : null; rh.classList.toggle('on', !!ok);
+    if (ok) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); const h = c.type === 'title' && el ? el.offsetHeight : c.h;
+      // follow the card's own turn (tilt, or a wireframe's rotation) so the corner sits exactly on it
+      const deg = (c.rot || 0) + (document.body.classList.contains('neat') ? 0 : (c.r || 0)), a = deg * Math.PI / 180, cx = c.x + c.w / 2, cy = c.y + h / 2, dx = c.w / 2, dy = h / 2;
+      rh.style.left = (cx + dx * Math.cos(a) - dy * Math.sin(a)) + 'px'; rh.style.top = (cy + dx * Math.sin(a) + dy * Math.cos(a)) + 'px'; }
+    requestAnimationFrame(syncRH);
+  }
+  requestAnimationFrame(syncRH);   // starts after the rest of the app is set up
   const toWorld = (cx, cy) => { const r = stage.getBoundingClientRect(); return { x: (cx - r.left - view.x) / view.z, y: (cy - r.top - view.y) / view.z }; };
   function zoomAt(cx, cy, z) {
     const r = stage.getBoundingClientRect(), p = toWorld(cx, cy); view.z = clamp(z, .15, 3);
@@ -462,7 +481,7 @@
       case 'doc': return `<div class="pill">${CIC.doc}<span class="text">${esc(c.text)}</span></div>`;
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
-      case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
+      case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : pxSrc(c.emoji || '⭐') ? `<img src="${pxSrc(c.emoji || '⭐')}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
       case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
@@ -491,6 +510,7 @@
     if (!el) { el = document.createElement('div'); el.dataset.id = c.id; cardsEl.appendChild(el); if (pop) el.classList.add('pop'); }
     el.className = `card ${c.type}` + (sel.has(c.id) ? ' sel' : '') + (focusSet && !focusSet.has(c.id) ? ' dim' : '') + (pop ? ' pop' : '');
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.type === 'title' ? 'auto' : c.h + 'px' });
+    el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked);
     el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff'); el.classList.add('c-' + (COLORS[c.color] && c.color !== 'white' ? c.color : 'white'));
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     el.style.setProperty('--fs', FS[c.fs] || 1);
@@ -507,7 +527,7 @@
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     return el;
   }
-  function renderAll() { cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
+  function renderAll() { wireLayers(); layersSoon(); applyColors(); cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
 
   // ---------- round 2 pieces: icons, shapes, link hosts ----------
   const CI = d => `<svg class="cic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -617,10 +637,145 @@
     board.tray.forEach(c => { const d = document.createElement('div'); d.className = 'tray-item'; d.dataset.id = c.id; d.style.setProperty('--tilt', (c.r / 2) + 'deg');
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
   }
-  function selectOnly(ids) { if (ids.length && selWire) { selWire = null; renderWires(); } sel = new Set(ids); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
+  function selectOnly(ids) { if (ids.length && selWire) { selWire = null; renderWires(); } sel = new Set(ids); LY.reveal = true; layersSoon(); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
 
   // ---------- adding things ----------
   function addCard(c, pop = true) { board.cards.push(c); renderCard(c, pop); save(); return c; }
+  // ---------- layers: every piece on the board, top of the stack first (like Figma). Frames and collections fold open, groups stay together ----------
+  const LY = { open: new Set(), t: 0, drag: null };
+  const LI = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const LICON = {
+    note: LI('<path d="M4 3.5h12v8.5l-4 4.5H4z"/><path d="M12 16.5V12h4"/>'), todo: LI('<rect x="3.5" y="3.5" width="13" height="13" rx="3"/><path d="M7 10l2.2 2.2L13.5 8"/>'),
+    title: LI('<path d="M4.5 5h11M10 5v11"/>'), text: LI('<path d="M5.5 6h9M10 6v9M8 15h4"/>'), image: LI('<rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3.5 14.5l4-3.5 3 2.5 2.5-2 3.5 3"/>'),
+    audio: LI('<rect x="7.5" y="2.5" width="5" height="9" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/>'), ink: LI('<path d="M3 14c2.5-6 5-6 6-3s3.5 3 8-4"/>'),
+    frame: LI('<path d="M6.5 3v14M13.5 3v14M3 6.5h14M3 13.5h14"/>'), box: LI('<rect x="3.5" y="5" width="13" height="10" rx="2"/>'), font: LI('<path d="M3 16l4.5-11L12 16M4.7 12h5.6M14.5 10.5v5.5M14.5 12.5a2.2 2.2 0 1 1 0 3"/>'),
+    coll: LI('<rect x="3" y="3" width="14" height="4" rx="1.5"/><rect x="3" y="9" width="6" height="8" rx="1.5"/><rect x="11" y="9" width="6" height="5" rx="1.5"/>'),
+    group: LI('<rect x="3" y="3" width="14" height="14" rx="3" stroke-dasharray="2.6 2.4"/><rect x="6.5" y="6.5" width="7" height="7" rx="1.5"/>'),
+    shape: LI('<circle cx="8" cy="8" r="4.5"/><rect x="9" y="9" width="8" height="8" rx="1.5"/>'), icon: LI('<path d="M10 3l2 4.3 4.6.6-3.4 3.2.9 4.6L10 13.4l-4.1 2.3.9-4.6L3.4 7.9 8 7.3z"/>'),
+  };
+  const lyText = s => String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const SHAPE_N = { rect: 'Rectangle', circle: 'Circle', tri: 'Triangle', star: 'Star', heart: 'Heart', line: 'Line' };
+  function layerName(c) {
+    if (c.ln) return c.ln;
+    const t = {
+      frame: c.name || 'Screen', coll: c.name || 'Collection', note: lyText(c.name) || lyText(c.text), text: lyText(c.text), title: lyText(c.text), todo: lyText(c.text) || lyText(c.items?.[0]?.t),
+      image: c.tagText || 'Image', link: c.title || (c.url ? host(c.url) : 'Link'), doc: c.text || 'Doc', canvas: c.text || 'Canvas', swatch: c.label || (c.hex || '').toUpperCase(),
+      shape: SHAPE_N[c.shape || 'rect'], stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
+    }[c.type];
+    return t || ({ note: 'Note', text: 'Text', title: 'Title', todo: 'Checklist' })[c.type] || c.type;
+  }
+  function layerIcon(c) {
+    if (c.type === 'stamp') { const s = c.src || pxSrc(c.emoji || '⭐'); return s ? `<img src="${esc(s)}" alt="">` : `<span class="ly-emo">${esc(c.emoji || '⭐')}</span>`; }
+    if (c.type === 'swatch') return `<i class="ly-sw" style="background:${esc(c.hex)}"></i>`;
+    if (c.type === 'icon') return `<span class="mi">${esc(c.name || 'star')}</span>`;
+    return toolIcon(c.type) || LICON[c.type] || CIC[c.type] || LICON.box;
+  }
+  // the very same icon as the button you made it with (the toolbar, or the wireframe panel), so a piece looks the same in both places
+  const TOOL_OF = { ink: '[data-add="draw"]', frame: '[data-wf="frame"]', box: '[data-wf="box"]', icon: '[data-wf="icon"]', text: '[data-wf="text"]' }, toolIc = {};
+  function toolIcon(type) {
+    if (type in toolIc) return toolIc[type];
+    const svg = document.querySelector(`${TOOL_OF[type] || `.tools [data-add="${type}"]`} svg`);
+    if (!svg) return toolIc[type] = null; const k = svg.cloneNode(true); k.removeAttribute('width'); k.removeAttribute('height'); return toolIc[type] = k.outerHTML;   // only the outer size: the shapes inside keep theirs
+  }
+  // the tree: [{ key, ids, kind, c?, kids: [...] }], ordered top of the stack first (collections list their cards in reading order)
+  function layerTree() {
+    const z = new Map([...cardsEl.children].map((el, i) => [el.dataset.id, i])), zOf = n => Math.max(...n.ids.map(i => z.get(i) ?? -1));
+    const inColl = new Set(board.cards.filter(c => c.type === 'coll').flatMap(c => c.kids || [])), frames = new Set(board.cards.filter(c => c.type === 'frame').map(c => c.id));
+    const nodesFor = cards => {
+      const groups = new Map(), out = [];
+      cards.forEach(c => { if (c.group) { if (!groups.has(c.group)) { const g = { key: 'g:' + c.group, kind: 'group', ids: [], kids: [] }; groups.set(c.group, g); out.push(g); } groups.get(c.group).ids.push(c.id); groups.get(c.group).kids.push(nodeOf(c)); }
+        else out.push(nodeOf(c)); });
+      groups.forEach(g => g.kids.sort((a, b) => zOf(b) - zOf(a)));
+      return out.sort((a, b) => zOf(b) - zOf(a));
+    };
+    const nodeOf = c => {
+      const n = { key: c.id, kind: 'card', c, ids: [c.id], kids: [] };
+      if (c.type === 'frame') n.kids = nodesFor(board.cards.filter(k => k.id !== c.id && k.type !== 'frame' && k.onFrame === c.id && !inColl.has(k.id)));
+      if (c.type === 'coll') n.kids = (c.kids || []).map(byId).filter(Boolean).map(k => ({ key: k.id, kind: 'card', c: k, ids: [k.id], kids: [], inColl: c.id }));
+      return n;
+    };
+    return nodesFor(board.cards.filter(c => !inColl.has(c.id) && !(c.onFrame && frames.has(c.onFrame) && c.type !== 'frame')));
+  }
+  // a group goes by its own name, or by the words inside it (a button reads "Get started"), so the list never fills up with "Group, Group, Group"
+  const groupName = ids => { const cs = ids.map(byId).filter(Boolean); if (cs[0]?.gn) return cs[0].gn; const t = cs.filter(c => ['text', 'title', 'note'].includes(c.type)).map(c => lyText(c.text)).filter(Boolean)[0];
+    return t || (cs.some(c => c.type === 'box' && c.img) ? 'Image spot' : 'Group'); };
+  const lyAll = n => n.kind === 'group' ? n.ids : [...n.ids, ...n.kids.flatMap(lyAll)];
+  function renderLayers() {
+    const list = $('layers'); if (!list || !board) return;
+    if (list.querySelector('[contenteditable="true"]')) return;   // never rebuild under someone renaming
+    const tree = layerTree(); $('layerCount').textContent = board.cards.length || '';
+    // open whatever holds the selection, so a picked piece is always visible in the list
+    const walk = (ns, up) => ns.forEach(n => { if (n.ids.some(i => sel.has(i)) && !(n.kind === 'group' && n.ids.every(i => sel.has(i)))) up.forEach(k => LY.open.add(k)); walk(n.kids, [...up, n.key]); });
+    walk(tree, []);
+    const row = (n, depth) => {
+      const c = n.c, kids = n.kids.length, open = LY.open.has(n.key), ids = lyAll(n), hidden = ids.length && ids.every(i => byId(i)?.hidden), locked = ids.length && ids.every(i => byId(i)?.locked);
+      const name = n.kind === 'group' ? groupName(n.ids) : layerName(c), icon = n.kind === 'group' ? LICON.group : layerIcon(c);
+      return `<div class="ly${n.ids.every(i => sel.has(i)) ? ' on' : ''}${hidden ? ' off' : ''}${locked ? ' lk' : ''}${c?.type === 'frame' || c?.type === 'coll' ? ' parent' : ''}" data-key="${esc(n.key)}" draggable="true" style="--d:${depth}">
+        <button class="ly-tw${kids ? '' : ' none'}${open ? ' open' : ''}" tabindex="-1" aria-label="${open ? 'Close' : 'Open'}"><svg viewBox="0 0 10 10"><path d="M3.5 2l3 3-3 3"/></svg></button>
+        <span class="ly-ic">${icon}</span><span class="ly-n">${esc(name)}</span>
+        <button class="ly-b ly-lock" title="${locked ? 'Unlock' : 'Lock'}">${locked ? LI('<rect x="4.5" y="9" width="11" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>') : LI('<rect x="4.5" y="9" width="11" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 5.8-1"/>')}</button>
+        <button class="ly-b ly-eye" title="${hidden ? 'Show' : 'Hide'}">${hidden ? LI('<path d="M3 3l14 14M8.3 5.2A8 8 0 0 1 10 5c4.5 0 7.5 5 7.5 5a14 14 0 0 1-2.2 2.8M12.1 14.7A6 6 0 0 1 10 15c-4.5 0-7.5-5-7.5-5a14 14 0 0 1 3-3.4"/>') : LI('<path d="M2.5 10S5.5 5 10 5s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.3"/>')}</button>
+      </div>` + (kids && open ? n.kids.map(k => row(k, depth + 1)).join('') : '');
+    };
+    const st = list.scrollTop;
+    list.innerHTML = tree.length ? tree.map(n => row(n, 0)).join('') : '<div class="ly-empty">Nothing on this board yet. Everything you add shows up here.</div>';
+    list.scrollTop = st; LY.tree = tree;
+    const on = list.querySelector('.ly.on'); if (on && LY.reveal) { LY.reveal = false; const r = on.getBoundingClientRect(), lr = list.getBoundingClientRect(); if (r.top < lr.top || r.bottom > lr.bottom) on.scrollIntoView({ block: 'nearest' }); }
+  }
+  const layersSoon = () => { cancelAnimationFrame(LY.t); LY.t = requestAnimationFrame(renderLayers); };
+  const lyFind = (key, ns = LY.tree || []) => { for (const n of ns) { if (n.key === key) return n; const f = lyFind(key, n.kids); if (f) return f; } return null; };
+  const lyHL = (ids, on) => ids.forEach(i => cardsEl.querySelector(`[data-id="${i}"]`)?.classList.toggle('ly-hl', on));
+  function wireLayers() {
+    const list = $('layers'); if (!list || list.dataset.wired) return; list.dataset.wired = 1;
+    list.addEventListener('pointerover', e => { const r = e.target.closest('.ly'); cardsEl.querySelectorAll('.ly-hl').forEach(el => el.classList.remove('ly-hl')); if (r) { const n = lyFind(r.dataset.key); n && lyHL(lyAll(n), true); } });
+    list.addEventListener('pointerleave', () => cardsEl.querySelectorAll('.ly-hl').forEach(el => el.classList.remove('ly-hl')));
+    list.addEventListener('click', e => {
+      const r = e.target.closest('.ly'); if (!r) return; const n = lyFind(r.dataset.key); if (!n) return;
+      if (e.target.closest('.ly-tw')) { LY.open.has(n.key) ? LY.open.delete(n.key) : LY.open.add(n.key); return renderLayers(); }
+      if (e.target.closest('.ly-eye')) { remember(); const ids = lyAll(n), hide = !ids.every(i => byId(i)?.hidden); ids.forEach(i => { const c = byId(i); if (c) { c.hidden = hide || undefined; renderCard(c); } }); if (hide) selectOnly([...sel].filter(i => !ids.includes(i))); renderWires(); save(); return renderLayers(); }
+      if (e.target.closest('.ly-lock')) { remember(); const ids = lyAll(n), lock = !ids.every(i => byId(i)?.locked); ids.forEach(i => { const c = byId(i); if (c) { c.locked = lock || undefined; renderCard(c); } }); if (lock) selectOnly([...sel].filter(i => !ids.includes(i))); save(); return renderLayers(); }
+      if (n.ids.some(i => byId(i)?.hidden || byId(i)?.locked)) return;   // hidden or locked pieces can't be picked until they're shown/unlocked
+      endEdit();
+      if (e.shiftKey || e.metaKey || e.ctrlKey) { const all = n.ids.every(i => sel.has(i)); n.ids.forEach(i => all ? sel.delete(i) : sel.add(i)); selectOnly([...sel]); }
+      else selectOnly(n.ids);
+      lyBringIntoView(n.ids); renderLayers();
+    });
+    list.addEventListener('dblclick', e => {
+      const r = e.target.closest('.ly'), nm = r?.querySelector('.ly-n'); if (!nm || e.target.closest('.ly-b, .ly-tw')) return; const n = lyFind(r.dataset.key); if (!n) return;
+      nm.contentEditable = 'true'; nm.focus(); getSelection().selectAllChildren(nm); r.draggable = false;
+      const done = ok => { nm.contentEditable = 'false'; r.draggable = true; const v = nm.textContent.trim(); nm.onblur = nm.onkeydown = null;
+        if (ok) { remember(); if (n.kind === 'group') n.ids.forEach(i => { const c = byId(i); if (c) c.gn = v || undefined; });
+          else { const c = n.c; if (c.type === 'frame' || c.type === 'coll') { c.name = v || c.name; renderCard(c); } else c.ln = v && v !== layerName({ ...c, ln: '' }) ? v : undefined; }   // frames and collections rename on the board too
+          save(); }
+        renderLayers(); };
+      nm.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); done(true); } if (ev.key === 'Escape') done(false); };
+      nm.onblur = () => done(true);
+    });
+    // drag rows to restack (or, inside a collection, to reorder its cards). Only between neighbors that share the same parent
+    list.addEventListener('dragstart', e => { const r = e.target.closest('.ly'); if (!r) return; LY.drag = r.dataset.key; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', ''); } catch (er) {} });
+    const parentKey = key => { const find = (ns, p) => { for (const n of ns) { if (n.key === key) return p; const f = find(n.kids, n.key); if (f !== undefined) return f; } return undefined; }; return find(LY.tree || [], ''); };
+    list.addEventListener('dragover', e => { const r = e.target.closest('.ly'); list.querySelectorAll('.drop-a, .drop-b').forEach(x => x.classList.remove('drop-a', 'drop-b')); if (!r || !LY.drag || r.dataset.key === LY.drag || parentKey(r.dataset.key) !== parentKey(LY.drag)) return;
+      e.preventDefault(); const b = r.getBoundingClientRect(); r.classList.add(e.clientY < b.top + b.height / 2 ? 'drop-a' : 'drop-b'); });
+    list.addEventListener('dragend', () => { LY.drag = null; list.querySelectorAll('.dragging, .drop-a, .drop-b').forEach(x => x.classList.remove('dragging', 'drop-a', 'drop-b')); });
+    list.addEventListener('drop', e => {
+      const r = e.target.closest('.drop-a, .drop-b'); if (!r || !LY.drag) return; e.preventDefault(); const above = r.classList.contains('drop-a');
+      const mv = lyFind(LY.drag), tg = lyFind(r.dataset.key); if (!mv || !tg) return; remember();
+      if (mv.inColl) { const co = byId(mv.inColl), k = (co.kids || []).filter(i => i !== mv.c.id), at = k.indexOf(tg.c.id); k.splice(above ? at : at + 1, 0, mv.c.id); co.kids = k; layoutAll(); }
+      else { const ids = lyAll(mv), moving = board.cards.filter(c => ids.includes(c.id)), rest = board.cards.filter(c => !ids.includes(c.id)), tIdx = lyAll(tg).map(i => rest.findIndex(c => c.id === i)).filter(i => i >= 0);
+        // the list is top-first, so "above" in the list means higher in the stack: after the target in the cards
+        const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest; renderAll(); }
+      save(); renderLayers();
+    });
+  }
+  function lyBringIntoView(ids) {
+    const cs = ids.map(byId).filter(Boolean); if (!cs.length) return; const r = stage.getBoundingClientRect();
+    const x0 = Math.min(...cs.map(c => c.x)), y0 = Math.min(...cs.map(c => c.y)), x1 = Math.max(...cs.map(c => c.x + c.w)), y1 = Math.max(...cs.map(c => c.y + c.h));
+    const sx0 = x0 * view.z + view.x, sy0 = y0 * view.z + view.y, sx1 = x1 * view.z + view.x, sy1 = y1 * view.z + view.y;
+    if (sx0 > 280 && sx1 < r.width - 40 && sy0 > 60 && sy1 < r.height - 100) return;   // already on screen
+    const tx = 270 + (r.width - 270) / 2 - (x0 + x1) / 2 * view.z, ty = r.height / 2 - (y0 + y1) / 2 * view.z, fx = view.x, fy = view.y, t0 = performance.now();
+    const step = t => { const k = Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - k, 3); view.x = fx + (tx - fx) * e; view.y = fy + (ty - fy) * e; applyView(); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
   function centerWorld() { const r = stage.getBoundingClientRect(); return toWorld(r.left + 270 + (r.width - 530) / 2, r.top + r.height / 2); }
   function addAtCenter(type, extra = {}) {
     const p = centerWorld(), c = card(type, extra); c.x = p.x - c.w / 2 + (Math.random() * 60 - 30); c.y = p.y - c.h / 2 + (Math.random() * 60 - 30);
@@ -714,6 +869,9 @@
     if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
     if (board) { clearTimeout(snapT); remember(); }   // lock in the last change before a new one starts, so undo steps stay separate
     if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
+    if (e.target.id === 'rh' && rhFor && rhFor.startsWith('g:') && e.button === 0) { const cs = board.cards.filter(c => c.group === rhFor.slice(2)), bx = Math.min(...cs.map(c => c.x)), by = Math.min(...cs.map(c => c.y));
+      drag = { mode: 'gresize', sx: w.x, sy: w.y, bx, by, bw: Math.max(...cs.map(c => c.x + c.w)) - bx, bh: Math.max(...cs.map(c => c.y + c.h)) - by, items: cs.map(c => ({ c, x: c.x, y: c.y, w: c.w, h: c.h })) }; stage.setPointerCapture(e.pointerId); return; }
+    if (e.target.id === 'rh' && rhFor && e.button === 0) { const c = byId(rhFor); if (c) { drag = { mode: 'resize', id: c.id, sx: w.x, sy: w.y, w0: c.w, h0: c.h }; stage.setPointerCapture(e.pointerId); return; } }
     if (cropping && e.target.closest('.crop-ui')) { e.preventDefault(); cropDown(e); return; }
     if (placing?.type === 'box' && e.button === 0) { e.preventDefault(); stopPlacing(); drag = { mode: 'drawbox', sx: w.x, sy: w.y }; stage.setPointerCapture(e.pointerId); return; }
     if (placing && e.button === 0) { e.preventDefault(); placeAt(w); return; }
@@ -738,6 +896,7 @@
       else {
         endEdit();
         if (e.shiftKey) { sel.has(id) ? sel.delete(id) : sel.add(id); selectOnly([...sel]); }
+        else if (e.metaKey || e.ctrlKey) selectOnly([id]);   // ⌘-click reaches inside a group for just this piece
         else if (!sel.has(id)) selectOnly(groupOf(id));
         const ids = new Set(sel); [...sel].forEach(i => { const c = byId(i); if (c?.type === 'coll') (c.kids || []).forEach(k => ids.add(k)); if (c?.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); });
         drag = { mode: 'move', sx: w.x, sy: w.y, start: [...ids].map(i => byId(i)).filter(Boolean).map(c => ({ c, x: c.x, y: c.y })), moved: false };
@@ -754,7 +913,10 @@
     if (drag.mode === 'move') {
       let dx = w.x - drag.sx, dy = w.y - drag.sy; if (Math.hypot(dx, dy) > 2) drag.moved = true;
       const sn = snapWF(drag.start, dx, dy); dx = sn.dx; dy = sn.dy;
-      drag.start.forEach(s => { s.c.x = s.x + dx; s.c.y = s.y + dy; const el = cardsEl.querySelector(`[data-id="${s.c.id}"]`); el.style.left = s.c.x + 'px'; el.style.top = s.c.y + 'px'; el.classList.add('dragging'); });
+      // move on the GPU: the card is lifted as an already-drawn picture and slid with a transform, so the wobbly-edge filter isn't redrawn every frame (Safari is slow at that)
+      drag.start.forEach(s => { s.c.x = s.x + dx; s.c.y = s.y + dy; const el = s.el || (s.el = cardsEl.querySelector(`[data-id="${s.c.id}"]`)); if (!el) return;
+        if (!s.lifted) { s.lifted = true; el.style.willChange = 'transform'; el.classList.add('dragging'); stage.classList.add('dragging-cards'); }
+        el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`; });
       renderWires();
       $('tray').classList.toggle('drop', overTray(e));
       const loose = drag.start.filter(s => s.c.type !== 'coll'), skip = new Set(drag.start.filter(s => s.c.type === 'coll').map(s => s.c.id));
@@ -766,6 +928,11 @@
     if (drag.mode === 'resize' && byId(drag.id).type === 'coll') { const c = byId(drag.id); c.cols = Math.max(1, Math.round((drag.w0 + w.x - drag.sx - CPAD * 2 + CGAP) / (CW + CGAP))); layoutColl(c); renderWires(); return; }
     if (drag.mode === 'resize' && ['stamp', 'icon'].includes(byId(drag.id).type)) { const c = byId(drag.id); c.w = c.h = clamp(drag.w0 + Math.max(w.x - drag.sx, w.y - drag.sy), 24, 400); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); Object.assign(el.style, { width: c.w + 'px', height: c.h + 'px' }); el.style.setProperty('--sz', c.w + 'px'); return; }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; renderWires(); }
+    if (drag.mode === 'gresize') { const d = drag, nw = Math.max(24, d.bw + w.x - d.sx), nh = Math.max(14, d.bh + w.y - d.sy), kx = nw / d.bw, ky = nh / d.bh;
+      d.items.forEach(it => { const c = it.c, txt = c.type === 'text';   // text keeps its height and stays centered where it was, so a label sits in the middle of its button
+        c.x = d.bx + (it.x - d.bx) * kx; c.w = Math.max(8, it.w * kx); c.h = txt ? it.h : Math.max(8, it.h * ky); c.y = txt ? d.by + (it.y + it.h / 2 - d.by) * ky - it.h / 2 : d.by + (it.y - d.by) * ky;
+        const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.type === 'title' ? 'auto' : c.h + 'px' }); });
+      renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
     if (drag.mode === 'rotate') { let a = Math.atan2(w.y - drag.cy, w.x - drag.cx) * 180 / Math.PI + 90; a = ((a % 360) + 360) % 360; if (a > 180) a -= 360;
       const near = Math.round(a / 15) * 15; if (Math.abs(a - near) < 4) a = near;   // eases onto 15° steps
@@ -778,7 +945,7 @@
     if (drag.mode === 'marquee') {
       const m = $('marquee'), r = stage.getBoundingClientRect(), x0 = Math.min(drag.sx, e.clientX), y0 = Math.min(drag.sy, e.clientY), x1 = Math.max(drag.sx, e.clientX), y1 = Math.max(drag.sy, e.clientY);
       Object.assign(m.style, { display: 'block', left: x0 - r.left + 'px', top: y0 - r.top + 'px', width: x1 - x0 + 'px', height: y1 - y0 + 'px' });
-      const a = toWorld(x0, y0), b = toWorld(x1, y1), hit = board.cards.filter(c => c.x < b.x && c.x + c.w > a.x && c.y < b.y && c.y + c.h > a.y).flatMap(c => groupOf(c.id));
+      const a = toWorld(x0, y0), b = toWorld(x1, y1), hit = board.cards.filter(c => !c.hidden && !c.locked && c.x < b.x && c.x + c.w > a.x && c.y < b.y && c.y + c.h > a.y).flatMap(c => groupOf(c.id));
       selectOnly([...new Set([...drag.base, ...hit])]);
     }
   });
@@ -786,7 +953,9 @@
   stage.addEventListener('pointerup', e => {
     if (!drag) return; const d = drag; drag = null; stage.classList.remove('panning'); $('guides').innerHTML = ''; $('marquee').style.display = 'none'; $('tray').classList.remove('drop');
     if (d.mode === 'move') {
-      d.start.forEach(s => cardsEl.querySelector(`[data-id="${s.c.id}"]`)?.classList.remove('dragging'));
+      stage.classList.remove('dragging-cards');
+      // set it down: the transform becomes its real position again
+      d.start.forEach(s => { const el = s.el || cardsEl.querySelector(`[data-id="${s.c.id}"]`); if (!el) return; el.style.left = s.c.x + 'px'; el.style.top = s.c.y + 'px'; el.style.transform = ''; el.style.willChange = ''; el.classList.remove('dragging'); });
       if (d.moved && overTray(e)) {                       // dropped on the tray: back to Unsorted
         d.start.forEach(s => { board.cards = board.cards.filter(c => c !== s.c); board.links = board.links.filter(l => l.a !== s.c.id && l.b !== s.c.id); board.tray.unshift(s.c); cardsEl.querySelector(`[data-id="${s.c.id}"]`)?.remove(); });
         sel.clear(); renderTray(); renderWires(); save(); return;
@@ -809,10 +978,14 @@
       else {   // our own double-click check (pointer events don't count clicks everywhere), on whatever is really under the pointer
         const now = Date.now(), id = d.start[0].c.id, under = document.elementFromPoint(e.clientX, e.clientY);
         if (under && under.matches('.card.todo li span') && !under.isContentEditable) { lastTap = {}; startEdit(id, under); return; }   // list items edit with one click
-        if (lastTap.id === id && now - lastTap.t < 420) { lastTap = {}; startEdit(id, document.elementFromPoint(e.clientX, e.clientY)); } else lastTap = { id, t: now };
+        const pid = under?.closest('.card')?.dataset.id || id;
+        if (lastTap.id === pid && now - lastTap.t < 420) { lastTap = {};
+          if (sel.size > 1 && byId(pid)?.group && sel.has(pid)) { selectOnly([pid]); if (['text', 'note', 'title', 'todo'].includes(byId(pid).type)) startEdit(pid, under); return; }   // into the group: just this piece
+          startEdit(pid, under); } else lastTap = { id: pid, t: now };
       }
     }
     if (d.mode === 'resize') save();
+    if (d.mode === 'gresize') { d.items.forEach(it => renderCard(it.c)); selectOnly(d.items.map(it => it.c.id)); save(); }
     if (d.mode === 'bend') save();
     if (d.mode === 'rotate') { save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'drawbox') { d.rect?.remove(); const w = toWorld(e.clientX, e.clientY); let x = Math.min(d.sx, w.x), y = Math.min(d.sy, w.y), bw = Math.abs(w.x - d.sx), bh = Math.abs(w.y - d.sy);
@@ -953,7 +1126,6 @@
   $('newBoard').onclick = async () => { const { f, p } = scope(), into = f || (p && foldersIn(p.id)[0]); if (into) return newBoardIn(into.id); const b = newBoard(); await MB.save(b); closeHome(); openBoard(b.id); };
   $('newFolder').onclick = async () => { const f = makeFolder(uniqueName(folders, 'New folder'), scope().p?.id || null); await saveLib(); await refreshBoards(); renameNewest('.node.folder', f); };
   $('newProject').onclick = async () => { const p = makeProject(uniqueName(projects, 'New project')); await saveLib(); await refreshBoards(); renameNewest('.node.project', p); };
-  Object.keys(TEMPLATES).forEach(name => { const r = document.createElement('div'); r.className = 'board-row'; r.innerHTML = `<i style="background:var(--butter-deep)"></i><span>${name}</span>`; r.onclick = async () => { const b = newBoard(name, name); await MB.save(b); await openBoard(b.id); fit(board.cards); }; $('templates').appendChild(r); });
 
   // ---------- copy, cut and paste cards: works across boards (the clip lives in Mochiboard, plus their words go to the Mac clipboard) ----------
   const CLIP = 'mochiboard:clip';
@@ -1030,9 +1202,10 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60' }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   function applySettings() {
+    queueMicrotask(() => applyColors());
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.body.classList.toggle('dark', dark); document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
@@ -1044,6 +1217,63 @@
     document.querySelectorAll('[data-set]').forEach(t => t.checked = !!settings[t.dataset.set]);
     try { localStorage.setItem('mochiboard:settings', JSON.stringify(settings)); localStorage.setItem('mochiboard:keys', settings.keys ? 'show' : 'hide'); } catch (e) {}
   }
+  // ---------- your cursor: the same little pointer and name bubble as jessa.art, in your color ----------
+  // It follows the mouse; over a card it turns into an open hand, and a fist while you drag. Text and inputs keep the Mac's own I-beam.
+  const myCur = document.createElement('div'); myCur.className = 'mcur'; myCur.setAttribute('aria-hidden', 'true');
+  myCur.innerHTML = `<svg class="tipv" viewBox="-1 -1 12.3 10.9"><path d="M3.4554 0.917919C4.24277 -0.305972 6.03201 -0.305974 6.81938 0.917917L9.94507 5.7765C11.0536 7.49959 9.16221 9.57694 7.34302 8.63439L6.05709 7.96814C5.48011 7.6692 4.79386 7.66921 4.21689 7.96817L2.93214 8.63388C1.11295 9.57651 -0.778528 7.49915 0.330012 5.77603L3.4554 0.917919Z"/></svg>`
+    + `<svg class="grabhand open" viewBox="0 0 34 34"><g class="o"><rect x="8.5" y="15" width="19.5" height="16" rx="7"/><rect x="8" y="4.2" width="5" height="15.5" rx="2.5" transform="rotate(-8 10.5 19)"/><rect x="13.2" y="1.2" width="5" height="17.5" rx="2.5"/><rect x="18.4" y="2.2" width="5" height="16.5" rx="2.5"/><rect x="23.4" y="5.6" width="4.6" height="14" rx="2.3" transform="rotate(8 25.7 19)"/><rect x="7.6" y="15.5" width="3.8" height="9" rx="1.9" transform="rotate(-42 9.5 24)"/></g><g class="f"><rect x="8.5" y="15" width="19.5" height="16" rx="7"/><rect x="8" y="4.2" width="5" height="15.5" rx="2.5" transform="rotate(-8 10.5 19)"/><rect x="13.2" y="1.2" width="5" height="17.5" rx="2.5"/><rect x="18.4" y="2.2" width="5" height="16.5" rx="2.5"/><rect x="23.4" y="5.6" width="4.6" height="14" rx="2.3" transform="rotate(8 25.7 19)"/><rect x="7.6" y="15.5" width="3.8" height="9" rx="1.9" transform="rotate(-42 9.5 24)"/></g></svg>`
+    + `<svg class="grabhand fist" viewBox="0 0 34 34"><g class="o"><rect x="7.5" y="13" width="21" height="17" rx="7.5"/><circle cx="11" cy="13.6" r="3"/><circle cx="16" cy="12.6" r="3"/><circle cx="21" cy="12.8" r="3"/><circle cx="25.4" cy="14.4" r="2.7"/><rect x="6" y="17" width="12" height="5" rx="2.5" transform="rotate(-12 12 19.5)"/></g><g class="f"><rect x="7.5" y="13" width="21" height="17" rx="7.5"/><circle cx="11" cy="13.6" r="3"/><circle cx="16" cy="12.6" r="3"/><circle cx="21" cy="12.8" r="3"/><circle cx="25.4" cy="14.4" r="2.7"/><rect x="6" y="17" width="12" height="5" rx="2.5" transform="rotate(-12 12 19.5)"/></g></svg>`
+    + `<i class="ring"></i><div class="bub"></div>`;
+  document.body.appendChild(myCur);
+  const NATIVE = 'input, textarea, select, [contenteditable="true"], .card.editing, .handle, #rh, .knob, .wires .w-end, .wires .w-bend, iframe, .wheel, .bright';
+  function paintCursor() {
+    const c = settings.cursor || '#ff9ec4', edge = mixHex(c, '#000000', lum(c) > .6 ? .28 : .38);
+    myCur.style.setProperty('--c', c); myCur.style.setProperty('--cs', edge); myCur.style.setProperty('--ct', lum(c) > .4 ? '#3d3640' : '#ffffff');
+    myCur.querySelector('.bub').textContent = (settings.name || 'You').slice(0, 24);
+    document.body.classList.toggle('fancy-cursor', settings.fancyCursor !== false && matchMedia('(hover: hover) and (pointer: fine)').matches);
+  }
+  addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || !document.body.classList.contains('fancy-cursor')) return;
+    myCur.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`; myCur.classList.add('show');
+    const t = e.target, native = !!(t.closest && t.closest(NATIVE));
+    myCur.classList.toggle('hide', native); document.body.classList.toggle('cur-native', native);
+    const onCard = !native && !placing && !drawOn && t.closest && t.closest('.card') && !t.closest('button, a, input');
+    myCur.classList.toggle('grabby', !!onCard || stage.classList.contains('space') || stage.classList.contains('panning'));
+  }, { passive: true, capture: true });
+  addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') return; myCur.classList.add('down'); myCur.classList.remove('tap'); void myCur.offsetWidth; myCur.classList.add('tap'); }, true);
+  addEventListener('pointerup', () => myCur.classList.remove('down'), true);
+  document.addEventListener('pointerleave', () => myCur.classList.remove('show'));
+  addEventListener('blur', () => myCur.classList.remove('show'));
+
+  // ---------- your colors: the board, its dots, the panels and the accent, set per light/dark; one board can also have its own background ----------
+  const COLOR_DEFAULTS = { light: { bg: '#fbf8fc', dot: '#e3dcee', panel: '#ffffff', accent: '#f27aa8' }, dark: { bg: '#1c1920', dot: '#35303c', panel: '#26222b', accent: '#f27aa8' } };
+  const lum = hex => { const [r, g, b] = [1, 3, 5].map(i => { const c = parseInt(hex.slice(i, i + 2), 16) / 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); }); return .2126 * r + .7152 * g + .0722 * b; };
+  const mixHex = (a, b, k) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - k) + parseInt(b.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('');
+  const modeName = () => document.body.classList.contains('dark') ? 'dark' : 'light';
+  const myColors = () => { settings.colors = settings.colors || { light: {}, dark: {} }; return settings.colors[modeName()] = settings.colors[modeName()] || {}; };
+  const colorOf = k => (k === 'bg' && board && board.bg) || myColors()[k] || COLOR_DEFAULTS[modeName()][k];
+  function applyColors() {
+    const B = document.body.style, mine = myColors(), bg = colorOf('bg'), darkBg = lum(bg) < .2;
+    B.setProperty('--board', bg);
+    if (mine.dot) B.setProperty('--dot', mine.dot); else if (darkBg !== (modeName() === 'dark')) B.setProperty('--dot', mixHex(bg, darkBg ? '#ffffff' : '#000000', .13)); else B.removeProperty('--dot');
+    document.body.classList.toggle('tint-panels', !!mine.panel); if (mine.panel) B.setProperty('--panel', mine.panel); else B.removeProperty('--panel');
+    document.body.classList.toggle('panel-dark', !!mine.panel && lum(mine.panel) < .2);
+    if (mine.accent) { B.setProperty('--pink-deep', mine.accent); B.setProperty('--pink', mixHex(mine.accent, '#ffffff', .3)); B.setProperty('--blush', mixHex(mine.accent, modeName() === 'dark' ? '#1c1920' : '#ffffff', .82)); }
+    else ['--pink-deep', '--pink', '--blush'].forEach(v => B.removeProperty(v));
+    document.body.classList.toggle('board-dark', darkBg); document.body.classList.toggle('board-light', !darkBg && modeName() === 'dark');
+    document.querySelectorAll('[data-col]').forEach(b => b.style.setProperty('--chip', b.dataset.col === 'cursor' ? settings.cursor : colorOf(b.dataset.col)));
+    $('colReset') && ($('colReset').hidden = !Object.keys(mine).length);
+    paintCursor();
+    // settings: name, cursor colors and the little preview
+    if ($('setName') && document.activeElement !== $('setName')) $('setName').value = settings.name || '';
+    if ($('curColors')) $('curColors').innerHTML = PRESETS.cursor.map(h => `<button data-cc="${h}" title="${h.toUpperCase()}" style="background:${h}" class="${settings.cursor === h ? 'on' : ''}"></button>`).join('')
+      + `<button class="rand${PRESETS.cursor.includes(settings.cursor) ? '' : ' on'}" data-col="cursor" title="Any color"></button>`;
+    const pv = document.querySelector('#curPrev .mcur'); if (pv) { pv.innerHTML = myCur.innerHTML; pv.setAttribute('style', myCur.getAttribute('style') || ''); pv.style.transform = ''; }
+  }
+  $('setName').oninput = e => { settings.name = e.target.value.trim().slice(0, 24); applySettings(); };
+  $('setName').onkeydown = e => e.stopPropagation();
+  $('curColors').onclick = e => { const b = e.target.closest('[data-cc]'); if (b) { settings.cursor = b.dataset.cc; applySettings(); } };
+  $('colReset').onclick = () => { settings.colors[modeName()] = {}; applySettings(); };
   $('gearBtn').onclick = e => { e.stopPropagation(); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
   // settings tabs: one topic at a time, so it isn't one long scroll
@@ -1282,7 +1512,7 @@
     if (type === 'piece') { const P = PIECES[extra.piece], items = P.make(P.w || 360), W = Math.max(...items.map(i => i.x + i.w)), H = Math.max(...items.map(i => i.y + i.h)); g.style.width = W + 'px'; g.style.height = H + 'px'; g.querySelector('span').textContent = extra.piece; }
     if (type === 'icon') { g.innerHTML = `<span class="mi" style="font-size:28px;position:static;color:#27272a">${esc(extra.name)}</span>`; g.style.width = g.style.height = '28px'; }
     if (type === 'frame' && DEVICES[extra.device]) { g.style.width = DEVICES[extra.device][0] + 'px'; g.style.height = DEVICES[extra.device][1] + 'px'; g.querySelector('span').textContent = extra.device; }
-    if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
+    if (type === 'stamp') { const st = extra.stamp; g.innerHTML = stampHTML(st); g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
   function stopPlacing() { if (placing?.type === 'audio') setTimeout(coolMic, 15000); $('shapePick').classList.remove('on'); $('tplPick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
@@ -1402,8 +1632,17 @@
     hmw: '<path d="M7.5 14.5h5M8.3 17h3.4M10 2.8a5 5 0 0 0-3 9c.6.5 1 1.2 1 2v.7h4v-.7c0-.8.4-1.5 1-2a5 5 0 0 0-3-9z"/>',
     rtb: '<circle cx="10" cy="7" r="3.6"/><path d="M10 5.3c-.9.4-1.2 1.4-.6 2.1M10 10.6V17.5M10 14c-2.3 0-3.8-1.2-4.2-3 2 0 3.6.9 4.2 3zM10 15.5c1.8 0 3.2-1 3.6-2.6-1.7 0-3.1.8-3.6 2.6z"/>',
   };
-  $('tplPick').innerHTML = Object.entries(FRAMEWORKS).map(([k, F]) => `<button data-tpl="${k}"><span class="tp-e"><svg viewBox="0 0 20 20">${TPL_IC[k]}</svg></span><span class="tp-t"><b>${esc(F.name)}</b><small>${esc(F.line)}</small></span></button>`).join('');
-  $('tplPick').onclick = e => { const b = e.target.closest('[data-tpl]'); if (!b) return; $('tplPick').classList.remove('on'); $('tools').querySelector('[data-add="tpl"]').classList.remove('on'); placeFramework(b.dataset.tpl); };
+  // the old "Start from" boards live here now too, under the frameworks: each opens as its own new board
+  const STARTERS = {
+    'Moodboard': ['References, colors and type for a feeling', '<path d="M10 2.8a7.2 7.2 0 1 0 0 14.4c1.2 0 1.8-.9 1.4-1.9-.5-1.1.2-2.3 1.4-2.3h1.7a2.7 2.7 0 0 0 2.7-2.7c0-4.2-3.2-7.5-7.2-7.5z"/><circle cx="6.6" cy="9" r=".9" fill="currentColor"/><circle cx="9" cy="6.2" r=".9" fill="currentColor"/><circle cx="12.6" cy="6.8" r=".9" fill="currentColor"/>'],
+    'App plan': ['Who it\'s for, the problem, the screens', '<rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M8.5 6h3M8.5 9h3M8.5 12h2"/>'],
+    'Brain dump': ['Empty your head, then let Mochi sort it', '<path d="M10 3.5c-3.6 0-6.5 2.4-6.5 5.5 0 1.9 1.1 3.5 2.8 4.5l-.6 3 3-1.8c.4.1.9.1 1.3.1 3.6 0 6.5-2.4 6.5-5.8S13.6 3.5 10 3.5z"/><path d="M7.5 8.5h5M7.5 11h3"/>'],
+  };
+  $('tplPick').innerHTML = '<div class="tp-h">Add to this board</div>' + Object.entries(FRAMEWORKS).map(([k, F]) => `<button data-tpl="${k}"><span class="tp-e"><svg viewBox="0 0 20 20">${TPL_IC[k]}</svg></span><span class="tp-t"><b>${esc(F.name)}</b><small>${esc(F.line)}</small></span></button>`).join('')
+    + '<div class="tp-h">Start a new board</div>' + Object.entries(STARTERS).filter(([k]) => TEMPLATES[k]).map(([k, [line, ic]]) => `<button data-starter="${esc(k)}"><span class="tp-e"><svg viewBox="0 0 20 20">${ic}</svg></span><span class="tp-t"><b>${esc(k)}</b><small>${esc(line)}</small></span><span class="tp-new">New ↗</span></button>`).join('');
+  $('tplPick').onclick = async e => { const st = e.target.closest('[data-starter]');
+    if (st) { $('tplPick').classList.remove('on'); $('tools').querySelector('[data-add="tpl"]').classList.remove('on'); const name = st.dataset.starter, b = newBoard(name, name); await MB.save(b); await openBoard(b.id); fit(board.cards); refreshBoards(); return; }
+    const b = e.target.closest('[data-tpl]'); if (!b) return; $('tplPick').classList.remove('on'); $('tools').querySelector('[data-add="tpl"]').classList.remove('on'); placeFramework(b.dataset.tpl); };
 
   // ---------- export: right-click a card (or the empty board) to save it as an image or PDF ----------
   const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1444,6 +1683,9 @@
         { label: 'Duplicate', run: () => { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
         { label: 'Delete', danger: true, run: () => removeSelected() }]);
     } else boardMenu(e, [
+      { label: 'Background color…', run: () => tintPicker('bg', { x: e.clientX + 12, y: e.clientY - 40 }, true) },
+      ...(board.bg ? [{ label: 'Use the default background', run: () => { delete board.bg; save(); applyColors(); } }] : []),
+      '-',
       { label: 'Export board as image', run: () => exportCards(board.cards, board.name, false) },
       { label: 'Export board as PDF', run: () => exportCards(board.cards, board.name, true) }]);
   });
@@ -1868,6 +2110,33 @@
   const pen = { tool: 'pen', size: 'm', color: 'ink' };
   let drawOn = false, stroke = null, erasing = false, liveSvg = null;
   try { Object.assign(pen, JSON.parse(localStorage.getItem('mochiboard:pen') || '{}')); } catch (e) {}
+  // any thickness, not just three: each tool keeps its own (old drawings saved as s / m / l still read from PEN_SIZE)
+  const PEN_RANGE = { pen: [2, 48], marker: [2, 40], hi: [8, 72], eraser: [10, 90] };
+  pen.sizes = Object.assign({ pen: PEN_SIZE.pen[pen.size] || 9, marker: PEN_SIZE.marker[pen.size] || 8, hi: PEN_SIZE.hi[pen.size] || 24, eraser: 28 }, pen.sizes || {});
+  const penW = (tool, size) => typeof size === 'number' ? size : ((PEN_SIZE[tool] || PEN_SIZE.pen)[size] || 9);
+  const curSize = () => pen.sizes[pen.tool] || 9;
+  const sizeToT = v => { const [a, b] = PEN_RANGE[pen.tool] || PEN_RANGE.pen; return Math.pow((v - a) / (b - a), 1 / 1.7); };   // a gentle curve: fine control at the thin end
+  const tToSize = t => { const [a, b] = PEN_RANGE[pen.tool] || PEN_RANGE.pen; return Math.round(a + (b - a) * Math.pow(Math.min(1, Math.max(0, t)), 1.7)); };
+  function setSize(v) { const [a, b] = PEN_RANGE[pen.tool] || PEN_RANGE.pen; pen.sizes[pen.tool] = Math.min(b, Math.max(a, Math.round(v))); paintSize(); try { localStorage.setItem('mochiboard:pen', JSON.stringify(pen)); } catch (e) {} }
+  function paintSize() {
+    const v = curSize(), t = sizeToT(v), er = pen.tool === 'eraser', col = er ? 'transparent' : pen.color === 'ink' ? 'var(--pen-ink)' : INKS[pen.color] || pen.color;
+    $('dbsFill').style.width = `calc(${t * 100}% + ${9 - t * 18}px)`; $('dbsKnob').style.left = `calc(${t * 100}% + ${9 - t * 18}px)`; $('dbsVal').textContent = v;
+    const dot = $('dbsDot'), d = Math.min(22, Math.max(3, v * (er ? .35 : .6))); Object.assign(dot.style, { width: d + 'px', height: d + 'px', background: col, opacity: pen.tool === 'hi' ? .45 : 1 }); dot.classList.toggle('er', er);
+    // the bubble over the knob shows the true size on the board right now (at this zoom)
+    const bub = $('dbsBub').firstElementChild, bd = Math.min(110, Math.max(2, er ? v : v * view.z)); Object.assign(bub.style, { width: bd + 'px', height: bd + 'px', background: col, opacity: pen.tool === 'hi' ? .45 : 1 }); bub.classList.toggle('er', er);
+    const ring = $('eraseRing'); if (ring) Object.assign(ring.style, { width: v + 'px', height: v + 'px', margin: `${-v / 2}px 0 0 ${-v / 2}px` });
+  }
+  { const tr = $('dbsTrack'); let on = false;
+    const at = e => { const r = tr.getBoundingClientRect(); setSize(tToSize((e.clientX - r.left - 9) / (r.width - 18))); };
+    tr.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); on = true; tr.setPointerCapture(e.pointerId); $('dbSize').classList.add('sizing'); at(e); });
+    tr.addEventListener('pointermove', e => on && at(e));
+    const up = () => { on = false; $('dbSize').classList.remove('sizing'); }; tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
+    tr.addEventListener('keydown', e => { const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key]; if (!d) return; e.preventDefault(); e.stopPropagation(); setSize(curSize() + d * Math.max(1, Math.round(curSize() * .08))); });
+    tr.addEventListener('wheel', e => { e.preventDefault(); e.stopPropagation(); setSize(curSize() + (e.deltaY < 0 || e.deltaX > 0 ? 1 : -1) * Math.max(1, Math.round(curSize() * .06))); }, { passive: false });
+  }
+  // [ and ] while drawing: smaller / bigger, with the bubble flashing up so you can see it
+  addEventListener('keydown', e => { if (!drawOn || e.metaKey || e.ctrlKey || e.target.closest?.('input, textarea, [contenteditable="true"]')) return; const d = e.key === ']' ? 1 : e.key === '[' ? -1 : 0; if (!d) return;
+    e.preventDefault(); setSize(curSize() + d * Math.max(1, Math.round(curSize() * .12))); $('dbSize').classList.add('sizing'); clearTimeout(setSize.t); setSize.t = setTimeout(() => $('dbSize').classList.remove('sizing'), 700); });
   // a filled ribbon around the line: wider where you slowed down, thin at the start and end, with a little breathing wobble
   function butter(raw, finished, BASE) {
     const pts = []; let acc = 0;
@@ -1898,14 +2167,14 @@
     return d + ` L${p[p.length - 1][0].toFixed(1)} ${p[p.length - 1][1].toFixed(1)}`;
   }
   function inkPath(pts, tool, size, color, finished) {
-    const col = color === 'ink' || !color ? 'var(--pen-ink)' : INKS[color] || color, w = (PEN_SIZE[tool] || PEN_SIZE.pen)[size] || 9;
+    const col = color === 'ink' || !color ? 'var(--pen-ink)' : INKS[color] || color, w = penW(tool, size);
     if (tool === 'pen') { if (pts.length < 2) { const [x, y] = pts[0]; return `<path style="fill:${col}" d="M${x - w / 3} ${y} a${w / 3} ${w / 3} 0 1 0 ${w / 1.5} 0 a${w / 3} ${w / 3} 0 1 0 ${-w / 1.5} 0"/>`; } return `<path style="fill:${col}" d="${butter(pts, finished, w)}"/>`; }
     return `<path fill="none" style="stroke:${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${tool === 'hi' ? ' opacity=".38" style="mix-blend-mode:multiply"' : ''} d="${centerline(pts)}"/>`;
   }
   function renderDrawbar() {
     $('dbColors').innerHTML = Object.entries(INKS).map(([n, c]) => `<button data-ink="${n}" title="${n}" style="background:${n === 'ink' ? 'var(--pen-ink)' : c}" class="${pen.color === n ? 'on' : ''}"></button>`).join('');
     $('drawbar').querySelectorAll('[data-pen]').forEach(b => b.classList.toggle('on', b.dataset.pen === pen.tool));
-    $('dbSizes').querySelectorAll('[data-sz]').forEach(b => b.classList.toggle('on', b.dataset.sz === pen.size));
+    paintSize();
     stage.classList.toggle('erasing', drawOn && pen.tool === 'eraser'); stage.classList.toggle('drawing', drawOn && pen.tool !== 'eraser');
     try { localStorage.setItem('mochiboard:pen', JSON.stringify(pen)); } catch (e) {}
   }
@@ -1914,22 +2183,22 @@
   function exitDraw() { drawOn = false; stroke = null; erasing = false; $('dock').classList.remove('drawing'); stage.classList.remove('drawing', 'erasing'); if (liveSvg) liveSvg.innerHTML = ''; }
   $('drawbar').addEventListener('pointerdown', e => e.stopPropagation());
   $('drawbar').onclick = e => {
-    const t = e.target.closest('[data-pen]'), z = e.target.closest('[data-sz]'), k = e.target.closest('[data-ink]');
+    const t = e.target.closest('[data-pen]'), k = e.target.closest('[data-ink]');
     if (e.target.closest('[data-db="done"]')) return exitDraw();
-    if (t) pen.tool = t.dataset.pen; if (z) pen.size = z.dataset.sz; if (k) { pen.color = k.dataset.ink; if (pen.tool === 'eraser') pen.tool = 'pen'; }
+    if (t) pen.tool = t.dataset.pen; if (k) { pen.color = k.dataset.ink; if (pen.tool === 'eraser') pen.tool = 'pen'; }
     renderDrawbar();
   };
   const O = 5000;
   function drawDown(e) {
     const w = toWorld(e.clientX, e.clientY); stage.setPointerCapture(e.pointerId);
     if (pen.tool === 'eraser') { erasing = true; eraseAt(e); return; }
-    stroke = { pts: [[w.x, w.y, performance.now()]], tool: pen.tool, size: pen.size, color: pen.color };
+    stroke = { pts: [[w.x, w.y, performance.now()]], tool: pen.tool, size: curSize(), color: pen.color };
     liveSvg.innerHTML = '';
   }
   function eraseAt(e) {
-    const w = toWorld(e.clientX, e.clientY), r = 14 / view.z; let hit = false;
+    const w = toWorld(e.clientX, e.clientY), r = (pen.sizes.eraser || 28) / 2 / view.z; let hit = false;   // the eraser is a size on screen, like the ring you see
     board.cards.filter(c => c.type === 'ink').forEach(c => {
-      const sx = c.w / c.ow, sy = c.h / c.oh, half = ((PEN_SIZE[c.pen] || PEN_SIZE.pen)[c.size] || 9) / 2;
+      const sx = c.w / c.ow, sy = c.h / c.oh, half = penW(c.pen, c.size) / 2;
       if (w.x < c.x - r - half || w.x > c.x + c.w + r + half || w.y < c.y - r - half || w.y > c.y + c.h + r + half) return;
       if (c.pts.some(p => Math.hypot(c.x + p[0] * sx - w.x, c.y + p[1] * sy - w.y) < r + half)) {
         hit = true; board.cards = board.cards.filter(x => x !== c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.classList.add('fading'); setTimeout(() => el.remove(), 260); }
@@ -1949,7 +2218,7 @@
   addEventListener('pointerup', () => {
     if (!drawOn) return; erasing = false; if (!stroke) return;
     const s2 = stroke; stroke = null; liveSvg.innerHTML = '';
-    const pad = ((PEN_SIZE[s2.tool] || PEN_SIZE.pen)[s2.size] || 9) + 4, xs = s2.pts.map(p => p[0]), ys = s2.pts.map(p => p[1]);
+    const pad = penW(s2.tool, s2.size) + 4, xs = s2.pts.map(p => p[0]), ys = s2.pts.map(p => p[1]);
     const x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad, w = Math.max(...xs) - x0 + pad, h = Math.max(...ys) - y0 + pad;
     const pts = s2.pts.map(p => [+(p[0] - x0).toFixed(1), +(p[1] - y0).toFixed(1), Math.round(p[2])]);
     const c = card('ink', { x: x0, y: y0, w, h, ow: w, oh: h, r: 0, pts, pen: s2.tool, size: s2.size, ink: s2.color });
@@ -1967,7 +2236,10 @@
   const WHEEL_DEFAULT = [{ emoji: '❤️' }, { emoji: '👍' }, { src: M('love') }, { emoji: '⭐' }, { src: 'stamps/mochi-bounce.gif' }, { emoji: '❓' }, { emoji: '🌈' }, { src: M('happy'), mv: 'squish' }];
   // the wheel keeps your favorites; anything you pick from the full list joins it
   let wheel = WHEEL_DEFAULT; try { const w0 = JSON.parse(localStorage.getItem('mochiboard:wheel') || 'null'); if (Array.isArray(w0) && w0.length === 8) wheel = w0; } catch (e) {}
-  const stampHTML = st => st.src ? `<img src="${esc(st.src)}" alt="">` : esc(st.emoji);
+  // every emoji stamp is drawn as Mochi-style pixel art (stamps/px); boards made before keep working, they just get the new look
+  const PX = { '❤️': 'heart', '👍': 'thumbsup', '👎': 'thumbsdown', '⭐': 'star', '✨': 'sparkles', '🌈': 'rainbow', '🔥': 'fire', '🎉': 'party', '💯': 'hundred', '✅': 'check', '❌': 'cross', '❓': 'question', '❗': 'exclaim', '💡': 'bulb', '👀': 'eyes', '🙌': 'raised', '👏': 'clap', '🤔': 'thinking', '😍': 'hearteyes', '😂': 'joy', '🥹': 'holdingtears', '😭': 'sob', '😅': 'sweat', '🫶': 'hearthands', '💖': 'sparkleheart', '🩷': 'pinkheart', '💜': 'purpleheart', '💙': 'blueheart', '🌸': 'blossom', '🌷': 'tulip', '🍓': 'strawberry', '🍑': 'peach', '🧁': 'cupcake', '☕': 'coffee', '🚀': 'rocket', '📌': 'pushpin', '📍': 'roundpin', '🎯': 'target', '🏆': 'trophy', '🧠': 'brain', '💬': 'speech', '🗓️': 'calendar', '⏰': 'alarm', '🔗': 'link', '🎨': 'palette', '🖍️': 'crayon', '📸': 'camera', '🎧': 'headphones' };
+  const pxSrc = e => PX[e] ? `stamps/px/${PX[e]}.png` : null;
+  const stampHTML = st => st.src ? `<img src="${esc(st.src)}" alt="">` : pxSrc(st.emoji) ? `<img src="${pxSrc(st.emoji)}" alt="${esc(st.emoji)}">` : esc(st.emoji);
   function renderWheel() {
     $('wsRing').innerHTML = wheel.map((st, i) => { const a = (i / 8) * Math.PI * 2 - Math.PI / 2, x = 110 + Math.cos(a) * 76, y = 110 + Math.sin(a) * 76;
       return `<button data-w="${i}" class="${st.mv ? 'mv-' + st.mv : ''}" style="left:${x}px;top:${y}px">${stampHTML(st)}</button>`; }).join('');
@@ -2223,6 +2495,14 @@
     let x = r.right + 14 - s.left, y = r.top - s.top; if (x + 270 > s.width - 250) x = r.left - 270 - s.left; pop.style.left = Math.max(260, x) + 'px'; pop.style.top = clamp(y, 70, s.height - 470) + 'px';
   }
   function openColor(c) {
+    $('cpop').classList.toggle('tint', !!c.tint);
+    if (c.tint) document.body.appendChild($('cpop')); else if ($('cpop').parentNode !== stage) stage.appendChild($('cpop'));   // UI colors sit above Settings; card colors stay on the board
+    if (c.tint) {   // a UI color, not a color card: no name or palette, a few starting points, and a way back to the default
+      colorCard = c; hsv = hex2hsv(c.hex); drawIfV(); $('cpHex').value = c.hex.toUpperCase(); $('cpDot').style.background = c.hex; $('cpTitle').textContent = c.title;
+      $('cpQuick').innerHTML = c.presets.map(h => `<button style="background:${h}" data-hex="${h}" title="${h.toUpperCase()}"></button>`).join('');
+      const pop = $('cpop'); pop.classList.add('on'); const w = 252, h = pop.offsetHeight || 470;
+      pop.style.left = clamp(c.at.x, 12, innerWidth - w - 12) + 'px'; pop.style.top = clamp(c.at.y, 12, innerHeight - h - 12) + 'px'; return;
+    }
     colorCard = c; hsv = hex2hsv(c.hex); drawIfV();
     $('cpHex').value = c.hex.toUpperCase(); $('cpName').value = c.label || ''; $('cpDot').style.background = c.hex;
     $('cpQuick').innerHTML = board.palette.map(p => `<button style="background:${p.hex}" data-hex="${p.hex}" title="${esc(p.name)}"></button>`).join('');
@@ -2231,6 +2511,7 @@
   }
   function closeColor() { $('cpop').classList.remove('on'); colorCard = null; }
   function setColor(hex, from) {
+    if (colorCard && colorCard.tint && hex) { colorCard.hex = hex; $('cpDot').style.background = hex; if (from !== 'hex') $('cpHex').value = hex.toUpperCase(); if (from !== 'wheel') { hsv = hex2hsv(hex); drawIfV(); } colorCard.apply(hex); return; }
     if (!colorCard || !hex) return; colorCard.hex = hex; $('cpDot').style.background = hex;
     if (from !== 'hex') $('cpHex').value = hex.toUpperCase();
     if (from !== 'wheel') { hsv = hex2hsv(hex); drawIfV(); }
@@ -2249,22 +2530,42 @@
     $('cpSave').textContent = 'Saved ✓'; $('cpSave').classList.add('saved-ok'); chirp(`Saved “${name}” to this board's colors ✦`, 3500);
   };
   $('cpDone').onclick = closeColor;
-  addEventListener('pointerdown', e => { if ($('cpop').classList.contains('on') && !e.target.closest('.cpop, .card.swatch')) closeColor(); }, true);
+  addEventListener('pointerdown', e => { if ($('cpop').classList.contains('on') && !e.target.closest('.cpop, .card.swatch, [data-col]')) closeColor(); }, true);
+  $('cpReset').onclick = () => { if (colorCard && colorCard.tint) { colorCard.reset(); closeColor(); } };
+  const PRESETS = { bg: ['#fbf8fc', '#ffffff', '#fff6f9', '#fffaf0', '#f4fbf6', '#f3f8ff', '#f6f2ff', '#1c1920', '#232733', '#2b2433'], dot: ['#e3dcee', '#f2c9da', '#cfe8d9', '#cfe0f5', '#e6dcff', '#d8d2dd', '#35303c', '#4a4452'],
+    panel: ['#ffffff', '#fff6f9', '#fffaf0', '#f4fbf6', '#f3f8ff', '#f6f2ff', '#26222b', '#2f2a36'], accent: ['#f27aa8', '#ff8a5c', '#f3c84a', '#3fbf86', '#4aa3f0', '#9b7bff', '#494848'],
+    cursor: ['#ff9ec4', '#ffc8a6', '#f8e08a', '#a8e6c3', '#aed3ff', '#cdb8ff', '#ffffff', '#494848'] };
+  const COLOR_TITLES = { bg: 'Board background', dot: 'Dots', panel: 'Panels', accent: 'Accent', cursor: 'Your cursor' };
+  // open the wheel for a UI color; `forBoard` means just this board's background (from a right-click)
+  function tintPicker(key, at, forBoard) {
+    const set = hex => { if (key === 'cursor') settings.cursor = hex; else if (forBoard) { board.bg = hex; save(); } else myColors()[key] = hex; applySettings(); };
+    openColor({ tint: true, title: forBoard ? 'This board’s background' : COLOR_TITLES[key], hex: key === 'cursor' ? settings.cursor : forBoard ? (board.bg || colorOf('bg')) : colorOf(key), presets: PRESETS[key], at,
+      apply: set, reset: () => { if (key === 'cursor') settings.cursor = '#ff9ec4'; else if (forBoard) { delete board.bg; save(); } else delete myColors()[key]; applySettings(); } });
+  }
+  document.addEventListener('click', e => { const b = e.target.closest('[data-col]'); if (!b) return; const r = b.getBoundingClientRect(); tintPicker(b.dataset.col, { x: r.left - 270, y: r.top - 120 }); });
   function renderPalette() {
     const el = $('palette'); el.innerHTML = '';
     if (!board.palette.length) { el.innerHTML = '<div class="palette-empty">Click a color card to name it and save it here. Each board keeps its own palette.</div>'; return; }
     board.palette.forEach((p, i) => {
       const r = document.createElement('div'); r.className = 'pal'; r.title = 'Click to add to the board';
-      r.innerHTML = `<i style="background:${p.hex}"></i><span></span><small>${p.hex.slice(1)}</small><button class="pal-ed" title="Rename">✎</button><button class="pal-x" title="Remove">×</button>`;
+      r.innerHTML = `<i style="background:${p.hex}"></i><span></span><small>${p.hex.slice(1)}</small>`;
+      r.title = 'Click to add it to the board. Right-click to rename, change or remove it';
       const name = r.querySelector('span'); name.textContent = p.name;
-      r.onclick = e => {
-        if (e.target.closest('.pal-x')) { board.palette.splice(i, 1); renderPalette(); save(); return; }
-        if (e.target.closest('.pal-ed')) { name.contentEditable = 'true'; name.focus(); getSelection().selectAllChildren(name);
-          const done = () => { name.contentEditable = 'false'; const v = name.textContent.trim(); if (v) { p.name = v; board.cards.filter(c => c.type === 'swatch' && c.hex === p.hex).forEach(c => { c.label = v; renderCard(c); }); } renderPalette(); save(); };
-          name.onblur = done; name.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); name.blur(); } ev.stopPropagation(); }; return; }
-        if (name.isContentEditable) return;
-        const c = addAtCenter('swatch', { hex: p.hex, label: p.name });
-      };
+      const rename = () => { name.contentEditable = 'true'; name.focus(); getSelection().selectAllChildren(name);
+        const done = () => { name.contentEditable = 'false'; const v = name.textContent.trim(); if (v) { p.name = v; board.cards.filter(c => c.type === 'swatch' && c.hex === p.hex).forEach(c => { c.label = v; renderCard(c); }); } renderPalette(); save(); };
+        name.onblur = done; name.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); name.blur(); } if (ev.key === 'Escape') { name.textContent = p.name; name.blur(); } ev.stopPropagation(); }; };
+      // change the color itself: color cards on the board that use it follow along
+      const recolor = e => { const was = p.hex, rr = r.getBoundingClientRect();
+        openColor({ tint: true, title: `Change “${p.name}”`, hex: p.hex, presets: [p.hex, ...board.palette.filter(x => x !== p).map(x => x.hex)].slice(0, 10), at: { x: rr.right + 12, y: rr.top - 60 },
+          apply: hex => { const from = p.hex; p.hex = hex; board.cards.filter(c => c.type === 'swatch' && c.hex === from).forEach(c => { c.hex = hex; renderCard(c); }); r.querySelector('i').style.background = hex; r.querySelector('small').textContent = hex.slice(1); save(); },
+          reset: () => { const from = p.hex; p.hex = was; board.cards.filter(c => c.type === 'swatch' && c.hex === from).forEach(c => { c.hex = was; renderCard(c); }); renderPalette(); save(); } }); };
+      r.onclick = () => { if (name.isContentEditable) return; addAtCenter('swatch', { hex: p.hex, label: p.name }); };
+      r.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); boardMenu(e, [
+        { label: 'Add to the board', run: () => addAtCenter('swatch', { hex: p.hex, label: p.name }) },
+        { label: 'Rename', run: rename },
+        { label: 'Change color…', run: recolor },
+        '-',
+        { label: 'Remove from board colors', danger: true, run: () => { board.palette.splice(i, 1); renderPalette(); save(); chirp(`Removed “${p.name}” from this board's colors`, 2500); } }]); };
       el.appendChild(r);
     });
   }
@@ -2405,7 +2706,16 @@
     ['<path d="M6 15.5h8.2a3.3 3.3 0 0 0 .6-6.5 4.6 4.6 0 0 0-8.9-.9A3.7 3.7 0 0 0 6 15.5z"/><path d="M3.5 3.5l13 13"/>', 'Works without internet', 'Your boards keep working offline. I’ll tell you when I can’t think with Claude and pick back up when you’re online.'],
     ['<circle cx="5" cy="5" r="1.1" fill="currentColor" stroke="none"/><circle cx="10" cy="5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r="1.1" fill="currentColor" stroke="none"/><circle cx="5" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="5" cy="15" r="1.1" fill="currentColor" stroke="none"/><circle cx="10" cy="15" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.1" fill="currentColor" stroke="none"/>', 'Canvases go anywhere', 'Drag a canvas onto another board, into a folder, or right-click to make it its own board.'],
     ['<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>', 'Tidier Settings', 'Settings has tabs now, and Helpers shows how much Claude I’ve used, with a link to your plan’s limits.'],
+  ], '1.2.0': [
+    ['<path d="M4.5 3.5l11 5.2-4.6 1.4-1.6 4.6z"/><path d="M11 10.2l4 4.3"/>', 'Your own cursor', 'Your name and color follow your mouse around the board. Pick them in Settings → General.'],
+    ['<path d="M10 2.8a7.2 7.2 0 1 0 0 14.4c1.2 0 1.8-.9 1.4-1.9-.5-1.1.2-2.3 1.4-2.3h1.7a2.7 2.7 0 0 0 2.7-2.7c0-4.2-3.2-7.5-7.2-7.5z"/><circle cx="6.6" cy="9" r=".9" fill="currentColor"/><circle cx="9" cy="6.2" r=".9" fill="currentColor"/><circle cx="12.6" cy="6.8" r=".9" fill="currentColor"/>', 'Your colors', 'Change the board, dots, panels and accent. Right-click any board for its own background.'],
+    ['<path d="M10 3l7 3.8-7 3.8-7-3.8z"/><path d="M3 10.2l7 3.8 7-3.8"/><path d="M3 13.6l7 3.8 7-3.8"/>', 'Layers', 'Everything on the board in one list. Pick, rename, hide, lock and restack, like Figma.'],
+    ['<rect x="3.5" y="3.5" width="13" height="13" rx="2"/><path d="M11 16.5h5.5V11M16.5 16.5l-5-5"/>', 'Reshape wireframes', 'Drag any piece’s corner to resize it. Double-click to reach inside a button or input.'],
+    ['<path d="M13.5 3.5l3 3L8 15l-4 1 1-4z"/><path d="M3 18.5h14" stroke-width="1.2"/>', 'Any pen size', 'A slider for every thickness, and [ and ] while you draw. Stamps are all pixel art now too.'],
+    ['<path d="M11 2.5L4.5 11h5l-1 6.5L15.5 9h-5z"/>', 'Smoother', 'Dragging and zooming glide on big boards, and the dots stay the same size as you zoom.'],
   ] };
+  // the button on each version's card: try the headline thing
+  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };
   const newsKey = 'mochiboard:newsSeen';
   async function maybeNews() {
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
@@ -2417,11 +2727,11 @@
     if (seen === v || !items.length) return;
     $('newsV').textContent = `Mochiboard ${v}`;
     $('newsList').innerHTML = items.map(([e, t, d]) => `<li><span class="nw-e"><svg viewBox="0 0 20 20">${e}</svg></span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
+    const tryK = Object.keys(NEWS_TRY).filter(k => !after(k, v)).pop(), tr = NEWS_TRY[tryK]; $('newsTry').textContent = tr[0]; $('newsTry').onclick = () => { closeNews(); tr[1](); };
     $('news').classList.add('on');
   }
   const closeNews = () => $('news').classList.remove('on');
   $('newsOk').onclick = closeNews;
-  $('newsTry').onclick = () => { closeNews(); $('tools').querySelector('[data-add="tpl"]').click(); };
   $('news').onclick = e => { if (e.target === $('news')) closeNews(); };
 
   // ---------- start ----------

@@ -3,7 +3,20 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
-## October 2026
+## October 2026 · 1.2.0
+
+- Your own cursor: your name and a color you pick follow your mouse around the board.
+- Your colors: change the board, dots, panels and accent in Settings, or right-click any board for its own background.
+- Board colors: right-click a saved color to rename, change or remove it.
+- Layers: everything on the board in one list. Pick, rename, hide, lock and drag to restack.
+- Resize wireframe pieces: drag a piece's corner to reshape it, or double-click to reach inside a button or input.
+- The resize corner always sits on top and stays the same size at any zoom.
+- Drawing sizes: a slider for any thickness (and [ ] while drawing). The eraser has a size too.
+- All 48 stamps are pixel art now.
+- The starter boards (Moodboard, App plan, Brain dump) moved into the Templates menu.
+- Smoother dragging and zooming on big boards, and the dots stay the same size as you zoom.
+
+## Earlier in October 2026
 
 - The What’s new card uses Mochiboard’s own icons.
 - Dark mode fixes: the templates menu and the stamp wheel’s + button are easy to see now.

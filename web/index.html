@@ -28,9 +28,9 @@
       <div class="new-row"><button class="pill-btn" id="newBoard">+ Board</button><button class="pill-btn" id="newFolder">+ Folder</button><button class="pill-btn" id="newProject">+ Project</button></div>
     </div>
   </section>
-  <section class="box" data-box="start">
-    <header><div class="label">Start from</div><button class="mini" title="Minimize">–</button></header>
-    <div class="box-body"><div class="templates" id="templates"></div></div>
+  <section class="box" data-box="layers">
+    <header><div class="label">Layers <b class="ly-count" id="layerCount"></b></div><button class="mini" title="Minimize">–</button></header>
+    <div class="box-body"><div class="layers" id="layers"></div></div>
   </section>
   <section class="box" data-box="colors">
     <header><div class="label">Board colors</div><button class="mini" title="Minimize">–</button></header>
@@ -99,7 +99,7 @@
       <button class="db-tool" data-pen="hi" title="Highlighter: see-through"><svg viewBox="0 0 20 20"><path d="M11 3.5l5.5 5.5-6 6H6v-4.5z"/><path d="M3 17.5h14" stroke-width="3" opacity=".45"/></svg></button>
       <button class="db-tool" data-pen="eraser" title="Eraser: swipe over a drawing to remove it"><svg viewBox="0 0 20 20"><path d="M8 16.5h9M3.6 12.4l7.8-7.8a1.6 1.6 0 0 1 2.2 0l2.8 2.8a1.6 1.6 0 0 1 0 2.2L10 16H7.2z"/></svg></button>
       <span class="sb-sep"></span>
-      <div class="db-sizes" id="dbSizes"><button data-sz="s" title="Thin"><i style="width:6px;height:6px"></i></button><button data-sz="m" class="on" title="Medium"><i style="width:11px;height:11px"></i></button><button data-sz="l" title="Thick"><i style="width:17px;height:17px"></i></button></div>
+      <div class="db-size" id="dbSize" title="Size · [ and ] while drawing"><span class="dbs-dot"><i id="dbsDot"></i></span><div class="dbs-track" id="dbsTrack" role="slider" tabindex="0" aria-label="Size"><i class="dbs-fill" id="dbsFill"></i><b class="dbs-knob" id="dbsKnob"><span class="dbs-bub" id="dbsBub"><i></i></span></b></div><span class="dbs-val" id="dbsVal"></span></div>
       <span class="sb-sep"></span>
       <div class="db-colors" id="dbColors"></div>
     </div>
@@ -169,12 +169,13 @@
   <svg class="guides" id="guides"></svg>
   <!-- the color editor: pops up beside a color card -->
   <div class="cpop" id="cpop">
+    <div class="cp-title" id="cpTitle"></div>
     <div class="wheel" id="wheel"><canvas id="wheelCv" width="440" height="440"></canvas><i class="ring" id="wheelRing"></i></div>
     <div class="bright" id="bright"><i class="ring" id="brightRing"></i></div>
     <div class="cp-row"><span class="cp-dot" id="cpDot"></span>
       <div class="cp-fields"><input id="cpHex" maxlength="7" spellcheck="false" aria-label="Hex"><input id="cpName" placeholder="Name it (e.g. Blush Pop)" spellcheck="false" aria-label="Color name"></div></div>
     <div class="cp-quick" id="cpQuick"></div>
-    <div class="cp-acts"><button id="cpSave" class="solid">Save to board colors</button><button id="cpDone">Done</button></div>
+    <div class="cp-acts"><button id="cpSave" class="solid">Save to board colors</button><button id="cpReset" class="cp-reset">Use the default</button><button id="cpDone">Done</button></div>
   </div>
   <input type="file" id="filePick" accept="image/*" multiple hidden>
   <input type="file" id="coverPick" accept="image/*" hidden>
@@ -249,6 +250,19 @@
       <section class="set-start" data-tab="general"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section data-tab="general"><h3>Look</h3>
         <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
+        <div class="set-row"><div><b>Colors</b><small>Make Mochiboard yours. Right-click any board to give just that board its own background.</small></div><button class="set-btn" id="colReset" hidden>Reset colors</button></div>
+        <div class="col-grid">
+          <button class="col-chip" data-col="bg"><i></i><span>Background</span></button>
+          <button class="col-chip" data-col="dot"><i></i><span>Dots</span></button>
+          <button class="col-chip" data-col="panel"><i></i><span>Panels</span></button>
+          <button class="col-chip" data-col="accent"><i></i><span>Accent</span></button>
+        </div>
+      </section>
+      <section data-tab="general"><h3>Your cursor</h3>
+        <div class="cur-prev" id="curPrev"><div class="mcur show demo"></div></div>
+        <label class="set-row"><div><b>Your name</b><small>It rides along on your cursor</small></div><input class="set-input" id="setName" maxlength="24" placeholder="Your name" spellcheck="false"></label>
+        <div class="set-row"><div><b>Cursor color</b><small>Pick one, or tap the last dot for any color</small></div><div class="mochi-colors cur-colors" id="curColors"></div></div>
+        <label class="set-row"><div><b>Mochiboard cursor</b><small>Off uses your Mac’s regular cursor</small></div><input type="checkbox" class="tgl" data-set="fancyCursor"></label>
       </section>
       <section data-tab="mochi"><h3>Mochi</h3>
         <div class="set-row"><div><b>Her color</b><small>Mochi in the dock and the logo</small></div><div class="mochi-colors" id="mochiColors"></div></div>
