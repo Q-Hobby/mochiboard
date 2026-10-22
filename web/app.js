@@ -738,7 +738,7 @@
       endEdit();
       if (e.shiftKey || e.metaKey || e.ctrlKey) { const all = n.ids.every(i => sel.has(i)); n.ids.forEach(i => all ? sel.delete(i) : sel.add(i)); selectOnly([...sel]); }
       else selectOnly(n.ids);
-      lyBringIntoView(n.ids); renderLayers();
+      lyBringIntoView(n.ids); lyFlash(lyAll(n)); renderLayers();
     });
     list.addEventListener('dblclick', e => {
       const r = e.target.closest('.ly'), nm = r?.querySelector('.ly-n'); if (!nm || e.target.closest('.ly-b, .ly-tw')) return; const n = lyFind(r.dataset.key); if (!n) return;
@@ -766,6 +766,16 @@
         const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest; renderAll(); }
       save(); renderLayers();
     });
+  }
+  // Mochi points it out: a soft pink glow pulses around the piece and she pops up on its corner with a wave, then both fade
+  function lyFlash(ids) {
+    const cs = ids.map(byId).filter(c => c && !c.hidden); if (!cs.length) return;
+    world.querySelectorAll('.ly-flash').forEach(f => f.remove());
+    const pad = 10 / view.z, x0 = Math.min(...cs.map(c => c.x)) - pad, y0 = Math.min(...cs.map(c => c.y)) - pad, x1 = Math.max(...cs.map(c => c.x + c.w)) + pad, y1 = Math.max(...cs.map(c => c.y + c.h)) + pad;
+    const f = document.createElement('div'); f.className = 'ly-flash'; f.style.setProperty('--iz', (1 / view.z).toFixed(4));
+    Object.assign(f.style, { left: x0 + 'px', top: y0 + 'px', width: x1 - x0 + 'px', height: y1 - y0 + 'px' });
+    f.innerHTML = '<i class="lf-ring"></i><i class="lf-ring two"></i><img class="lf-mochi" src="stamps/mochi-wave.png" alt=""><b class="lf-spark">✦</b>';
+    world.appendChild(f); setTimeout(() => f.classList.add('out'), 1500); setTimeout(() => f.remove(), 1900);
   }
   function lyBringIntoView(ids) {
     const cs = ids.map(byId).filter(Boolean); if (!cs.length) return; const r = stage.getBoundingClientRect();

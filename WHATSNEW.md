@@ -3,6 +3,10 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.2.1
+
+- Click a layer and Mochi points it out on the board: a pink glow and a little wave from its corner.
+
 ## October 2026 · 1.2.0
 
 - Your own cursor: your name and a color you pick follow your mouse around the board.
