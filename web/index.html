@@ -250,13 +250,6 @@
       <section class="set-start" data-tab="general"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section data-tab="general"><h3>Look</h3>
         <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
-        <div class="set-row"><div><b>Colors</b><small>Make Mochiboard yours. Right-click any board to give just that board its own background.</small></div><button class="set-btn" id="colReset" hidden>Reset colors</button></div>
-        <div class="col-grid">
-          <button class="col-chip" data-col="bg"><i></i><span>Background</span></button>
-          <button class="col-chip" data-col="dot"><i></i><span>Dots</span></button>
-          <button class="col-chip" data-col="panel"><i></i><span>Panels</span></button>
-          <button class="col-chip" data-col="accent"><i></i><span>Accent</span></button>
-        </div>
       </section>
       <section data-tab="general"><h3>Your cursor</h3>
         <div class="cur-prev" id="curPrev"><div class="mcur show demo"></div></div>
@@ -290,9 +283,16 @@
         <div class="web-note web-only">This is the web version, so Mochi can't reach Claude Code or your helpers from here. Download the Mac app to connect them. <button class="set-link get-app">Get Mochiboard ↗</button></div><div class="set-note native-only">Helpers are the connections in your Claude account. Connect one in Claude's settings, then come back and tap <button class="set-link" id="recheck">check again</button>.</div>
       </section>
       <section data-tab="board"><h3>The board</h3>
+        <div class="set-row"><div><b>Colors</b><small>The background, dots, panels and accent. Right-click any board to give just that board its own background.</small></div><button class="set-btn" id="colReset" hidden>Reset colors</button></div>
+        <div class="col-grid">
+          <button class="col-chip" data-col="bg"><i></i><span>Background</span></button>
+          <button class="col-chip" data-col="dot"><i></i><span>Dots</span></button>
+          <button class="col-chip" data-col="panel"><i></i><span>Panels</span></button>
+          <button class="col-chip" data-col="accent"><i></i><span>Accent</span></button>
+        </div>
+        <label class="set-row"><div><b>Dot grid</b><small>The soft dots behind your cards</small></div><input type="checkbox" class="tgl" data-set="grid"></label>
         <div class="set-row"><div><b>New note color</b><small>What a fresh note starts as</small></div><div class="mochi-colors" id="noteColors"></div></div>
         <label class="set-row"><div><b>Snap to the dots</b><small>Cards line up with the grid when you drop them</small></div><input type="checkbox" class="tgl" data-set="snap"></label>
-        <label class="set-row"><div><b>Dot grid</b><small>The soft dots behind your cards</small></div><input type="checkbox" class="tgl" data-set="grid"></label>
         <label class="set-row"><div><b>Loose, tilted cards</b><small>Off makes every card sit perfectly straight</small></div><input type="checkbox" class="tgl" data-set="tilt"></label>
         <label class="set-row"><div><b>Moving stamps and wiggles</b><small>Turn off for a calmer board</small></div><input type="checkbox" class="tgl" data-set="motion"></label>
         <label class="set-row"><div><b>Shortcut hints</b><small>The little key list in the bottom corner</small></div><input type="checkbox" class="tgl" data-set="keys"></label>

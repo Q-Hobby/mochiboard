@@ -3,6 +3,11 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## Next (saved, not released yet)
+
+- Switches in Settings show the Mochiboard pointer instead of a text cursor.
+- Colors and the dot grid live under Settings → Board now.
+
 ## October 2026 · 1.2.1
 
 - Click a layer and Mochi points it out on the board: a pink glow and a little wave from its corner.

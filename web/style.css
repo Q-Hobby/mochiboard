@@ -1172,7 +1172,7 @@ body.dark .col-chip { background: rgba(255, 255, 255, .05); }
 
 /* ---------- your cursor (the jessa.art pointer, in your color) ---------- */
 body.fancy-cursor, body.fancy-cursor * { cursor: none !important; }
-body.fancy-cursor.cur-native input, body.fancy-cursor.cur-native textarea, body.fancy-cursor.cur-native [contenteditable="true"], body.fancy-cursor.cur-native .card.editing * { cursor: text !important; }
+body.fancy-cursor.cur-native input:not([type=checkbox]):not([type=radio]):not([type=range]), body.fancy-cursor.cur-native textarea, body.fancy-cursor.cur-native [contenteditable="true"], body.fancy-cursor.cur-native .card.editing * { cursor: text !important; }
 body.fancy-cursor.cur-native .handle { cursor: nwse-resize !important; } body.fancy-cursor.cur-native .knob, body.fancy-cursor.cur-native .wires * { cursor: crosshair !important; }
 body.fancy-cursor.cur-native iframe, body.fancy-cursor.cur-native .wheel, body.fancy-cursor.cur-native .bright { cursor: default !important; }
 .mcur { position: fixed; left: 0; top: 0; z-index: 2147483000; pointer-events: none; opacity: 0; transition: opacity .25s; will-change: transform; }
@@ -1281,3 +1281,5 @@ body.dark .dbs-knob { background: #ece8f0; }
 @keyframes lfWave { from { transform: rotate(-6deg); } to { transform: rotate(6deg) translateY(calc(-2px * var(--iz))); } }
 .lf-spark { position: absolute; left: 0; top: 0; translate: calc(22px * var(--iz)) calc(-38px * var(--iz)); font: 700 calc(15px * var(--iz))/1 var(--font); color: var(--pink-deep); animation: lfSpark .9s ease-out .25s both; }
 @keyframes lfSpark { 0% { opacity: 0; transform: scale(.3) rotate(0); } 40% { opacity: 1; transform: scale(1.15) rotate(40deg); } 100% { opacity: 0; transform: scale(.8) rotate(90deg); } }
+
+.tgl, label.set-row { cursor: pointer; }   /* switches are buttons, never a text cursor (with the Mac cursor too) */

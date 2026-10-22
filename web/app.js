@@ -1235,7 +1235,7 @@
     + `<svg class="grabhand fist" viewBox="0 0 34 34"><g class="o"><rect x="7.5" y="13" width="21" height="17" rx="7.5"/><circle cx="11" cy="13.6" r="3"/><circle cx="16" cy="12.6" r="3"/><circle cx="21" cy="12.8" r="3"/><circle cx="25.4" cy="14.4" r="2.7"/><rect x="6" y="17" width="12" height="5" rx="2.5" transform="rotate(-12 12 19.5)"/></g><g class="f"><rect x="7.5" y="13" width="21" height="17" rx="7.5"/><circle cx="11" cy="13.6" r="3"/><circle cx="16" cy="12.6" r="3"/><circle cx="21" cy="12.8" r="3"/><circle cx="25.4" cy="14.4" r="2.7"/><rect x="6" y="17" width="12" height="5" rx="2.5" transform="rotate(-12 12 19.5)"/></g></svg>`
     + `<i class="ring"></i><div class="bub"></div>`;
   document.body.appendChild(myCur);
-  const NATIVE = 'input, textarea, select, [contenteditable="true"], .card.editing, .handle, #rh, .knob, .wires .w-end, .wires .w-bend, iframe, .wheel, .bright';
+  const NATIVE = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=color]), textarea, select, [contenteditable="true"], .card.editing, .handle, #rh, .knob, .wires .w-end, .wires .w-bend, iframe, .wheel, .bright';
   function paintCursor() {
     const c = settings.cursor || '#ff9ec4', edge = mixHex(c, '#000000', lum(c) > .6 ? .28 : .38);
     myCur.style.setProperty('--c', c); myCur.style.setProperty('--cs', edge); myCur.style.setProperty('--ct', lum(c) > .4 ? '#3d3640' : '#ffffff');
@@ -2725,7 +2725,7 @@
     ['<path d="M11 2.5L4.5 11h5l-1 6.5L15.5 9h-5z"/>', 'Smoother', 'Dragging and zooming glide on big boards, and the dots stay the same size as you zoom.'],
   ] };
   // the button on each version's card: try the headline thing
-  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };
+  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };
   const newsKey = 'mochiboard:newsSeen';
   async function maybeNews() {
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
