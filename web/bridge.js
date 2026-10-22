@@ -23,7 +23,7 @@
     async folders() { return JSON.parse(localStorage.getItem(LS + 'folders') || '[]'); },
     async saveFolders(folders) { localStorage.setItem(LS + 'folders', JSON.stringify(folders)); return true; },
     async remove(id) { localStorage.removeItem(LS + 'board:' + id); localStorage.setItem(LS + 'index', JSON.stringify(JSON.parse(localStorage.getItem(LS + 'index') || '[]').filter(b => b.id !== id))); return true; },
-    web, getURL: 'https://github.com/jessawolfe-ux/mochiboard',
+    web, getURL: 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip',
     async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true, web }; },
     async fetchImage(url) { return url; },
     async openURL(url) { window.open(url, '_blank'); },

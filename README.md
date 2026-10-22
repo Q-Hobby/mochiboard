@@ -31,7 +31,17 @@ Mochiboard is a free, open-source Mac app for the messy part before you open you
 - **Higgsfield** to fill image spots with real pictures. It costs credits, so Mochi always shows the price and your balance first and waits for your yes. That check can't be turned off.
 - No Higgsfield? Mochi can draw simple illustrations for free, or leave the spots as labeled placeholders.
 
-## Install
+## Download
+
+**[⬇ Download Mochiboard for Mac](https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip)** (macOS 13 or newer, Apple chip or Intel)
+
+1. Unzip it and drag **Mochiboard** into your Applications folder.
+2. Open it. The first time, your Mac says it can't check it, because it isn't from the App Store.
+3. Go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. You only do this once.
+
+Mochiboard updates itself from Settings after that. For Mochi's thinking, add [Claude Code](https://claude.com/claude-code).
+
+## Install from the code
 
 You need a Mac (macOS 13 or newer). For Mochi's thinking, install [Claude Code](https://claude.com/claude-code).
 

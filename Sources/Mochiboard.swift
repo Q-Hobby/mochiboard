@@ -320,8 +320,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
         return (p.terminationStatus == 0, (String(data: d, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     }
+    // downloaded copies (no git folder) update from GitHub Releases instead
+    let releaseAPI = "https://api.github.com/repos/jessawolfe-ux/mochiboard/releases/latest"
+    var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0" }
+    func newer(_ a: String, than b: String) -> Bool {
+        let x = a.trimmingCharacters(in: CharacterSet(charactersIn: "v")).split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) { let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0; if p != q { return p > q } }
+        return false
+    }
+    func latestRelease(done: @escaping ([String: Any]?) -> Void) {
+        var req = URLRequest(url: URL(string: releaseAPI)!, timeoutInterval: 30); req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: req) { d, _, _ in done(d.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) }.resume()
+    }
     func checkForUpdate(done: @escaping ([String: Any]) -> Void) {
-        guard let dir = repoDir else { return done(["repo": false]) }
+        guard let dir = repoDir else {
+            return latestRelease { r in
+                guard let r, let tag = r["tag_name"] as? String else { return done(["release": true, "offline": true, "since": self.appVersion]) }
+                let notes = (r["body"] as? String ?? "").split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.hasPrefix("- ") }.map { String($0.dropFirst(2)) }
+                done(["release": true, "behind": self.newer(tag, than: self.appVersion) ? 1 : 0, "notes": notes, "since": self.appVersion, "latest": tag])
+            }
+        }
         DispatchQueue.global().async {
             let here = self.git(["log", "-1", "--format=%cs"], in: dir).out
             guard self.git(["fetch", "--quiet", "origin"], in: dir, timeout: 40).ok else { return done(["repo": true, "offline": true, "since": here]) }
@@ -332,8 +350,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             done(["repo": true, "behind": behind, "notes": notes, "since": here])
         }
     }
+    // a downloaded copy: fetch the new zip, unpack it, and swap it in after this one quits
+    func updateFromRelease(done: @escaping (Bool, String) -> Void) {
+        latestRelease { r in
+            guard let assets = r?["assets"] as? [[String: Any]], let url = assets.first(where: { ($0["name"] as? String) == "Mochiboard.zip" })?["browser_download_url"] as? String, let u = URL(string: url) else { return done(false, "I couldn't find the new version on GitHub. Try again in a bit.") }
+            URLSession.shared.downloadTask(with: u) { file, _, err in
+                guard let file else { return done(false, err?.localizedDescription ?? "The download didn't finish.") }
+                let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("mochiboard-update-\(UUID().uuidString)")
+                try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+                let zip = tmp.appendingPathComponent("Mochiboard.zip"); try? FileManager.default.moveItem(at: file, to: zip)
+                let unzip = Process(); unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto"); unzip.arguments = ["-x", "-k", zip.path, tmp.path]
+                try? unzip.run(); unzip.waitUntilExit()
+                let fresh = tmp.appendingPathComponent("Mochiboard.app").path
+                guard FileManager.default.fileExists(atPath: fresh + "/Contents/MacOS/Mochiboard") else { return done(false, "The new version didn't unpack properly.") }
+                let app = Bundle.main.bundlePath
+                let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/bash")
+                p.arguments = ["-c", "nohup bash -c 'sleep 1.5; rm -rf \"$1\" && /usr/bin/ditto \"$0\" \"$1\" && xattr -dr com.apple.quarantine \"$1\"; open \"$1\"' \"$0\" \"$1\" >/dev/null 2>&1 &", fresh, app]
+                do { try p.run(); p.waitUntilExit() } catch { return done(false, error.localizedDescription) }
+                done(true, "updating")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { NSApp.terminate(nil) }
+            }.resume()
+        }
+    }
     func startUpdate(done: @escaping (Bool, String) -> Void) {
-        guard let dir = repoDir else { return done(false, "I can't find the folder Mochiboard was installed from. Run ./install.sh --update in Terminal instead.") }
+        guard let dir = repoDir else { return updateFromRelease(done: done) }
         DispatchQueue.global().async {
             // only a clean fast-forward: never touch someone's own changes
             if !self.git(["status", "--porcelain", "--untracked-files=no"], in: dir).out.isEmpty { return done(false, "Your Mochiboard folder has changes of its own, so I won't update over them. Run ./install.sh --update in Terminal to see what's up.") }

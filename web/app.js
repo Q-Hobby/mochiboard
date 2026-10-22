@@ -1099,7 +1099,7 @@
   }
   let haveClaude = null;
   // the web demo: Mochi tidies for real, and for anything that needs AI she points you to the Mac app
-  const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard');
+  const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip');
   const DL = [{ label: 'Download Mochiboard ✦', run: getApp }, { label: 'Keep playing', ghost: true, run: () => {} }];
   function webMochi(q) {
     const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
@@ -2159,13 +2159,14 @@
   }
   function showUpdate(fresh) {
     const u = { ...(updInfo || {}) }, n = u.behind || 0;
-    if (u.since) { const d = new Date(u.since + 'T12:00'); if (!isNaN(d)) u.since = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+    if (u.since && !u.release) { const d = new Date(u.since + 'T12:00'); if (!isNaN(d)) u.since = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
     $('gearBtn').classList.toggle('has-update', n > 0);
     $('setUpdate').classList.toggle('ready', n > 0);
     $('suGo').hidden = !(n > 0);
     $('suTitle').textContent = n > 0 ? `A new Mochiboard is ready ✦` : 'Updates';
-    $('suSub').textContent = !u.repo ? 'To get updates, update once from Terminal with ./install.sh --update. After that it works from here.'
+    $('suSub').textContent = !u.repo && !u.release ? 'To get updates, update once from Terminal with ./install.sh --update. After that it works from here.'
       : u.offline ? 'I couldn’t reach GitHub just now. I’ll try again later.'
+      : u.release ? (n > 0 ? `Version ${String(u.latest || '').replace(/^v/, '')} is ready (you have ${u.since}). Your boards and settings stay just as they are.` : `You’re up to date (version ${u.since}).`)
       : n > 0 ? `${n} update${n > 1 ? 's' : ''} since your version${u.since ? ' from ' + u.since : ''}. Your boards and settings stay just as they are.`
       : `You’re up to date${u.since ? ' (version from ' + u.since + ')' : ''}.`;
     const notes = (u.notes || []).slice(0, 8);
