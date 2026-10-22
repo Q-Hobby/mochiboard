@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             DispatchQueue.main.async { self?.web.evaluateJavaScript("__mbReply(\(id), \(ok), \(json)[0])") }
         }
         switch op {
+        case "usage": reply(true, usageSummary())
+        case "resetUsage": usageLock.lock(); try? FileManager.default.removeItem(at: usageFile); usageLock.unlock(); reply(true, true)
         case "list":
             let files = (try? FileManager.default.contentsOfDirectory(at: boardsDir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
             let list: [[String: Any]] = files.filter { $0.pathExtension == "json" }.compactMap { f in
@@ -288,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             var tools = mobbin ? ["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"] : []
             // the generator is only switched on after the person taps "yes" in the app: spending credits needs their say-so
             if confirmed && higgs { tools += ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"] }
-            p.arguments = ["-p", prompt, "--output-format", "text"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
+            p.arguments = ["-p", prompt, "--output-format", "json"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
             p.currentDirectoryURL = support
             var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
             p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
@@ -296,13 +298,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 300, execute: killer)
             let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
-            let text = String(data: data, encoding: .utf8) ?? ""
+            let text = self.claudeResult(data)
             if p.terminationStatus != 0 && text.isEmpty {
                 let e = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer"
                 return done(false, String(e.prefix(300)))
             }
             done(true, text)
         }
+    }
+
+    // MARK: Claude usage: Claude Code reports what each request used; Mochi keeps a small tally on this Mac (usage.json)
+    var usageFile: URL { support.appendingPathComponent("usage.json") }
+    let usageLock = NSLock()
+    // reads Claude Code's JSON answer: notes the usage, hands back just the words
+    func claudeResult(_ data: Data) -> String {
+        guard let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let result = j["result"] as? String else { return String(data: data, encoding: .utf8) ?? "" }
+        let u = j["usage"] as? [String: Any] ?? [:]
+        let n = { (k: String) in (u[k] as? NSNumber)?.intValue ?? 0 }
+        let entry: [Any] = [Date().timeIntervalSince1970, n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"), n("output_tokens"), (j["total_cost_usd"] as? NSNumber)?.doubleValue ?? 0]
+        usageLock.lock(); defer { usageLock.unlock() }
+        var all = ((try? Data(contentsOf: usageFile)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[Any]] }) ?? []
+        all.append(entry); if all.count > 5000 { all.removeFirst(all.count - 5000) }
+        if let d = try? JSONSerialization.data(withJSONObject: all) { try? d.write(to: usageFile) }
+        return result
+    }
+    // today, the last 7 days and everything: asks, tokens (in, including the context Claude re-reads, and out) and the pay-per-request estimate
+    func usageSummary() -> [String: Any] {
+        usageLock.lock(); let all = ((try? Data(contentsOf: usageFile)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[Any]] }) ?? []; usageLock.unlock()
+        let now = Date(), day = Calendar.current.startOfDay(for: now).timeIntervalSince1970, week = now.timeIntervalSince1970 - 7 * 86400
+        func sum(_ since: Double) -> [String: Any] {
+            let xs = all.filter { (($0.first as? NSNumber)?.doubleValue ?? 0) >= since }
+            let f = { (i: Int) in xs.reduce(0.0) { $0 + ((($1.count > i ? $1[i] : 0) as? NSNumber)?.doubleValue ?? 0) } }
+            return ["asks": xs.count, "tokensIn": f(1), "tokensOut": f(2), "cost": f(3)]
+        }
+        return ["today": sum(day), "week": sum(week), "all": sum(0), "since": (all.first?.first as? NSNumber)?.doubleValue ?? 0]
     }
 
     // MARK: updates
@@ -392,7 +421,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process(), out = Pipe(), err = Pipe()
             p.executableURL = URL(fileURLWithPath: claude)
-            p.arguments = ["-p", prompt, "--output-format", "text"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
+            p.arguments = ["-p", prompt, "--output-format", "json"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
             p.currentDirectoryURL = support
             var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
             p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
@@ -400,7 +429,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
             let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
-            let text = String(data: data, encoding: .utf8) ?? ""
+            let text = self.claudeResult(data)
             if p.terminationStatus != 0 && text.isEmpty { return done(false, String((String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer").prefix(300))) }
             done(true, text)
         }

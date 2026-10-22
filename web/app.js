@@ -67,10 +67,34 @@
   }
   const looseBoards = () => boardList.filter(b => (!b.folder || !folders.some(f => f.id === b.folder)) && topLevel(b));
   const tint = c => COLORS[c] && c !== 'white' ? `var(--${c === 'pink' ? 'pink' : c + '-deep'})` : 'var(--pink)';
+  // moving a board into a folder (or out of one). A canvas that lived inside another board comes out on its own.
   async function moveBoard(id, folderId) {
-    if (board && board.id === id) { board.folder = folderId; await MB.save(board); return; }
-    const b = await MB.load(id); if (!b) return; b.folder = folderId; await MB.save(b);
+    await unhook(id);
+    if (board && board.id === id) { board.folder = folderId; delete board.parent; await MB.save(board); renderCrumbsSoon(); return; }
+    const b = await MB.load(id); if (!b) return; b.folder = folderId; delete b.parent; await MB.save(b);
   }
+  // ---------- canvases can go anywhere: inside another board (as a canvas card there), into a folder, or out on their own ----------
+  const insideOf = (id, maybeAncestor) => { let b = boardList.find(x => x.id === id), n = 0; while (b && b.parent && n++ < 40) { if (b.parent === maybeAncestor) return true; b = boardList.find(x => x.id === b.parent); } return false; };
+  async function editBoard(id, fn) {
+    if (board && board.id === id) { fn(board); renderAll(); save(); return board; }
+    const b = await MB.load(id); if (!b) return null; fn(b); await MB.save(b); return b;
+  }
+  // take a canvas's card off the board it sat inside
+  async function unhook(id) {
+    const kid = boardList.find(x => x.id === id) || (board && board.id === id ? board : null), p = kid && kid.parent; if (!p) return;
+    await editBoard(p, pb => { const gone = new Set(pb.cards.filter(c => c.type === 'canvas' && c.board === id).map(c => c.id)); pb.cards = pb.cards.filter(c => !gone.has(c.id)); pb.links = (pb.links || []).filter(l => !gone.has(l.a) && !gone.has(l.b)); });
+  }
+  // put a board inside another one, as a canvas card (at a spot, or to the right of what's there)
+  async function nestBoard(id, intoId, at) {
+    if (id === intoId || insideOf(intoId, id)) { chirp("A board can't go inside itself ✦", 2500); return false; }
+    const kid = boardList.find(x => x.id === id) || (board && board.id === id ? board : null); if (!kid || kid.parent === intoId) return false;
+    const into = board && board.id === intoId ? board : await MB.load(intoId); if (!into) return false;
+    await unhook(id);
+    await editBoard(id, b => { b.parent = intoId; b.folder = into.folder || null; });
+    await editBoard(intoId, pb => { const x = at ? at.x : pb.cards.length ? Math.max(...pb.cards.map(c => c.x + c.w)) + 60 : 0, y = at ? at.y : pb.cards.length ? Math.min(...pb.cards.map(c => c.y)) : 0; pb.cards.push(card('canvas', { x, y, text: kid.name, board: id })); });
+    chirp(`Moved “${kid.name}” inside “${into.name}” ✦`, 3000); return true;
+  }
+  const renderCrumbsSoon = () => setTimeout(() => typeof renderCrumbs === 'function' && renderCrumbs(), 50);
   async function loadLib() {
     const [list, lib] = await Promise.all([MB.list(), MB.folders().catch(() => null)]);
     boardList = list;
@@ -142,7 +166,7 @@
     }
     m.innerHTML = h + '</div>'; m.classList.add('mv');
     const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = Math.max(10, innerHeight - r.height - 10) + 'px';
-    m.onclick = async ev => { const b = ev.target.closest('[data-to]'); if (!b) return; const to = b.dataset.to || null; m.remove(); if (to === here) return;
+    m.onclick = async ev => { const b = ev.target.closest('[data-to]'); if (!b) return; const to = b.dataset.to || null; m.remove(); if (to === here && !(kind === 'board' && obj.parent)) return;
       if (kind === 'board') { await moveBoard(obj.id, to); const f = folders.find(x => x.id === to); if (f) { f.open = true; const p = projects.find(x => x.id === f.project); if (p) p.open = true; } }
       else if (to && to.startsWith('f:')) { const into = folders.find(x => x.id === to.slice(2)); if (!putFolder(obj.id, into)) return chirp("A folder can't go inside itself ✦", 2500); }
       else { putFolder(obj.id, null, to); const p = projects.find(x => x.id === to); if (p) p.open = true; }
@@ -153,7 +177,7 @@
     e.preventDefault(); e.stopPropagation(); $('rowMenu')?.remove();
     const n = kind === 'board' ? 1 + boardList.filter(x => x.parent === obj.id).length : kind === 'folder' ? boardsUnder(obj) : foldersIn(obj.id).reduce((t, f) => t + boardsUnder(f), 0);
     const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
-    m.innerHTML = `${nameEl ? '<button data-m="ren">Rename</button>' : ''}${kind !== 'project' ? '<button data-m="move">Move to…</button>' : ''}<button data-m="dup">Duplicate</button><span class="rm-sep"></span><button data-m="del" class="danger">Delete</button>`;
+    m.innerHTML = `${nameEl ? '<button data-m="ren">Rename</button>' : ''}${kind !== 'project' ? '<button data-m="move">Move to…</button>' : ''}${kind === 'board' && obj.parent ? '<button data-m="out">Make it its own board</button>' : ''}<button data-m="dup">Duplicate</button><span class="rm-sep"></span><button data-m="del" class="danger">Delete</button>`;
     document.body.appendChild(m);
     const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     m.onclick = async ev => {
@@ -161,6 +185,7 @@
       if (a === 'ren') { m.remove(); return inlineRename(nameEl, obj, kind === 'board' ? v => renameBoard(obj, v) : undefined); }
       if (a === 'dup') { m.remove(); return duplicate(kind, obj); }
       if (a === 'move') return moveMenu(m, kind, obj);
+      if (a === 'out') { m.remove(); const pb = boardList.find(x => x.id === obj.parent); await moveBoard(obj.id, pb ? pb.folder || null : null); await refreshBoards(); return chirp(`“${obj.name}” is its own board now ✦`, 3000); }
       if (a === 'del') { // ask first: deleting can't be undone
         const what = kind === 'board' ? (n > 1 ? `and the ${n - 1} canvas${n > 2 ? 'es' : ''} inside it` : '') : n ? `and the ${n} board${n === 1 ? '' : 's'} inside it` : '';
         m.innerHTML = `<p>Delete “${esc(obj.name)}” ${what}? This can't be undone.</p><div><button data-m="yes" class="danger solid">Delete</button><button data-m="no">Cancel</button></div>`; return; }
@@ -183,7 +208,7 @@
     r.ondblclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, v => renameBoard(b, v)); };
     const pen = document.createElement('button'); pen.className = 'f-btn'; pen.title = 'Rename'; pen.innerHTML = FBTN.ren; r.appendChild(pen);
     pen.onclick = e => { e.stopPropagation(); clearTimeout(tap); inlineRename(name, b, v => renameBoard(b, v)); };
-    draggable(r, 'board', b.id); r.oncontextmenu = e => rowMenu(e, 'board', b, name);
+    draggable(r, 'board', b.id); dropZone(r, 'board', id => nestBoard(id, b.id)); r.oncontextmenu = e => rowMenu(e, 'board', b, name);
     const kids = boardList.filter(x => x.parent === b.id); if (!kids.length) return r;
     const frag = document.createDocumentFragment(), sub = document.createElement('div'); sub.className = 'sub-boards';
     kids.forEach(k => sub.appendChild(boardRow(k))); frag.appendChild(r); frag.appendChild(sub); return frag;
@@ -337,7 +362,7 @@
       const t = tile('board', b, b.updated ? 'edited ' + ago(b.updated) : '', () => { closeHome(); openBoard(b.id); }, [['ren', 'Rename', '✎']]);
       t.querySelector('[data-a="ren"]').onclick = () => inlineRename(t.querySelector('.tile-meta b'), b, v => renameBoard(b, v));
       mini(b.id).then(svg => t.querySelector('.tile-art').innerHTML = svg || '<em>empty board</em>');
-      draggable(t, 'board', b.id); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('.tile-meta b')); return t;
+      draggable(t, 'board', b.id); dropZone(t, 'board', id => nestBoard(id, b.id)); t.oncontextmenu = e => rowMenu(e, 'board', b, t.querySelector('.tile-meta b')); return t;
     };
     const section = label => { const h = document.createElement('div'); h.className = 'home-sec'; h.textContent = label; grid.appendChild(h); };
     if (level === 'all') {
@@ -433,7 +458,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function inner(c) {
     switch (c.type) {
-      case 'note': return `${c.name !== undefined ? `<div class="nname">${esc(c.name)}</div>` : ''}<div class="text">${esc(c.text)}</div>`;
+      case 'note': return `${c.mochi ? `<div class="nm-head"><img class="nmochi" src="stamps/mochi-wave.png" alt=""><div class="nname">${esc(c.name || '')}</div></div>` : c.name !== undefined ? `<div class="nname">${esc(c.name)}</div>` : ''}<div class="text">${esc(c.text)}</div>`;
       case 'doc': return `<div class="pill">${CIC.doc}<span class="text">${esc(c.text)}</span></div>`;
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
@@ -684,7 +709,7 @@
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
   stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick')) return;
+    if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick, .tplpick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
     if (board) { clearTimeout(snapT); remember(); }   // lock in the last change before a new one starts, so undo steps stay separate
@@ -822,7 +847,7 @@
   });
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
   stage.addEventListener('wheel', e => {
-    if (e.target.closest('.tray, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick')) return; e.preventDefault();
+    if (e.target.closest('.tray, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick, .tplpick')) return; e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01));
     else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
   }, { passive: false });
@@ -868,7 +893,7 @@
     if (e.key === 'Enter' && cropping && !e.target.closest('input, textarea, [contenteditable="true"]')) { endCrop('done'); return; }
     if (e.key === 'Escape' && drawOn) { exitDraw(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
-    if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
+    if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('tplPick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
     if (e.key === 'Escape' && selWire) { selectWire(null); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing || homeAt || $('capture').classList.contains('on')) return;   // never fire board shortcuts while quick capture is open
@@ -914,6 +939,7 @@
     if (t === 'draw') return drawOn ? exitDraw() : enterDraw();
     if (t === 'stamp') { const on = !$('stampWheel').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); ['stampWheel', 'stampPick'].forEach(id => $(id).style.left = (r.left + r.width / 2 - sr.left) + 'px'); renderWheel(); $('stampWheel').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'shape') { const on = !$('shapePick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('shapePick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('shapePick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
+    if (t === 'tpl') { const on = !$('tplPick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('tplPick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('tplPick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'audio') return readyToRecord().then(ok => ok && startPlacing('audio'));
     startPlacing(t); };
   $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
@@ -988,6 +1014,7 @@
   });
   stage.addEventListener('dragover', e => e.preventDefault());
   stage.addEventListener('drop', e => { e.preventDefault(); const files = [...e.dataTransfer.files], w = toWorld(e.clientX, e.clientY);
+    const bid = e.dataTransfer.getData('mb/board'); if (bid && board) return nestBoard(bid, board.id, { x: w.x - 130, y: w.y - 90 }).then(ok => ok && refreshBoards());
     if (files.length) return addImages(files, w, overTray(e));
     const u = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'); if (/^https?:/.test(u)) linkCard(u.trim(), w); });
 
@@ -1017,8 +1044,23 @@
     document.querySelectorAll('[data-set]').forEach(t => t.checked = !!settings[t.dataset.set]);
     try { localStorage.setItem('mochiboard:settings', JSON.stringify(settings)); localStorage.setItem('mochiboard:keys', settings.keys ? 'show' : 'hide'); } catch (e) {}
   }
-  $('gearBtn').onclick = e => { e.stopPropagation(); checkUpdate(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  $('gearBtn').onclick = e => { e.stopPropagation(); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
+  // settings tabs: one topic at a time, so it isn't one long scroll
+  function setTab(t) { $('setTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); $('settings').querySelectorAll('.set-body section[data-tab]').forEach(sec => sec.classList.toggle('tab-off', sec.dataset.tab !== t)); $('settings').querySelector('.set-body').scrollTop = 0; if (t === 'helpers') showUsage(); }
+  $('setTabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); };
+  setTab('general');
+  // Claude usage (Mac app): Mochi's own tally, plus a door to the plan limits page
+  const kTok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1000 ? Math.round(n / 1000) + 'k' : String(Math.round(n));
+  const usLine = u => !u || !u.asks ? 'No asks yet' : `${u.asks} ask${u.asks === 1 ? '' : 's'} · ${kTok(u.tokensIn + u.tokensOut)} tokens`;
+  async function showUsage() {
+    if (!MB.native) return; let u = null; try { u = await MB.usage(); } catch (e) {}
+    if (!u) return; $('usToday').textContent = usLine(u.today); $('usWeek').textContent = usLine(u.week); $('usAll').textContent = usLine(u.all);
+    $('usNote').textContent = (u.week.cost >= .01 ? `About $${u.week.cost.toFixed(2)} this week if you paid per request (on a Pro or Max plan you don't). ` : '') + "Just Mochi's share, counted on this Mac. Your plan's limits cover everything you do with Claude.";
+  }
+  $('usLimits').onclick = () => MB.openURL('https://claude.ai/settings/usage');
+  $('usReset').onclick = async () => { await MB.resetUsage(); showUsage(); };
+
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
   $('obMochi').onclick = $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
@@ -1112,6 +1154,7 @@
     if (!settings.ai || haveClaude === false) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); }
     if (!settings.ai) return offlineMochi(q, "My thinking is switched off in Settings, so I can only do simple tidying.");
     if (haveClaude === false) return offlineMochi(q, "I need Claude Code on this Mac to think.");
+    if (!navigator.onLine) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); return offlineMochi(q, "You're offline, so I can't think with Claude right now. I'll be back when the internet is."); }
     if (!chatOpen()) mochiOpen(true);
     if (!confirmed) addMsg('me', q); else addMsg('mochi', 'Making it… this can take a minute ✦');
     $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true); typing(true);
@@ -1242,7 +1285,7 @@
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = st.src ? `<img src="${st.src}">` : `<span>${st.emoji}</span>`; g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
     $('tools').querySelector(`[data-add="${type}"]`)?.classList.add('on');
   }
-  function stopPlacing() { if (placing?.type === 'audio') setTimeout(coolMic, 15000); $('shapePick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
+  function stopPlacing() { if (placing?.type === 'audio') setTimeout(coolMic, 15000); $('shapePick').classList.remove('on'); $('tplPick').classList.remove('on'); $('stampWheel').classList.remove('on'); $('stampPick').classList.remove('on'); placing = null; $('ghost').className = 'ghost'; stage.classList.remove('placing'); $('tools').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
   function moveGhost() { if (!placing) return; const r = stage.getBoundingClientRect(), g = $('ghost'), o = placing.type === 'stamp' ? 28 * view.z : 14; g.style.left = mouse.x - r.left - o + 'px'; g.style.top = mouse.y - r.top - o + 'px'; g.style.transform = `scale(${view.z})`; }
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
@@ -1267,6 +1310,100 @@
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
     if (type === 'audio') record(c);
   }
+
+  // ---------- design thinking templates: a ready-made layout with one or two examples, plus Mochi's how-to note (delete it anytime) ----------
+  // items: title / note / coll (a collection with example notes) / how (Mochi's note). keys + links draw arrows between items.
+  const FRAMEWORKS = {
+    affinity: { emoji: '🧩', name: 'Affinity map', line: 'Cluster notes into themes', items: [
+      { t: 'title', x: 0, y: 0, text: 'Affinity map' },
+      { t: 'coll', x: 0, y: 90, name: 'Raw notes', color: 'white', notes: [{ text: '“I never know if my payment went through”' }, { text: '“I check my balance three times a day”' }, { text: 'Skipped the tutorial, then got lost' }, { text: '“The fees feel hidden”' }] },
+      { t: 'coll', x: 330, y: 90, name: 'People don’t trust the numbers', color: 'pink', notes: [{ text: '“I never know if my payment went through”', color: 'pink' }, { text: '“The fees feel hidden”', color: 'pink' }] },
+      { t: 'coll', x: 660, y: 90, name: 'Name a theme', color: 'mint', notes: [{ text: 'Drag notes that feel alike in here', color: 'mint' }] },
+      { t: 'how', x: 990, y: 90, text: 'Write one observation per note, in Raw notes. Then drag notes that feel alike into the same group.\n\nName each group as an insight, like “People don’t trust the numbers”, not just “Trust”.\n\nStuck? Ask me to group them by theme.' },
+    ] },
+    opportunity: { emoji: '🌳', name: 'Opportunity map', line: 'Outcome → opportunities → solutions', items: [
+      { t: 'title', x: 0, y: 0, text: 'Opportunity map' },
+      { t: 'note', key: 'o', x: 330, y: 90, name: 'Outcome', text: 'More people finish signing up', color: 'sky' },
+      { t: 'note', key: 'p1', x: 120, y: 300, name: 'Opportunity', text: '“I don’t know why it needs my ID”', color: 'butter' },
+      { t: 'note', key: 'p2', x: 540, y: 300, name: 'Opportunity', text: '“Setting up takes too long”', color: 'butter' },
+      { t: 'note', key: 's1', x: 0, y: 510, name: 'Solution', text: 'Explain why, right on that screen', color: 'mint' },
+      { t: 'note', key: 's2', x: 240, y: 510, name: 'Solution', text: 'Let people add their ID later', color: 'mint' },
+      { t: 'note', key: 's3', x: 540, y: 510, name: 'Solution', text: 'Save progress so they can come back', color: 'mint' },
+      { t: 'note', key: 'e1', x: 0, y: 720, name: 'Test', text: 'Show the new copy to 5 people', color: 'lilac' },
+      { t: 'how', x: 900, y: 90, text: 'Start at the top with the outcome you want.\n\nUnder it, add opportunities: needs and pains you heard from real people, in their words.\n\nUnder each one, a few solutions, then a small test to try first.\n\nDrag from a card’s edge to draw the lines, so you always know why you’re building something.' },
+    ], links: [['o', 'p1'], ['o', 'p2'], ['p1', 's1'], ['p1', 's2'], ['p2', 's3'], ['s1', 'e1']] },
+    matrix: { emoji: '⚖️', name: 'Impact / effort', line: 'Sort ideas into four boxes', items: [
+      { t: 'title', x: 0, y: 0, text: 'Impact / effort' },
+      { t: 'coll', x: 0, y: 90, name: '⚡ Quick wins', color: 'mint', notes: [{ text: 'Add a “save for later” button', color: 'mint' }] },
+      { t: 'coll', x: 330, y: 90, name: '🚀 Big bets', color: 'sky', notes: [{ text: 'Rebuild search', color: 'sky' }] },
+      { t: 'coll', x: 0, y: 360, name: '🧺 Fill-ins', color: 'butter', notes: [{ text: 'New empty-state art', color: 'butter' }] },
+      { t: 'coll', x: 330, y: 360, name: '💤 Skip for now', color: 'pink', notes: [{ text: 'Custom themes', color: 'pink' }] },
+      { t: 'how', x: 660, y: 90, text: 'Write every idea on its own note, then drop each one into a box.\n\nQuick wins: big impact, little effort. Big bets: big impact, lots of effort. Fill-ins: small and easy. Skip for now: small and hard.\n\nDo the quick wins first. Plan the big bets. Fill-ins are for slow days. Be honest about the last box.\n\nNot sure where one goes? Compare it to its neighbors, not to a perfect score.' },
+    ] },
+    empathy: { emoji: '💭', name: 'Empathy map', line: 'What they say, think, do and feel', items: [
+      { t: 'title', x: 0, y: 0, text: 'Empathy map' },
+      { t: 'note', x: 245, y: 90, name: 'Who', text: 'Maya, saving for her first apartment', color: 'lilac' },
+      { t: 'coll', x: 0, y: 270, name: 'Says', color: 'sky', notes: [{ text: '“I just want to know I’m on track”', color: 'sky' }] },
+      { t: 'coll', x: 330, y: 270, name: 'Thinks', color: 'lilac', notes: [{ text: 'Am I doing this wrong?', color: 'lilac' }] },
+      { t: 'coll', x: 0, y: 520, name: 'Does', color: 'butter', notes: [{ text: 'Checks the app every morning', color: 'butter' }] },
+      { t: 'coll', x: 330, y: 520, name: 'Feels', color: 'pink', notes: [{ text: 'Nervous before payday', color: 'pink' }] },
+      { t: 'how', x: 660, y: 90, text: 'Pick one real person (or a clear type of person) and write who they are up top.\n\nFill each box from interviews and research, not guesses. Quotes go in Says.\n\nThe gold is where Says and Thinks don’t match. That gap is usually the real problem.' },
+    ] },
+    journey: { emoji: '🗺️', name: 'Journey map', line: 'Steps, feelings and pain points', items: [
+      { t: 'title', x: 0, y: 0, text: 'Journey map' },
+      { t: 'coll', x: 0, y: 90, name: '1 · Hears about it', color: 'sky', notes: [{ text: 'Sees a friend’s post', color: 'white' }, { text: '😊 Curious', color: 'mint' }] },
+      { t: 'coll', x: 300, y: 90, name: '2 · Signs up', color: 'lilac', notes: [{ text: 'Fills out 4 screens', color: 'white' }, { text: '😩 “Why do you need my ID?”', color: 'pink' }] },
+      { t: 'coll', x: 600, y: 90, name: '3 · First use', color: 'butter', notes: [{ text: 'Sets a savings goal', color: 'white' }] },
+      { t: 'coll', x: 900, y: 90, name: '4 · Comes back', color: 'mint', notes: [{ text: 'What brings them back?', color: 'white' }] },
+      { t: 'how', x: 1200, y: 90, text: 'One column per step, in order. In each, add what they do (white), how they feel (green = good, pink = rough) and what gets in the way.\n\nThe pink notes are your opportunities.\n\nRename the steps to fit your product.' },
+    ] },
+    hmw: { emoji: '💡', name: 'How might we', line: 'Turn problems into questions', items: [
+      { t: 'title', x: 0, y: 0, text: 'How might we…' },
+      { t: 'coll', x: 0, y: 90, name: 'Problems we heard', color: 'pink', notes: [{ text: 'People abandon sign up at the ID step', color: 'pink' }] },
+      { t: 'coll', x: 330, y: 90, name: 'How might we…', color: 'butter', notes: [{ text: 'HMW make the ID step feel safe?', color: 'butter' }, { text: 'HMW let people start before the ID step?', color: 'butter' }] },
+      { t: 'how', x: 660, y: 90, text: 'Write each problem on its own note. Then flip it into a question that starts with “How might we…”.\n\nGood ones are wide enough to have many answers, but narrow enough to start on today.\n\nWrite a few versions of each, then vote with stamps.' },
+    ] },
+    rtb: { emoji: '🌹', name: 'Rose, thorn, bud', line: 'A quick, kind retro', items: [
+      { t: 'title', x: 0, y: 0, text: 'Rose, thorn, bud' },
+      { t: 'coll', x: 0, y: 90, name: '🌹 Rose · what’s working', color: 'pink', notes: [{ text: 'Testing every Friday kept us honest', color: 'pink' }] },
+      { t: 'coll', x: 330, y: 90, name: '🌵 Thorn · what hurt', color: 'peach', notes: [{ text: 'Handoff to engineering was rushed', color: 'peach' }] },
+      { t: 'coll', x: 660, y: 90, name: '🌱 Bud · what could grow', color: 'mint', notes: [{ text: 'Share the research earlier', color: 'mint' }] },
+      { t: 'how', x: 990, y: 90, text: 'Everyone writes quietly for 5 minutes: one note per thought.\n\nRoses are wins, thorns are pains, buds are ideas worth trying.\n\nThen read them out, group the alike ones, and pick one bud to try next.' },
+    ] },
+  };
+  function placeFramework(key) {
+    const F = FRAMEWORKS[key]; if (!F) return; remember(); stopPlacing();
+    const c0 = centerWorld(), x0 = board.cards.length ? Math.max(...board.cards.map(c => c.x + c.w)) + 200 : c0.x - 500, y0 = board.cards.length ? Math.min(...board.cards.map(c => c.y)) : c0.y - 300;
+    const made = [], keyed = {};
+    F.items.forEach(it => {
+      const at = { x: x0 + it.x, y: y0 + it.y };
+      if (it.t === 'title') made.push(addCard(card('title', { ...at, text: it.text }), true));
+      if (it.t === 'note') { const c = addCard(card('note', { ...at, text: it.text, name: it.name, color: it.color || 'white' }), true); made.push(c); if (it.key) keyed[it.key] = c; }
+      if (it.t === 'how') made.push(addCard(card('note', { ...at, w: 280, h: 300, r: 1.5, name: 'Mochi’s how-to', text: it.text, color: 'white', mochi: true }), true));
+      if (it.t === 'coll') {
+        const kids = it.notes.map(n => card('note', { text: n.text, color: n.color || 'white', r: 0 }));
+        const s2 = card('coll', { ...at, text: it.name, color: it.color, kids: kids.map(k => k.id), cols: 1, r: 0 });
+        board.cards.push(s2); renderCard(s2, true); kids.forEach(k => { board.cards.push(k); renderCard(k, true); }); made.push(s2, ...kids);
+      }
+    });
+    (F.links || []).forEach(([a, b]) => keyed[a] && keyed[b] && board.links.push({ id: uid(), a: keyed[a].id, b: keyed[b].id, arrow: true }));
+    // notes grow to fit their words
+    made.filter(c => c.type === 'note' && !parentOf(c.id)).forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`), b = el?.querySelector('.body'); if (!b) return; b.style.height = 'auto'; c.h = Math.max(c.h, b.offsetHeight + 8); b.style.height = ''; el.style.height = c.h + 'px'; });
+    layoutAll(); renderWires(); save(); fit(made);
+    say(`Here’s ${/^[aeiou]/i.test(F.name) ? 'an' : 'a'} ${F.name.toLowerCase()} ${F.emoji} My how-to note is on the right. Delete it whenever you’re ready ✦`, 7000);
+  }
+  // little line icons for the menu, drawn like the toolbar's
+  const TPL_IC = {
+    affinity: '<rect x="2.5" y="3" width="5" height="5" rx="1.2"/><rect x="4.5" y="9.5" width="5" height="5" rx="1.2"/><rect x="12" y="3.5" width="5" height="5" rx="1.2"/><rect x="11.5" y="11" width="5" height="5" rx="1.2"/>',
+    opportunity: '<rect x="7.5" y="2.5" width="5" height="3.5" rx="1"/><rect x="2.5" y="9" width="5" height="3.5" rx="1"/><rect x="12.5" y="9" width="5" height="3.5" rx="1"/><rect x="2.5" y="15" width="5" height="2.5" rx="1"/><path d="M10 6v1.5M5 9V7.5h10V9M5 12.5V15"/>',
+    matrix: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M10 3v14M3 10h14"/><circle cx="13.5" cy="6.5" r="1" fill="currentColor"/>',
+    empathy: '<path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4a1.5 1.5 0 0 1-1.5-1.5V6A1.5 1.5 0 0 1 4 4.5z"/><path d="M10 11.5s-2.6-1.5-2.6-3.1a1.3 1.3 0 0 1 2.6-.4 1.3 1.3 0 0 1 2.6.4c0 1.6-2.6 3.1-2.6 3.1z"/>',
+    journey: '<circle cx="4.5" cy="15" r="1.8"/><circle cx="15.5" cy="5" r="1.8"/><path d="M6.2 14.4c3-1 1.5-4.4 4.3-5.4 1.6-.6 2.7-1.4 3.4-2.6"/><path d="M15.5 9.5v.01M11 16h.01M14 13.5h.01" stroke-width="2.2"/>',
+    hmw: '<path d="M7.5 14.5h5M8.3 17h3.4M10 2.8a5 5 0 0 0-3 9c.6.5 1 1.2 1 2v.7h4v-.7c0-.8.4-1.5 1-2a5 5 0 0 0-3-9z"/>',
+    rtb: '<circle cx="10" cy="7" r="3.6"/><path d="M10 5.3c-.9.4-1.2 1.4-.6 2.1M10 10.6V17.5M10 14c-2.3 0-3.8-1.2-4.2-3 2 0 3.6.9 4.2 3zM10 15.5c1.8 0 3.2-1 3.6-2.6-1.7 0-3.1.8-3.6 2.6z"/>',
+  };
+  $('tplPick').innerHTML = Object.entries(FRAMEWORKS).map(([k, F]) => `<button data-tpl="${k}"><span class="tp-e"><svg viewBox="0 0 20 20">${TPL_IC[k]}</svg></span><span class="tp-t"><b>${esc(F.name)}</b><small>${esc(F.line)}</small></span></button>`).join('');
+  $('tplPick').onclick = e => { const b = e.target.closest('[data-tpl]'); if (!b) return; $('tplPick').classList.remove('on'); $('tools').querySelector('[data-add="tpl"]').classList.remove('on'); placeFramework(b.dataset.tpl); };
 
   // ---------- export: right-click a card (or the empty board) to save it as an image or PDF ----------
   const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
