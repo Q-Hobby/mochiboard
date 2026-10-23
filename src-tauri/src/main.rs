@@ -240,8 +240,11 @@ fn newer(a: &str, b: &str) -> bool {
     let (x, y) = (p(a), p(b)); for i in 0..x.len().max(y.len()) { let (m, n) = (x.get(i).copied().unwrap_or(0), y.get(i).copied().unwrap_or(0)); if m != n { return m > n; } } false
 }
 const INSTALLER: &str = "Mochiboard-Setup.exe";
+// test builds (made on the windows branch) look at a private feed instead of the public releases, with a build number to compare
+const FEED: Option<&str> = option_env!("MB_UPDATE_FEED");
+const BUILD: Option<&str> = option_env!("MB_BUILD");
 async fn latest_release() -> Option<Value> {
-    let api = std::env::var("MB_RELEASE_API").unwrap_or_else(|_| "https://api.github.com/repos/jessawolfe-ux/mochiboard/releases/latest".into());
+    let api = std::env::var("MB_RELEASE_API").ok().or(FEED.map(String::from)).unwrap_or_else(|| "https://api.github.com/repos/jessawolfe-ux/mochiboard/releases/latest".into());
     client().get(api).header("Accept", "application/vnd.github+json").send().await.ok()?.json().await.ok()
 }
 fn installer_url(r: &Value) -> Option<String> {
@@ -253,8 +256,10 @@ async fn update_check() -> Value {
     let tag = r["tag_name"].as_str().unwrap_or("").to_string();
     let notes: Vec<String> = r["body"].as_str().unwrap_or("").lines().map(str::trim).filter(|l| l.starts_with("- ")).map(|l| l[2..].to_string()).collect();
     // only offer it once that release has a Windows installer
-    let behind = if newer(&tag, me) && installer_url(&r).is_some() { 1 } else { 0 };
-    json!({ "release": true, "behind": behind, "notes": notes, "since": me, "latest": tag })
+    let mine: u64 = BUILD.and_then(|b| b.parse().ok()).unwrap_or(0);
+    let fresh = match (FEED, r.get("build").and_then(|b| b.as_u64())) { (Some(_), Some(b)) => b > mine, _ => newer(&tag, me) };
+    let behind = if fresh && installer_url(&r).is_some() { 1 } else { 0 };
+    json!({ "release": true, "behind": behind, "notes": notes, "since": me, "latest": if FEED.is_some() { format!("{tag} (test {})", r.get("build").and_then(|b| b.as_u64()).unwrap_or(0)) } else { tag } })
 }
 // download the new installer, start it, and step aside so it can replace this copy
 async fn update_now(app: &tauri::AppHandle) -> Result<String, String> {

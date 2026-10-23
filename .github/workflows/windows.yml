@@ -25,7 +25,13 @@ jobs:
           (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$v`"" | Set-Content src-tauri/Cargo.toml
           "MB_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build
+        env:
+          MB_UPDATE_FEED: https://jessa.art/share/4o92hg0sx7/latest.json   # test builds update from the private feed, not public releases
+          MB_BUILD: ${{ github.run_number }}
         run: npx --yes @tauri-apps/cli@2 build --bundles nsis
+      - name: Remember the build number
+        shell: pwsh
+        run: '"${{ github.run_number }}" | Out-File -NoNewline out-build.txt'
       - name: Name the installer
         shell: pwsh
         run: |
@@ -36,4 +42,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Mochiboard-Setup-${{ env.MB_VERSION }}-windows
-          path: out/Mochiboard-Setup.exe
+          path: |
+            out/Mochiboard-Setup.exe
+            out-build.txt
