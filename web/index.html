@@ -260,6 +260,10 @@
     <div class="set-body">
       <section class="set-update native-only" id="setUpdate" data-tab="general"><div class="su-top"><div class="su-icon"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 3.5v3.2h-3.2"/></svg></div><div class="su-text"><b id="suTitle">Updates</b><small id="suSub">Checking for a new version…</small></div><button class="set-btn hot" id="suGo" hidden>Update now</button><button class="set-btn" id="suCheck">Check now</button></div><ul class="su-notes" id="suNotes" hidden></ul></section>
       <section data-tab="general"><div class="set-row"><div><b>Toolbar</b><small>Choose which tools sit at the bottom, and in what order</small></div><button class="set-btn" id="tbCustomize">Customize…</button></div></section>
+      <section class="set-devices" data-tab="general"><h3>Camera &amp; microphone</h3>
+        <div class="set-row"><div><b>Camera</b><small>For video cards</small></div><select class="dev-sel" id="devCam" aria-label="Camera"></select></div>
+        <div class="set-row"><div><b>Microphone</b><small>For voice memos and videos</small></div><select class="dev-sel" id="devMic" aria-label="Microphone"></select></div>
+        <button class="set-btn" id="devAllow" hidden>Show my devices</button></section>
       <section class="set-auto native-only" data-tab="general"><label class="set-row"><div><b>Update automatically</b><small>New versions install quietly when you quit Mochiboard. Your boards never change.</small></div><input type="checkbox" class="tgl" data-set="autoUpdate"></label></section>
       <section class="set-start" data-tab="general"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section data-tab="general"><h3>Look</h3>

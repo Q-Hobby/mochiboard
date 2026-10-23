@@ -1462,7 +1462,23 @@
   $('setName').onkeydown = e => e.stopPropagation();
   $('curColors').onclick = e => { const b = e.target.closest('[data-cc]'); if (b) { settings.cursor = b.dataset.cc; applySettings(); } };
   $('colReset').onclick = () => { settings.colors[modeName()] = {}; applySettings(); };
-  $('gearBtn').onclick = e => { e.stopPropagation(); if (placing) stopPlacing(); if (sel.size) selectOnly([]); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  // Settings → Camera & microphone: the same choice the little menus on video and memo cards make
+  async function fillDevices() {
+    let list = []; try { list = await navigator.mediaDevices.enumerateDevices(); } catch (e) {}
+    const named = list.some(d => d.label);   // names only show once Mochiboard has been allowed to use them
+    $('devAllow').hidden = named || !navigator.mediaDevices;
+    for (const [id, kind, key, title] of [['devCam', 'videoinput', 'camId', 'Camera'], ['devMic', 'audioinput', 'micId', 'Microphone']]) {
+      const sel = $(id), ds = list.filter(d => d.kind === kind && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
+      sel.innerHTML = `<option value="">Default ${title.toLowerCase()}</option>` + ds.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(devName(d, `${title} ${i + 1}`))}</option>`).join('');
+      sel.value = ds.some(d => d.deviceId === settings[key]) ? settings[key] : ''; sel.disabled = !ds.length && named;
+      sel.onchange = () => { if (sel.value) settings[key] = sel.value; else delete settings[key]; applySettings();
+        if (key === 'micId' && warm) { warm.getTracks().forEach(t => t.stop()); warm = null; }
+        [...cams.keys()].forEach(cid => { const c = byId(cid); camOff(cid); if (c) camOn(c); }); };
+    }
+  }
+  $('devAllow').onclick = async () => { try { const st = await openMedia(true); st.getTracks().forEach(t => t.stop()); } catch (e) { try { const st = await openMedia(false); st.getTracks().forEach(t => t.stop()); } catch (e2) {} } fillDevices(); };
+  navigator.mediaDevices?.addEventListener?.('devicechange', () => { if ($('settings').classList.contains('on')) fillDevices(); });
+  $('gearBtn').onclick = e => { e.stopPropagation(); fillDevices(); if (placing) stopPlacing(); if (sel.size) selectOnly([]); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
   // settings tabs: one topic at a time, so it isn't one long scroll
   function setTab(t) { $('setTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); $('settings').querySelectorAll('.set-body section[data-tab]').forEach(sec => sec.classList.toggle('tab-off', sec.dataset.tab !== t)); $('settings').querySelector('.set-body').scrollTop = 0; if (t === 'helpers') showUsage(); }
