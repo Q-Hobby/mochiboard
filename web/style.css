@@ -1945,3 +1945,13 @@ body.dark .box header .gear[data-tip]::after { background: #f5eef6; color: #2b26
 .vd-txt-acts button:hover { background: var(--blush, #ffe0ec); }
 body.dark .vd-txt-body { background: rgba(255, 255, 255, .05); }
 body.dark .vd-txt-acts button { background: rgba(255, 255, 255, .08); }
+
+/* the video bar's small icons (sound, captions) match: soft gray, a gentle shade on hover, never heavier */
+.vd-bar .vd-txb, .vd-bar .vd-mute { color: var(--ink-soft) !important; transition: background .12s, color .12s; }
+.vd-bar .vd-txb:hover, .vd-bar .vd-mute:hover { background: rgba(243, 237, 244, .9); color: var(--ink) !important; }
+.vd-bar .vd-txb.on { color: var(--pink-deep, #e2649a) !important; }
+.vd-txb svg { stroke-width: 1.5; }
+body.dark .vd-bar .vd-txb:hover, body.dark .vd-bar .vd-mute:hover { background: rgba(255, 255, 255, .08); }
+
+/* an open doc slides over the right side: the right widget column steps back behind it (the board area is its own layer, so the doc can't rise above the column on its own) */
+body:has(.stage.doc-open) #sideR { z-index: 0; }

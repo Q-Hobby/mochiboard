@@ -3,6 +3,11 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.6.1
+
+- Documents open on top of your widgets again, instead of underneath them.
+- The sound and captions buttons on videos match, and stay soft when you hover.
+
 ## October 2026 · 1.6.0
 
 - Make the sidebars yours: drag any widget by its title into a spot on either side (little boxes show where it can go). Turn widgets on and off in Settings → Widgets, where Reset layout puts everything back. The Boards panel always stays.
