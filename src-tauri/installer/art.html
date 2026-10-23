@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face { font-family: DMS; src: url(DMSans-800-latin.woff2); font-weight: 800; }
+@font-face { font-family: DMS; src: url(DMSans-700-latin.woff2); font-weight: 700; }
+@font-face { font-family: Cav; src: url(Caveat-700-latin.woff2); }
+* { margin: 0; box-sizing: border-box; }
+body { background: #888; }
+.art { position: relative; overflow: hidden; }
+/* welcome + finish screens: tall, left side */
+#side { width: 164px; height: 314px; background: #fdf7fa radial-gradient(#ecdde7 1.2px, transparent 1.4px) 0 0 / 14px 14px; }
+#side .blob { position: absolute; left: -36px; top: 58px; width: 236px; height: 170px; border-radius: 48% 52% 46% 54% / 55% 45% 55% 45%; background: #ffe0ec; }
+#side .m { position: absolute; left: 34px; top: 74px; width: 96px; height: 96px; image-rendering: pixelated; }
+#side .spark { position: absolute; font: 800 15px/1 DMS; color: #ff9ec4; }
+#side .wm { position: absolute; left: 0; right: 0; top: 206px; text-align: center; font: 800 25px/1 DMS; letter-spacing: -1.4px; color: #e2649a; }
+#side .note { position: absolute; left: 0; right: 0; top: 240px; text-align: center; font: 22px/1 Cav; color: #6b6370; transform: rotate(-3deg); }
+#side .tag { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font: 600 9px/1 ui-monospace, Menlo, monospace; color: #e2649a; opacity: .8; }
+/* the other steps: small banner, top right, on white */
+#head { width: 150px; height: 57px; background: #fff; }
+#head .m { position: absolute; left: 12px; top: 7px; width: 44px; height: 44px; image-rendering: pixelated; }
+#head .pill { position: absolute; left: 6px; top: 4px; width: 56px; height: 50px; border-radius: 48% 52% 46% 54% / 55% 45% 55% 45%; background: #ffe0ec; }
+#head .wm { position: absolute; left: 66px; top: 21px; font: 800 15px/1 DMS; letter-spacing: -.8px; color: #e2649a; }
+</style></head><body>
+<div class="art" id="side"><div class="blob"></div><img class="m" src="mochi-wave.png">
+  <span class="spark" style="left:24px;top:64px">✦</span><span class="spark" style="left:128px;top:150px;font-size:11px">✦</span><span class="spark" style="left:132px;top:66px;font-size:9px;color:#33c7ff">✦</span>
+  <div class="wm">mochiboard</div><div class="note">welcome home!</div><div class="tag">/* squish responsibly */</div></div>
+<br>
+<div class="art" id="head"><div class="pill"></div><img class="m" src="mochi-happy.png"><div class="wm">mochiboard</div></div>
+</body></html>

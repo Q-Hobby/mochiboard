@@ -3,12 +3,13 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
-## Next (saved, not released yet)
+## October 2026 · 1.5.0
 
+- Mochiboard for Windows! The same board on your PC, with Ctrl shortcuts. Download it from mochiboard.app.
 - Text stays sharp at any zoom, even on boards with Spotify players or videos: once you stop zooming, everything is drawn fresh at the size you see. New pictures keep their full Retina detail too.
 - Smoother zooming and panning: a pinch with little pauses no longer stutters, and the board waits until you're really done before redrawing everything sharp.
 - Pick your camera and microphone in Settings → General, or from the little menu on video and voice memo cards. Remembered for next time.
-- Windows: voice memos get written out with Whisper, right on your computer. Mochi asks once; it's a one-time download.
+- On Windows, voice memos get written out by Whisper, right on your computer. Mochi asks once; it's a one-time download.
 - Updates and the tour now live in Settings → About.
 - Spotify on your board: paste a link to a song, album, playlist, podcast or artist and it becomes Spotify's own player. Click it once, then press play.
 

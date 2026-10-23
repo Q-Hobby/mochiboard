@@ -1,14 +1,18 @@
 # Builds the Windows installer (Mochiboard-Setup.exe) on GitHub's Windows machines.
-# Run it from the Actions tab (or `gh workflow run windows.yml --ref <branch>`); the installer is attached to the run as an artifact.
-# It never publishes a release on its own.
+# Test builds: every push to the windows branch (or a run from the Actions tab) makes an installer that updates from the private test feed.
+# Releases: when make-release.sh publishes a release, this builds the public installer and attaches it to that release, next to the Mac zip.
 name: Windows build
 on:
   workflow_dispatch:
   push:
     branches: [windows]   # the Windows work lives on its own branch; every push there builds a fresh installer
+  release:
+    types: [published]
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write   # to attach the installer to a release
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -24,10 +28,13 @@ jobs:
           $v = (Get-Content VERSION -Raw).Trim()
           (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$v`"" | Set-Content src-tauri/Cargo.toml
           "MB_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Test builds update from the private feed, not public releases
+        if: github.event_name != 'release'
+        shell: pwsh
+        run: |
+          "MB_UPDATE_FEED=https://jessa.art/share/4o92hg0sx7/latest.json" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MB_BUILD=${{ github.run_number }}" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build
-        env:
-          MB_UPDATE_FEED: https://jessa.art/share/4o92hg0sx7/latest.json   # test builds update from the private feed, not public releases
-          MB_BUILD: ${{ github.run_number }}
         run: npx --yes @tauri-apps/cli@2 build --bundles nsis
       - name: Remember the build number
         shell: pwsh
@@ -45,3 +52,8 @@ jobs:
           path: |
             out/Mochiboard-Setup.exe
             out-build.txt
+      - name: Attach the installer to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" out/Mochiboard-Setup.exe --clobber

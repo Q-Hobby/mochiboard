@@ -270,7 +270,7 @@ async fn update_check() -> Value {
     let mine: u64 = BUILD.and_then(|b| b.parse().ok()).unwrap_or(0);
     let fresh = match (FEED, r.get("build").and_then(|b| b.as_u64())) { (Some(_), Some(b)) => b > mine, _ => newer(&tag, me) };
     let behind = if fresh && installer_url(&r).is_some() { 1 } else { 0 };
-    json!({ "release": true, "behind": behind, "notes": notes, "since": me, "latest": if FEED.is_some() { format!("{tag} (test {})", r.get("build").and_then(|b| b.as_u64()).unwrap_or(0)) } else { tag } })
+    json!({ "release": true, "behind": behind, "notes": notes, "since": if FEED.is_some() { format!("{me}, test build {}", BUILD.unwrap_or("?")) } else { me.to_string() }, "latest": if FEED.is_some() { format!("{tag} (test {})", r.get("build").and_then(|b| b.as_u64()).unwrap_or(0)) } else { tag } })
 }
 // download the new installer, start it, and step aside so it can replace this copy
 async fn update_now(app: &tauri::AppHandle) -> Result<String, String> {
