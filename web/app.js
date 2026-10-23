@@ -2,19 +2,27 @@
 (() => {
   const $ = id => document.getElementById(id);
   const stage = $('stage'), world = $('world'), cardsEl = $('cards'), wires = $('wires'), grid = $('grid');
-  // ---------- shortcut labels on Windows and Linux: ⌘K reads Ctrl+K, ⇧⌘G reads Ctrl+Shift+G (the keys themselves already take Ctrl) ----------
-  if (MB.platform === 'windows' || MB.platform === 'linux') {
+  // ---------- on Windows and Linux: ⌘K reads Ctrl+K, ⇧⌘G reads Ctrl+Shift+G (the keys themselves already take Ctrl), and the app's own words say PC, not Mac ----------
+  // the browser version on a Windows or Linux computer counts too (an iPhone or iPad keeps ⌘)
+  const OS = MB.platform !== 'web' ? MB.platform : /Win/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent) ? 'windows' : /Linux|X11|CrOS/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent) ? 'linux' : 'mac';
+  if (OS === 'windows' || OS === 'linux') {
     const MOD = { '⌃': 'Ctrl', '⌘': 'Ctrl', '⌥': 'Alt', '⇧': 'Shift' }, ORDER = ['Ctrl', 'Alt', 'Shift'];
     const winKeys = t => t.replace(/([⌃⌥⇧⌘]+)(\s?)([^\s⌃⌥⇧⌘]?)/g, (m, mods, sp, key) => {
       const ms = ORDER.filter(o => [...mods].some(c => MOD[c] === o));
       return ms.join('+') + (key === '-' ? '-' : key ? (sp ? ' ' : '+') + (key === '↩' ? 'Enter' : key.toUpperCase()) : '');   // ⌘-click reads Ctrl-click
     }).replace(/Ctrl\+(\S)\s*\/\s*ctrl/i, 'Ctrl+$1');   // "⌘/ctrl" said twice
+    const PC = OS === 'windows' ? 'PC' : 'computer';
+    const WORDS = [[/\b(this|your|a|my) Mac’s\b/g, `$1 ${PC}’s`], [/\b(this|your|a|my) Mac\b/g, `$1 ${PC}`], [/\bShow in Finder\b/g, 'Show in File Explorer'], [/\bFinder\b/g, 'File Explorer'], [/\bTerminal\b/g, OS === 'windows' ? 'PowerShell' : 'a terminal']];
+    const MACWORDS = /Mac|Finder|Terminal/;
+    const theirs = n => n.parentElement?.closest('#cards, .docview, .msg.me, [contenteditable="true"], input, textarea');   // never touch what people wrote
+    const winWords = t => WORDS.reduce((x, [re, to]) => x.replace(re, to), t);
+    const sayPC = n => { if (!MACWORDS.test(n.nodeValue) || theirs(n)) return; const v = winWords(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; };   // only write when it changes, or the watcher below would loop
     const ATTRS = ['title', 'data-tip', 'aria-label', 'placeholder'];
     const fix = n => {
-      if (n.nodeType === 3) { if (/[⌃⌥⇧⌘]/.test(n.nodeValue)) n.nodeValue = winKeys(n.nodeValue); return; }
+      if (n.nodeType === 3) { if (/[⌃⌥⇧⌘]/.test(n.nodeValue)) n.nodeValue = winKeys(n.nodeValue); sayPC(n); return; }
       if (n.nodeType !== 1) return;
       ATTRS.forEach(a => { const v = n.getAttribute(a); if (v && /[⌃⌥⇧⌘]/.test(v)) n.setAttribute(a, winKeys(v)); });
-      const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); let t; while ((t = w.nextNode())) if (/[⌃⌥⇧⌘]/.test(t.nodeValue)) t.nodeValue = winKeys(t.nodeValue);
+      const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); let t; while ((t = w.nextNode())) { if (/[⌃⌥⇧⌘]/.test(t.nodeValue)) t.nodeValue = winKeys(t.nodeValue); sayPC(t); }
       n.querySelectorAll?.(ATTRS.map(a => `[${a}]`).join(',')).forEach(e => ATTRS.forEach(a => { const v = e.getAttribute(a); if (v && /[⌃⌥⇧⌘]/.test(v)) e.setAttribute(a, winKeys(v)); }));
     };
     fix(document.body);
@@ -557,9 +565,10 @@
       case 'spotify': return `<div class="sp-head"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="11" fill="#1ed760"/><path d="M6.6 9.4c3.6-1.1 7.8-.8 11 1M7.2 12.6c3-.9 6.3-.6 9 .9M7.8 15.6c2.4-.6 4.9-.4 7 .8" stroke="#121212" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg><span>${esc(c.title || 'Spotify')}</span></div>`
         + `<div class="sp-wrap">${c.image ? `<img class="sp-art" src="${esc(c.image)}" alt="">` : ''}<iframe class="sp-frame" data-src="${esc(spEmbed(c))}" src="${esc(spEmbed(c))}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" title="${esc(c.title || 'Spotify')}"></iframe><div class="sp-shield" title="Click to select, then play"></div></div>`;
       case 'video': {
-        if (c.src) return `<div class="vd-stage"><video class="vd-v"></video><button class="vd-play" data-act="vd-play" aria-label="Play">${PLAY}</button></div><div class="vd-bar"><button class="vd-pp" data-act="vd-play" aria-label="Play or pause">${PLAY}</button><div class="vd-prog" data-act="vd-seek"><i></i></div><span class="vd-time">${fmtT(c.dur || 0)}</span><button class="vd-mute${c.muted ? ' off' : ''}" data-act="vd-mute" aria-label="Sound">${SPK}</button></div>`;
+        if (c.src) return `<div class="vd-stage"><video class="vd-v"></video><button class="vd-play" data-act="vd-play" aria-label="Play">${PLAY}</button></div><div class="vd-bar"><button class="vd-pp" data-act="vd-play" aria-label="Play or pause">${PLAY}</button><div class="vd-prog" data-act="vd-seek"><i></i></div><span class="vd-time">${fmtT(c.dur || 0)}</span><button class="vd-mute${c.muted ? ' off' : ''}" data-act="vd-mute" aria-label="Sound">${SPK}</button><button class="vd-txb${c.text ? ' on' : ''}" data-act="vd-tx" aria-label="Write it out" data-tip="Write it out"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="2.5" y="4" width="15" height="12" rx="2.5"/><path d="M5.5 9h3M10.5 9h4M5.5 12.5h6M13.5 12.5h1"/></svg></button></div>`
+          + (c.txShown ? `<div class="vd-txt"><div class="vd-txt-body${c.text ? '' : ' wait'}">${esc(c.text || c.txNote || 'Mochi is writing it out…')}</div>${c.text ? `<div class="vd-txt-acts">${settings.ai && haveClaude !== false ? '<button data-act="vd-notes">✦ Turn into notes</button>' : ''}<button data-act="vd-copy">Copy</button></div>` : c.needTx ? '<div class="vd-txt-acts"><button data-act="vd-tx">✦ Write it out</button></div>' : ''}</div>` : '');
         if (c.saving) return `<div class="vd-stage"><div class="vd-msg"><b>Saving your video…</b><span>${Math.round((c.pct || 0) * 100)}%</span></div></div><div class="vd-bar"><span class="vd-title">${esc(c.title || 'Video')}</span></div>`;
-        return `<div class="vd-stage live"><video class="vd-live"></video>${c.camErr ? `<div class="vd-msg"><b>${esc(c.camErr)}</b></div>` : c.camRest ? `<button class="vd-msg vd-wake" data-act="vd-wake"><b>Your camera is resting</b><span>Click to turn it on</span></button>` : ''}${c.count ? `<div class="vd-count">${c.count}</div>` : ''}${c.rec && !c.count ? `<div class="vd-recdot"><i></i><span class="vd-rtime">0:00</span></div>` : ''}${!c.rec && !c.camErr && cams.get(c.id) ? `<button class="vd-dev" data-act="vd-dev"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="10.5" height="9" rx="2.2"/><path d="M13 9l4.5-2.6v7.2L13 11"/></svg><span>${esc(devName(cams.get(c.id).stream.getVideoTracks()[0], 'Camera'))}</span><i>▾</i></button>` : ''}${!c.rec && !c.camErr ? `<div class="vd-shape"><button data-act="vd-wide" class="${c.vert ? '' : 'on'}"><i class="w"></i>Wide</button><button data-act="vd-tall" class="${c.vert ? 'on' : ''}"><i class="t"></i>Phone</button></div>` : ''}</div>`
+        return `<div class="vd-stage live"><video class="vd-live"></video>${c.camErr ? `<div class="vd-msg"><b>${esc(c.camErr)}</b></div>` : c.camRest ? `<button class="vd-msg vd-wake" data-act="vd-wake"><b>Your camera is resting</b><span>Click to turn it on</span></button>` : ''}${c.count ? `<div class="vd-count">${c.count}</div>` : ''}${c.rec && !c.count ? `<div class="vd-recdot"><i></i><span class="vd-rtime">0:00</span></div>` : ''}${!c.rec && !c.camErr && cams.get(c.id) ? `<button class="vd-dev" data-act="vd-dev"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="10.5" height="9" rx="2.2"/><path d="M13 9l4.5-2.6v7.2L13 11"/></svg><span>${esc(devName(cams.get(c.id).stream.getVideoTracks()[0], 'Camera'))}</span><i>▾</i></button>` : ''}${!c.rec && !c.camErr && cams.get(c.id) ? `<div class="vd-look"><button class="${settings.camFlip === false ? '' : 'on'}" data-act="vd-flip" data-tip="Flip" aria-label="Flip the camera"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v14"/><path d="M7.5 5.5L3 14h4.5zM12.5 5.5L17 14h-4.5z"/></svg></button></div>` : ''}${!c.rec && !c.camErr ? `<div class="vd-shape"><button data-act="vd-wide" class="${c.vert ? '' : 'on'}"><i class="w"></i>Wide</button><button data-act="vd-tall" class="${c.vert ? 'on' : ''}"><i class="t"></i>Phone</button></div>` : ''}</div>`
           + `<div class="vd-bar">${c.rec ? `<button class="vd-stop" data-act="vd-stop"><i></i>Stop</button>` : `<button class="vd-start" data-act="vd-start"><span class="au-rec"></span>${c.vert ? 'Record' : 'Start recording'}</button><button class="vd-file" data-act="vd-file" title="Use a video file">${c.vert ? '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.5v1.5a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-1.5M10 3.5v9M6.5 7L10 3.5 13.5 7"/></svg>' : 'Use a video file'}</button>`}</div>`;
       }
       case 'audio': return c.ready && !c.rec && !c.src ? `<div class="au-top"><span class="au-mic">${MIC}</span><span class="text">${esc(c.title || 'Voice memo')}</span></div><button class="au-start" data-act="au-start"><span class="au-rec"></span>Start recording</button><button class="au-dev" data-act="au-dev">${MIC}<span>${esc(devName(warm?.getAudioTracks?.()[0], 'Microphone'))}</span><i>▾</i></button>`
@@ -716,8 +725,12 @@
   const linkById = id => board.links.find(l => l.id === id);
   function selectWire(id) { selWire = id; if (id) selectOnly([]); renderWires(); }
   const byId = id => board.cards.find(c => c.id === id);
+  let trayN = null;
   function renderTray() {
     if (window.__phone?.on) setTimeout(window.__phone.count);
+    // Unsorted turned off in Settings: still say when something lands there, with a way to see it
+    if (settings.wTray === false && trayN !== null && board.tray.length > trayN) chirp('Saved to Unsorted ✦', 4000, [{ label: 'Show Unsorted', run: () => { settings.wTray = true; applySettings(); } }]);
+    trayN = board.tray.length;
     const list = $('trayList'); list.innerHTML = ''; $('trayCount').textContent = board.tray.length;
     board.tray.forEach(c => { const d = document.createElement('div'); d.className = 'tray-item'; d.dataset.id = c.id; d.style.setProperty('--tilt', (c.r / 2) + 'deg');
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
@@ -872,6 +885,27 @@
     const step = t => { const k = Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - k, 3); view.x = fx + (tx - fx) * e; view.y = fy + (ty - fy) * e; applyView(); if (k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   }
+  // ---------- zoom from the menu (click the %) or the keyboard: it glides there, centered on the part of the board you're looking at ----------
+  const ZOOMS = [.25, .5, .75, 1, 1.25, 1.5, 2, 3];
+  function glideView(to) {
+    const from = { ...view }, t0 = performance.now(); stage.classList.add('moving');
+    const step = t => { const k = Math.min(1, (t - t0) / 260), e = 1 - Math.pow(1 - k, 3); ['x', 'y', 'z'].forEach(n => view[n] = from[n] + (to[n] - from[n]) * e); applyView();
+      if (k < 1) requestAnimationFrame(step); else stage.classList.remove('moving'); };
+    requestAnimationFrame(step);
+  }
+  function zoomTo(z) {
+    const r = stage.getBoundingClientRect(), L = document.body.classList.contains('phone') ? 0 : 270, cx = L + (r.width - L - 270) / 2, cy = r.height / 2;
+    const p = { x: (cx - view.x) / view.z, y: (cy - view.y) / view.z }, nz = clamp(z, .15, 3);
+    glideView({ x: cx - p.x * nz, y: cy - p.y * nz, z: nz });
+  }
+  const zoomStep = dir => zoomTo(dir > 0 ? (ZOOMS.find(z => z > view.z + .01) || 3) : ([...ZOOMS].reverse().find(z => z < view.z - .01) || .25));
+  function zoomFit() { if (!board?.cards.length) return zoomTo(1); const from = { ...view }; fit(board.cards.filter(c => !c.hidden), 120, 2); const to = { ...view }; Object.assign(view, from); applyView(); glideView(to); }
+  $('zoom').onclick = e => { e.stopPropagation(); const b = $('zoom').getBoundingClientRect();
+    boardMenu({ clientX: b.left, clientY: b.top - 8 }, [
+      { label: 'Zoom in  ⌘+', run: () => zoomStep(1) }, { label: 'Zoom out  ⌘−', run: () => zoomStep(-1) },
+      { label: 'Zoom to 100%  ⌘0', run: () => zoomTo(1) }, { label: 'Zoom to fit  ⇧1', run: zoomFit }, '-',
+      ...[.5, 1, 2].map(z => ({ label: `${z * 100}%${Math.abs(view.z - z) < .01 ? '  ✓' : ''}`, run: () => zoomTo(z) }))]);
+    const m = $('rowMenu'); if (m) { const mr = m.getBoundingClientRect(); m.style.top = b.top - mr.height - 8 + 'px'; m.classList.add('zoom-menu'); } };
   function centerWorld() { const r = stage.getBoundingClientRect(); return toWorld(r.left + 270 + (r.width - 530) / 2, r.top + r.height / 2); }
   function addAtCenter(type, extra = {}) {
     const p = centerWorld(), c = card(type, extra); c.x = p.x - c.w / 2 + (Math.random() * 60 - 30); c.y = p.y - c.h / 2 + (Math.random() * 60 - 30);
@@ -1154,7 +1188,10 @@
   }, { passive: false });
 
   // ---------- the tray: drag ideas out onto the board ----------
-  $('tray').querySelector('.tray-head').onclick = () => $('tray').classList.toggle('closed');
+  // Unsorted collapses to its title with its – button, like the other widgets, and remembers it
+  const trayMin = min => { $('tray').classList.toggle('closed', min); $('trayMin').textContent = min ? '+' : '–'; $('trayMin').title = min ? 'Open' : 'Minimize'; try { localStorage.setItem('mochiboard:trayMin', min ? '1' : ''); } catch (e) {} };
+  try { trayMin(!!localStorage.getItem('mochiboard:trayMin')); } catch (e) {}
+  $('trayMin').onclick = e => { e.stopPropagation(); trayMin(!$('tray').classList.contains('closed')); };
   $('trayList').addEventListener('pointerdown', e => {
     const it = e.target.closest('.tray-item'); if (!it) return; e.preventDefault();
     const c = board.tray.find(x => x.id === it.dataset.id), ghost = it.cloneNode(true);
@@ -1258,6 +1295,9 @@
     if ((e.key === 'Backspace' || e.key === 'Delete') && selWire) { board.links = board.links.filter(l => l.id !== selWire); selWire = null; renderWires(); save(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) removeSelected();
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g' && sel.size) { e.preventDefault(); groupSel(!e.shiftKey); return; }
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && ['=', '+', '-', '_', '0'].includes(e.key)) { e.preventDefault(); return e.key === '0' ? zoomTo(1) : zoomStep(e.key === '=' || e.key === '+' ? 1 : -1); }
+    if (e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === 'Digit1') { e.preventDefault(); return zoomFit(); }
+    if ((e.metaKey || e.ctrlKey) && (e.code === 'BracketRight' || e.code === 'BracketLeft') && sel.size) { e.preventDefault(); restack(e.code === 'BracketRight' ? (e.shiftKey ? 'front' : 'forward') : (e.shiftKey ? 'back' : 'backward')); return; }
     if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase()) && sel.size) { e.preventDefault(); $('selbar').querySelector(`[data-ts="${{ b: 'bold', i: 'italic', u: 'under' }[e.key.toLowerCase()]}"]`)?.click(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectOnly(board.cards.map(c => c.id)); }
     if ((e.metaKey || e.ctrlKey) && ['c', 'x'].includes(e.key.toLowerCase()) && sel.size && !homeAt) { const r = copyCards(); if (r) { navigator.clipboard?.writeText(r.text).catch(() => {}); if (e.key.toLowerCase() === 'x') { e.preventDefault(); removeSelected(); } } return; }
@@ -1395,19 +1435,82 @@
   // her hop: she jumps right up out of her pill, then squishes a little as she lands
   function hopMochi() { goo.hop(); favGoo?.hop(); const c = $('goo'); c.classList.remove('hopping'); void c.offsetWidth; c.classList.add('hopping'); }
   // in a browser, the tab's icon is a tiny Mochi who breathes, blinks and hops along with the real one
-  const favGoo = MB.native ? null : (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const fg = Goo(c, { manual: true });
+  const favGoo = MB.native ? null : (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const fg = Goo(c, { manual: true, outfit: 'wear' });
     let link = document.querySelector('link[rel="icon"]'); if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
     setInterval(() => { fg.draw(); link.href = c.toDataURL('image/png'); }, 120); return fg; })();
-  const goo = Goo($('goo')), goos = [goo, ...(favGoo ? [favGoo] : []), Goo($('brandGoo')), Goo($('aboutGoo')), Goo($('chatGoo')), Goo($('obGoo')), Goo($('obGoo2')), Goo($('coachGoo')), Goo($('setGoo'))];
+  const goo = Goo($('goo'), { headroom: 8 }), duGoo = Goo($('duGoo')), SMALL = { outfit: 'wear', headroom: 8 };   // small Mochis get room above for hats, and skip what she's holding so she stays big enough to see
+  const goos = [goo, duGoo, ...(favGoo ? [favGoo] : []), Goo($('brandGoo'), SMALL), Goo($('aboutGoo'), SMALL), Goo($('chatGoo'), SMALL), Goo($('obGoo'), { headroom: 8 }), Goo($('obGoo2'), { headroom: 8 }), Goo($('coachGoo'), SMALL), Goo($('setGoo'), SMALL)];
 
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
+  // ---------- widgets snap into the left and right sidebars. Drag one by its title: little drop boxes show where it can go ----------
+  // the Boards panel is pinned at the top left (it's home to your boards and Settings), everything else can move
+  const WG_DEFAULT = { left: ['layers', 'colors', 'music'], right: ['design', 'tray', 'dressup'] };
+  const WG_ALL = ['layers', 'colors', 'music', 'dressup', 'design', 'tray'];
+  const wgEl = k => k === 'design' ? $('design') : k === 'tray' ? $('tray') : document.querySelector(`.box[data-box="${k}"]`);
+  const wgKey = el => el.id === 'design' ? 'design' : el.id === 'tray' ? 'tray' : el.dataset.box;
+  function wgLayout() {   // the saved layout, with anything missing (a new widget) added where it belongs by default
+    const L = settings.layout || WG_DEFAULT, seen = new Set(), clean = side => (L[side] || []).filter(k => WG_ALL.includes(k) && !seen.has(k) && seen.add(k));
+    const out = { left: clean('left'), right: clean('right') };
+    WG_ALL.forEach(k => { if (!seen.has(k)) (WG_DEFAULT.left.includes(k) ? out.left : out.right).push(k); });
+    return out;
+  }
+  let wgLast = '', wgJustDragged = false;
+  function applyLayout() {
+    const L = wgLayout(), key = JSON.stringify(L); if (key === wgLast) return; wgLast = key;
+    const put = (col, keys) => keys.forEach(k => { const el = wgEl(k); if (el && !el.classList.contains('in-sheet')) col.appendChild(el); });   // a widget showing in a phone sheet goes home when the sheet closes
+    put($('side'), L.left); put($('sideR'), L.right);
+  }
+  function wgDragStart(e, el) {
+    // the widget itself lifts off the sidebar and follows the cursor, so you can see what you're holding
+    const r0 = el.getBoundingClientRect(), gx = e.clientX - r0.left, gy = e.clientY - r0.top;
+    Object.assign(el.style, { position: 'fixed', left: r0.left + 'px', top: r0.top + 'px', width: r0.width + 'px', maxHeight: Math.min(r0.height, 320) + 'px', overflow: 'hidden', zIndex: 400, pointerEvents: 'none', margin: 0 });
+    const home = [el.parentNode, el.nextSibling]; document.body.appendChild(el);   // carried above both sidebars, not inside one
+    el.classList.add('wg-lifted'); document.body.classList.add('wg-arranging');
+    const slots = [];
+    [[$('side'), true], [$('sideR'), false]].forEach(([col, pinned]) => {
+      const kids = [...col.children].filter(c => !c.classList.contains('wg-off'));
+      kids.forEach((c, i) => { if (pinned && i === 0) return; const s = document.createElement('div'); s.className = 'wg-slot'; col.insertBefore(s, c); slots.push(s); });
+      const s = document.createElement('div'); s.className = 'wg-slot'; col.appendChild(s); slots.push(s);
+    });
+    let pick = null;
+    const move = ev => {
+      el.style.left = ev.clientX - gx + 'px'; el.style.top = ev.clientY - gy + 'px';
+      let best = null, bd = 1e9; slots.forEach(s => { const r = s.getBoundingClientRect(), d = Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)); if (d < bd) { bd = d; best = s; } });
+      if (best !== pick) { pick?.classList.remove('on'); pick = best; pick?.classList.add('on'); }
+    };
+    const end = (drop) => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('keydown', esc, true);
+      if (drop && pick) pick.parentNode.insertBefore(el, pick); else home[0].insertBefore(el, home[1]?.parentNode === home[0] ? home[1] : null);
+      slots.forEach(s => s.remove()); ['position', 'left', 'top', 'width', 'maxHeight', 'overflow', 'zIndex', 'pointerEvents', 'margin'].forEach(k => el.style[k] = ''); el.classList.remove('wg-lifted'); document.body.classList.remove('wg-arranging');
+      wgJustDragged = true; setTimeout(() => wgJustDragged = false, 50);
+      if (drop && pick) { const keys = col => [...col.children].map(wgKey).filter(k => WG_ALL.includes(k));
+        settings.layout = { left: keys($('side')), right: keys($('sideR')) }; wgLast = JSON.stringify(wgLayout()); applySettings(); placeTray(); }
+    };
+    const up = () => end(true), esc = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); end(false); } };
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('keydown', esc, true); move(e);
+  }
+  document.addEventListener('pointerdown', e => {
+    const h = e.target.closest('.side .box > header, .side #design .dz-head, .side #tray .tray-head'); if (!h || e.button !== 0 || e.pointerType === 'touch' || e.target.closest('button, input, .brand')) return;
+    const el = h.parentElement; if (el.dataset.box === 'boards') return;
+    const x0 = e.clientX, y0 = e.clientY;
+    const go = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return; stop(); wgDragStart(ev, el); };
+    const stop = () => { removeEventListener('pointermove', go); removeEventListener('pointerup', stop); };
+    addEventListener('pointermove', go); addEventListener('pointerup', stop);
+  }, true);   // listen first: some widgets (Wireframe) keep their clicks to themselves
+  const WIDGETS = [['wLayers', () => document.querySelector('.box[data-box="layers"]')], ['wColors', () => document.querySelector('.box[data-box="colors"]')],
+    ['wDressup', () => document.querySelector('.box[data-box="dressup"]')], ['wMusic', () => document.querySelector('.box[data-box="music"]')], ['wDesign', () => $('design')], ['wTray', () => $('tray')]];
   function applySettings() {
     queueMicrotask(() => applyColors()); queueMicrotask(() => applyGridShape()); queueMicrotask(() => applyToolbar());
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
+    window.MochiOutfit = settings.outfit || {}; queueMicrotask(() => renderDressup());
+    // widgets: the panels people can turn off (the Boards panel always stays: it holds their boards and Settings)
+    WIDGETS.forEach(([k, el]) => el()?.classList.toggle('wg-off', settings[k] === false));
+    [['layers', 'wLayers'], ['tray', 'wTray']].forEach(([sh, k]) => document.querySelector(`#hub [data-sheet="${sh}"]`)?.classList.toggle('wg-off', settings[k] === false));
+    queueMicrotask(() => { applyLayout(); placeTray(); });
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.body.classList.toggle('dark', dark); document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
     document.querySelectorAll('[data-seg]').forEach(g => g.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', settings[g.dataset.seg] === b.dataset.v)));
@@ -1513,6 +1616,97 @@
 
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
+  // ---------- Dress up Mochi: hover to try things on, click to wear them. She wears it everywhere she shows up ----------
+  const DU_TABS = [['hat', 'Hats'], ['face', 'Face'], ['neck', 'Neck'], ['held', 'Hold'], ['color', 'Color']];
+  let duTab = 'hat';
+  const duThumb = (kind, key) => {   // the piece as big as fits, whole pixels only, with a little shadow so white things show
+    const c = document.createElement('canvas'), S = 72; c.width = c.height = S; const x = c.getContext('2d');
+    const rows = MOCHI_WARDROBE[kind][key][3], w = Math.max(...rows.map(r => r.length)), h = rows.length, cell = Math.max(2, Math.floor(Math.min(60 / w, 54 / h)));
+    const ox = Math.round((S - w * cell) / 2), oy = Math.round((S - h * cell) / 2);
+    x.shadowColor = 'rgba(110, 60, 100, .22)'; x.shadowOffsetY = Math.max(1, cell / 3);
+    rows.forEach((r, yy) => [...r].forEach((ch, xx) => { if (ch !== '.' && MOCHI_PAL[ch]) { x.fillStyle = MOCHI_PAL[ch]; x.fillRect(ox + xx * cell, oy + yy * cell, cell, cell); } }));
+    return c;
+  };
+  function renderDressup() {
+    const fit = settings.outfit || {};
+    $('duTabs').innerHTML = DU_TABS.map(([k, l]) => `<button role="tab" data-du="${k}" class="${k === duTab ? 'on' : ''}" aria-selected="${k === duTab}">${l}</button>`).join('');
+    const box = $('duItems'); box.innerHTML = '';
+    if (duTab === 'color') Object.entries(MOCHI_COLORS).forEach(([k, c]) => box.insertAdjacentHTML('beforeend', `<button class="du-item du-color${settings.mochi === k ? ' on' : ''}" data-kind="color" data-key="${k}" title="${k[0].toUpperCase() + k.slice(1)}" aria-pressed="${settings.mochi === k}"><span style="background:linear-gradient(160deg, ${c.S} 0 22%, ${c.B} 22% 78%, ${c.D} 78%)"></span></button>`));
+    else Object.entries(MOCHI_WARDROBE[duTab]).forEach(([k, sp]) => { const b = document.createElement('button'); b.className = 'du-item' + (fit[duTab] === k ? ' on' : ''); Object.assign(b.dataset, { kind: duTab, key: k }); b.title = sp[0]; b.setAttribute('aria-pressed', fit[duTab] === k); b.append(duThumb(duTab, k)); box.append(b); });
+    $('duOff').hidden = !Object.values(fit).some(Boolean);
+  }
+  $('duTabs').onclick = e => { const b = e.target.closest('[data-du]'); if (b) { duTab = b.dataset.du; renderDressup(); } };
+  $('duItems').addEventListener('pointerover', e => { const b = e.target.closest('.du-item'); if (!b || e.pointerType === 'touch') return;
+    if (b.dataset.kind === 'color') goos.forEach(g => g.setColors(MOCHI_COLORS[b.dataset.key])); else window.MochiPreview = { [b.dataset.kind]: b.dataset.key }; });
+  $('duItems').addEventListener('pointerleave', () => { window.MochiPreview = null; goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue)); });
+  $('duItems').onclick = e => {
+    const b = e.target.closest('.du-item'); if (!b) return; const { kind, key } = b.dataset;
+    if (kind === 'color') settings.mochi = key;
+    else { const fit = { ...(settings.outfit || {}) }; fit[kind] = fit[kind] === key ? null : key; settings.outfit = fit; }
+    window.MochiPreview = null; applySettings(); hopMochi(); duGoo.hop();
+  };
+  // ---------- Mochi's music: three little lo-fi songs. Each one softens at the end, takes a breath, and starts again ----------
+  // It never starts on its own. It remembers the song and volume, and keeps playing when you switch boards.
+  const TRACKS = [
+    { id: 'strawberry-milk-beats', name: 'Strawberry Milk Beats', vibe: 'Cozy, Mochi’s everyday groove', art: 'strawberry' },
+    { id: 'cloud-desk', name: 'Cloud Desk', vibe: 'Calm, for focusing', art: 'rainbow' },
+    { id: 'jelly-jog', name: 'Jelly Jog', vibe: 'Bouncy, for getting things done', art: 'cupcake' },
+  ];
+  const music = (() => {
+    // Perfect loops: the song is loaded into memory and loops right at its last bar, no fade, no gap.
+    // Volume and the tiny click-free start/stop run on the audio system's own clock, so a hidden window can't pause anything.
+    // If loading ever fails, the plain player's own repeat takes over (it has a hair of a gap at the seam).
+    const BAR = 3;   // 80 BPM, 4 beats: every song is a whole number of 3-second bars
+    let mine = {}; try { mine = JSON.parse(localStorage.getItem('mochiboard:music') || '{}'); } catch (e) {}
+    let cur = TRACKS.findIndex(t => t.id === mine.track); if (cur < 0) cur = 0;
+    let vol = typeof mine.vol === 'number' ? mine.vol : .6, playing = false, ctx = null, gain = null, src = null, startedAt = 0, offset = 0, loopLen = 0, el = null, mode = '';
+    const bufs = {};
+    const keep = () => { try { localStorage.setItem('mochiboard:music', JSON.stringify({ track: TRACKS[cur].id, vol })); } catch (e) {} };
+    const url = () => `music/${TRACKS[cur].id}.mp3`;
+    const fetchBuf = id => bufs[id] || (bufs[id] = new Promise((ok, no) => {   // XHR, because the Mac app's page is a local file
+      const x = new XMLHttpRequest(); x.open('GET', `music/${id}.mp3`); x.responseType = 'arraybuffer';
+      x.onload = () => (x.status === 200 || x.status === 0) && x.response?.byteLength ? ok(x.response) : no(new Error('empty'));
+      x.onerror = () => no(new Error('blocked')); x.send();
+    }).then(ab => ctx.decodeAudioData(ab)).catch(e => { delete bufs[id]; throw e; }));
+    function stopNow(soft) {
+      if (src) { const s = src, t = ctx.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(0, t + (soft ? .12 : .02)); s.stop(t + (soft ? .13 : .03)); src = null; }
+      if (el) el.pause();
+    }
+    async function play(i = cur) {
+      if (i !== cur) { stopNow(); cur = i; offset = 0; keep(); }
+      playing = true; paint();
+      try {
+        ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (!gain) { gain = ctx.createGain(); gain.connect(ctx.destination); }
+        await ctx.resume();
+        const id = TRACKS[cur].id, b = await fetchBuf(id); if (!playing || TRACKS[cur].id !== id) return;
+        const bars = Math.round(b.duration / BAR) * BAR; loopLen = Math.abs(bars - b.duration) < .3 && bars > 0 ? Math.min(bars, b.duration) : b.duration;
+        stopNow(); src = ctx.createBufferSource(); src.buffer = b; src.loop = true; src.loopStart = 0; src.loopEnd = loopLen; src.connect(gain);
+        const t = ctx.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(vol, t + .15);
+        src.start(t, offset % loopLen); startedAt = t - offset % loopLen; mode = 'loop';
+      } catch (e) {
+        if (!playing) return;
+        el = el || Object.assign(new Audio(), { loop: true }); if (!el.src.endsWith(url())) { el.src = url(); el.currentTime = 0; }
+        el.volume = vol; mode = 'element'; el.play().catch(() => { playing = false; paint(); });
+      }
+    }
+    function pause() { if (src) offset = (ctx.currentTime - startedAt) % loopLen; playing = false; stopNow(true); setTimeout(() => { if (!playing && ctx) ctx.suspend(); }, 200); paint(); }   // the audio engine sleeps while paused
+    function paint() {
+      const t = TRACKS[cur];
+      $('muName').textContent = t.name; $('muVibe').textContent = t.vibe; $('muArt').src = `stamps/px/${t.art}.png`;
+      $('muNow').dataset.track = t.id; $('muNow').classList.toggle('on', playing);
+      $('muPlay').classList.toggle('on', playing); $('muPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+      $('muList').innerHTML = TRACKS.map((x, i) => `<button class="mu-row${i === cur ? ' cur' : ''}${i === cur && playing ? ' on' : ''}" data-i="${i}" role="listitem"><img src="stamps/px/${x.art}.png" alt=""><span><b>${esc(x.name)}</b><small>${esc(x.vibe.split(',')[0])}</small></span></button>`).join('');
+    }
+    $('muPlay').onclick = () => playing ? pause() : play();
+    $('muList').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; const i = +b.dataset.i; if (i === cur && playing) return pause(); play(i); };
+    $('muVol').value = vol; $('muVol').oninput = () => { vol = +$('muVol').value; if (gain) gain.gain.setTargetAtTime(playing ? vol : 0, ctx.currentTime, .04); if (el) el.volume = vol; keep(); };
+    paint();
+    return { play, pause, get playing() { return playing; }, get mode() { return mode; }, get position() { return src ? (ctx.currentTime - startedAt) % loopLen : el ? el.currentTime : 0; }, get loopLen() { return loopLen; } };
+  })();
+
+  $('wgReset').onclick = () => { settings.layout = null; applySettings(); chirp('Widgets are back where they started ✦', 2600); };
+  $('duOff').onclick = () => { settings.outfit = {}; applySettings(); duGoo.hop(); };
+
   $('obMochi').onclick = $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
   document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); if (t.dataset.set === 'autoUpdate') { showUpdate.answered = true; if (t.checked && updInfo) showUpdate(); } });
   $('recheck').onclick = () => showConnections(true);
@@ -1907,6 +2101,10 @@
       boardMenu(e, [
         ...(cs.length > 1 && !cs.every(c => c.group && c.group === cs[0].group) ? [{ label: 'Group  ⌘G', run: () => { remember(); groupSel(true); } }] : []),
         ...(cs.some(c => c.group) ? [{ label: 'Ungroup  ⇧⌘G', run: () => { remember(); groupSel(false); } }] : []),
+        { label: 'Bring to front  ⇧⌘]', run: () => restack('front') },
+        { label: 'Bring forward  ⌘]', run: () => restack('forward') },
+        { label: 'Send backward  ⌘[', run: () => restack('backward') },
+        { label: 'Send to back  ⇧⌘[', run: () => restack('back') }, '-',
         { label: 'Export as image', run: () => exportCards(cs, cardName(cs), false) },
         { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) },
         ...(spotsIn(cs).length ? [{ label: `Fill ${spotsIn(cs).length} image spot${spotsIn(cs).length > 1 ? 's' : ''}…`, run: () => offerFill(spotsIn(cs)) }] : []), '-',
@@ -1934,7 +2132,10 @@
   function coolMic() { if (warm && !live.size) { warm.getTracks().forEach(t => t.stop()); warm = null; } }
   // ---------- video cards: record yourself with the camera, or drop in a video file ----------
   const SPK = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8v4h3l4 3.5v-11l-4 3.5z"/><path class="w" d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.5 6.5 0 0 1 0 9"/></svg>';
-  const vids = new Map(), cams = new Map(), VBAR = 44;   // one long-lived player / camera per card, moved back in after every redraw so playback never restarts
+  const vids = new Map(), cams = new Map(), VBAR = 44;
+  // flip: what you see is what you record. On (the default) mirrors you like a selfie; off shows the room the right way round, so writing reads normally
+  const camFlip = () => settings.camFlip !== false;
+  function paintLook() { cams.forEach(cam => { cam.view.style.transform = camFlip() ? 'scaleX(-1)' : 'none'; }); }
   const vEl = id => cardsEl.querySelector(`[data-id="${id}"]`);
   function setupVideo(c, el) {
     if (c.src) {
@@ -1947,7 +2148,7 @@
         v.addEventListener('timeupdate', paint); v.addEventListener('seeked', paint);
         ['play', 'pause', 'ended'].forEach(t => v.addEventListener(t, () => { vEl(c.id)?.classList.toggle('playing', !v.paused); paint(); }));
         v.addEventListener('loadedmetadata', () => { if (!c.dur && isFinite(v.duration)) { c.dur = v.duration; save(); } paint(); }); }
-      v.muted = !!c.muted; el.querySelector('.vd-v').replaceWith(v); el.classList.toggle('playing', !v.paused);
+      v.muted = !!c.muted; v.style.transform = c.mirror ? 'scaleX(-1)' : ''; el.querySelector('.vd-v').replaceWith(v); el.classList.toggle('playing', !v.paused);
       return;
     }
     const cam = cams.get(c.id), slot = el.querySelector('.vd-live');
@@ -1958,6 +2159,7 @@
     let stream; try { stream = await openMedia(true); }
     catch (e) { c.camErr = `Mochiboard needs the camera. Turn it on in ${privacy('Camera')}, then click Start recording again.`; c.camRest = false; renderCard(c); return null; }
     const view = document.createElement('video'); view.className = 'vd-live'; view.muted = true; view.playsInline = true; view.autoplay = true; view.srcObject = stream;
+    view.style.transform = camFlip() ? 'scaleX(-1)' : 'none';
     const cam = { stream, view, idle: 0 }; cams.set(c.id, cam); c.camErr = ''; c.camRest = false;
     // the camera rests after a minute of waiting (no recording), and switches off if the card goes away
     cam.tick = setInterval(() => { if (!vEl(c.id) || (!c.rec && (cam.idle += 2) >= 60)) { camOff(c.id); if (byId(c.id) && !c.src) { c.camRest = true; renderCard(c); } } }, 2000);
@@ -1968,9 +2170,14 @@
     const cam = await camOn(c); if (!cam) return;
     const type = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
     let stream = cam.stream, stopSlice = () => {};
-    if (c.vert) { const st = cam.stream.getVideoTracks()[0]?.getSettings() || {}, W0 = cam.view.videoWidth || st.width || 1280, H0 = cam.view.videoHeight || st.height || 720;   // the real frame size, not what the camera says it sends
-      const H = H0, W = Math.round(H * 9 / 16 / 2) * 2, cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = W; cv.height = H; let on = true;
-      (function slice() { if (!on) return; try { const fw = cam.view.videoWidth || W0, fh = cam.view.videoHeight || H0, sw = Math.round(fh * 9 / 16); g.drawImage(cam.view, (fw - sw) / 2, 0, sw, fh, 0, 0, W, H); } catch (e) {} requestAnimationFrame(slice); })();   // re-measured every frame, in case the camera changes size
+    // a wide video records straight from the camera (true colors) and is shown mirrored on the board if flip is on;
+    // a phone-shaped one is cut frame by frame anyway, so its flip is drawn right in
+    c.mirror = !c.vert && camFlip() || undefined;
+    if (c.vert) {
+      const st = cam.stream.getVideoTracks()[0]?.getSettings() || {}, W0 = cam.view.videoWidth || st.width || 1280, H0 = cam.view.videoHeight || st.height || 720;   // the real frame size, not what the camera says it sends
+      const H = H0, W = c.vert ? Math.round(H * 9 / 16 / 2) * 2 : Math.round(W0 / 2) * 2, cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = W; cv.height = H; let on = true;
+      (function slice() { if (!on) return; try { const fw = cam.view.videoWidth || W0, fh = cam.view.videoHeight || H0, sw = c.vert ? Math.round(fh * 9 / 16) : fw, flip = camFlip();
+        g.save(); if (flip) { g.translate(W, 0); g.scale(-1, 1); } g.drawImage(cam.view, (fw - sw) / 2, 0, sw, fh, 0, 0, W, H); g.restore(); } catch (e) {} requestAnimationFrame(slice); })();   // re-measured every frame, in case the camera changes size; flip can change mid-recording
       stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...cam.stream.getAudioTracks()]); stopSlice = () => { on = false; stream.getVideoTracks().forEach(t => t.stop()); }; }
     const rec = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: c.vert ? 3000000 : 2500000 } : undefined), chunks = [];
     cam.rec = rec; cam.idle = 0; c.rec = true; c.ready = false; selectOnly([c.id]);
@@ -2013,6 +2220,11 @@
     if (act === 'vd-seek' && v && e) { const r = el.querySelector('.vd-prog').getBoundingClientRect(); v.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * (v.duration || c.dur || 0); }
     if (act === 'vd-mute') { c.muted = !c.muted; if (v) v.muted = c.muted; renderCard(c); save(); }
     if (act === 'vd-wake') camOn(c);
+    // writing out what was said: the words open under the video, with Turn into notes and Copy
+    if (act === 'vd-tx') { if (c.text) return; if (!c.txShown) { c.txShown = true; c.h += 120; } c.txNote = 'Mochi is writing it out…'; c.needTx = false; renderCard(c); save(); return transcribe(c, true); }
+    if (act === 'vd-notes') return ask(`This is what I said in a video I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
+    if (act === 'vd-copy') { navigator.clipboard?.writeText(c.text || '').then(() => chirp('Copied ✦', 1600), () => {}); return; }
+    if (act === 'vd-flip') { settings.camFlip = settings.camFlip === false; applySettings(); paintLook(); renderCard(c); }
     if (act === 'vd-dev') return devicePick(e, [['videoinput', 'Camera', 'camId'], ['audioinput', 'Microphone', 'micId']], () => { camOff(c.id); camOn(c); });
     if ((act === 'vd-wide' || act === 'vd-tall') && !c.rec) { const vert = act === 'vd-tall'; if (!!c.vert === vert) return;
       const cx = c.x + c.w / 2, cy = c.y + c.h / 2; c.vert = vert; c.w = vert ? 230 : 360; c.h = vert ? Math.round(230 * 16 / 9) + VBAR : 246; c.x = cx - c.w / 2; c.y = cy - c.h / 2; renderCard(c); selectOnly([c.id]); save(); }
@@ -2094,15 +2306,31 @@
       requestAnimationFrame(draw);
     })();
   }
+  // a video's sound, as a plain 16 kHz mono WAV: what the Mac's speech recognizer and Whisper both read
+  async function videoAudio(c) {
+    let buf;
+    try { const ab = await (await fetch(await MB.mediaURL(c.src))).arrayBuffer(), ac = new (window.AudioContext || window.webkitAudioContext)(); buf = await ac.decodeAudioData(ab); ac.close?.(); }
+    catch (e) { throw new Error('This video has no sound to write out.'); }
+    const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(buf.duration * 16000)), 16000), s = off.createBufferSource(); s.buffer = buf; s.connect(off.destination); s.start();
+    const pcm = (await off.startRendering()).getChannelData(0), n = pcm.length, out = new DataView(new ArrayBuffer(44 + n * 2));
+    const str = (o, t) => [...t].forEach((ch, i) => out.setUint8(o + i, ch.charCodeAt(0)));
+    str(0, 'RIFF'); out.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+    out.setUint32(24, 16000, true); out.setUint32(28, 32000, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+    const u8 = new Uint8Array(out.buffer); let bin = ''; for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
   async function transcribe(c, asked) {
     if (MB.whisperStatus) { c.txNote = 'Mochi is writing it out…'; renderCard(c); }
-    try { const text = await MB.transcribe(c.src); c.text = (text || '').trim(); c.txNote = c.text ? '' : "I couldn't make out any words in that one."; }
+    try { const text = await MB.transcribe(c.type === 'video' ? await videoAudio(c) : c.src); c.text = (text || '').trim(); c.txNote = c.text ? '' : "I couldn't make out any words in that one."; }
     catch (e) {
       if (e.message === 'NEED_WHISPER') { c.txNote = 'Not written out yet.'; c.needTx = true; renderCard(c); save(); offerWhisper(asked); return; }
       c.txNote = e.message; }
     c.needTx = false;
     renderCard(c); save();
-    if (c.text) say('I wrote out your voice memo ✦ Want me to turn it into notes?', 6000, [{ label: 'Turn into notes', run: () => audioAct(c, 'au-notes') }, { label: 'Not now', ghost: true, run: () => {} }]);
+    const what = c.type === 'video' ? 'video' : 'voice memo';
+    if (c.text && (!settings.ai || haveClaude === false)) say(`I wrote out your ${what} ✦`, 4000);
+    else if (c.text) say(`I wrote out your ${what} ✦ Want me to turn it into notes?`, 6000, [{ label: 'Turn into notes', run: () => c.type === 'video' ? videoAct(c, 'vd-notes') : audioAct(c, 'au-notes') }, { label: 'Not now', ghost: true, run: () => {} }]);
   }
   // Windows/Linux: Whisper writes memos out on this computer. The first memo asks once; after that it just happens.
   let whisperBusy = false;
@@ -2118,7 +2346,7 @@
     for (;;) {
       await new Promise(r => setTimeout(r, 600)); let st = {}; try { st = await MB.whisperStatus(); } catch (e) { break; }
       paintWhisper(st);
-      if (st.ready) { whisperBusy = false; say("All set! I’ll write out your voice memos from now on ✦", 5000); board.cards.filter(c => c.type === 'audio' && c.src && !c.text).forEach(c => transcribe(c)); return; }
+      if (st.ready) { whisperBusy = false; say("All set! I’ll write out your voice memos from now on ✦", 5000); board.cards.filter(c => (c.type === 'audio' || (c.type === 'video' && c.needTx)) && c.src && !c.text).forEach(c => transcribe(c)); return; }
       if (st.error) { whisperBusy = false; say(st.error, 8000, [{ label: 'Try again', run: setupWhisper }]); return; }
       if (st.downloading) say(`Learning to listen… ${Math.round((st.progress || 0) * 100)}%`, 0);
     }
@@ -2198,6 +2426,27 @@
   }
   // groups: ready-made pieces arrive grouped; ⌘G groups a selection, ⇧⌘G ungroups
   const groupOf = id => { const g = byId(id)?.group; return g ? board.cards.filter(c => c.group === g).map(c => c.id) : [id]; };
+  // ---------- stacking: bring to front / forward, send backward / to back. Later in board.cards = higher on the board, and Layers lists it top-first ----------
+  // groups move as one, a frame brings everything on it along, and a card on a frame never goes behind its frame
+  function restack(where) {
+    const cs = selCards(); if (!cs.length || !board) return;
+    const ids = new Set(); cs.forEach(c => { groupOf(c.id).forEach(i => ids.add(i)); if (c.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); });
+    const all = board.cards, moving = all.filter(c => ids.has(c.id)), rest = all.filter(c => !ids.has(c.id)), idx = all.map((c, i) => ids.has(c.id) ? i : -1).filter(i => i >= 0);
+    const seen = c => !ids.has(c.id) && !c.hidden;
+    let at;
+    if (where === 'front') at = rest.length;
+    else if (where === 'back') at = 0;
+    else if (where === 'forward') { const i = all.findIndex((c, k) => k > Math.max(...idx) && seen(c)); if (i < 0) return; at = rest.indexOf(all[i]) + 1; }
+    else { let i = -1; for (let k = Math.min(...idx) - 1; k >= 0; k--) if (seen(all[k])) { i = k; break; } if (i < 0) return; at = rest.indexOf(all[i]); }
+    moving.forEach(c => { const f = c.onFrame && !ids.has(c.onFrame) && rest.findIndex(x => x.id === c.onFrame); if (f >= 0 && f !== false) at = Math.max(at, f + 1); });
+    const next = [...rest]; next.splice(at, 0, ...moving);
+    if (next.every((c, i) => c === all[i])) return chirp(where === 'front' || where === 'forward' ? 'Already on top ✦' : 'Already at the back ✦', 1600);
+    remember(); board.cards = next;
+    // move only the restacked cards on the page, so a playing Spotify or video elsewhere keeps going
+    const after = next.slice(next.indexOf(moving[moving.length - 1]) + 1).map(c => cardsEl.querySelector(`[data-id="${c.id}"]`)).find(el => el && !el.classList.contains('coll'));
+    moving.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) cardsEl.insertBefore(el, after || null); });
+    renderWires(); save(); LY.reveal = true; layersSoon();
+  }
   function groupSel(on) { const cs = selCards(); if (on && cs.length < 2) return; const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
   // ready-made pieces, in clean gray; bars stretch to the screen they land on
   const T = (x, y, w, text, o = {}) => { const sz = o.size || 15, perLine = Math.max(4, Math.floor(w / (sz * .52))), lines = Math.max(1, ...String(text || '').split('\n').map(l => Math.ceil(Math.max(1, l.length) / perLine)));
@@ -2348,8 +2597,8 @@
   $('dzMin').onclick = () => { const m = $('design').classList.toggle('min'); $('dzMin').textContent = m ? '+' : '–'; placeTray(); };
   $('design').addEventListener('pointerdown', e => e.stopPropagation());
   // Unsorted sits under the Wireframe panel and always fits on screen; its list scrolls when it's long
-  function placeTray() { const d = $('design').getBoundingClientRect(), s = stage.getBoundingClientRect(), top = d.bottom - s.top + 12;
-    $('tray').style.top = top + 'px'; $('tray').style.maxHeight = Math.max(150, s.height - top - 16) + 'px'; }
+  function placeTray() { if ($('tray').parentElement?.classList.contains('side')) { $('tray').style.top = $('tray').style.maxHeight = ''; return; }   // in a sidebar column: it just stacks
+  }
   addEventListener('resize', placeTray);
   new ResizeObserver(placeTray).observe($('design'));
   const AL = d => `<svg viewBox="0 0 20 20">${d}</svg>`;
@@ -3546,9 +3795,36 @@ ${proseCSS()}
     ['<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2l4.3 4.3M8.5 6.5v4M6.5 8.5h4"/>', 'Sharp at any zoom', 'Text and pictures stay crisp however close you get, and zooming is smoother.'],
     ['<rect x="2.5" y="5.5" width="10" height="9" rx="2"/><path d="M12.5 9l5-2.5v7l-5-2.5"/>', 'Pick your camera and mic', 'Choose them in Settings, or from the little menu on video and voice memo cards.'],
     ['<rect x="2.5" y="3.5" width="15" height="10" rx="1.6"/><path d="M7 16.5h6M10 13.5v3"/>', 'Mochiboard for Windows', 'Share it with friends on a PC. Same board, Ctrl shortcuts, and memos written out right on the computer.'],
+  ], '1.6.0': [
+    ['<rect x="2.5" y="3" width="6" height="14" rx="1.6"/><rect x="11.5" y="3" width="6" height="6" rx="1.6"/><rect x="11.5" y="11" width="6" height="6" rx="1.6"/>', 'Make the sidebars yours', 'Drag any widget by its title to either side, and turn off the ones you don’t use.'],
+    ['<path d="M7 4.5c1.5 1.6 4.5 1.6 6 0l3 2-1.5 3.5H13V16H7V10H5.5L4 6.5z"/>', 'Dress up Mochi', 'A closet full of hats, glasses and more. She wears her outfit everywhere.'],
+    ['<path d="M7.5 14.5V5l9-2v9.5"/><circle cx="5.5" cy="14.5" r="2"/><circle cx="14.5" cy="12.5" r="2"/>', 'Mochi’s music', 'Three little lo-fi songs that loop softly while you work.'],
+    ['<rect x="3" y="3" width="9" height="9" rx="1.6"/><rect x="8" y="8" width="9" height="9" rx="1.6"/>', 'Front and back', 'Right-click a card to bring it to the front or send it back. Layers follows.'],
+    ['<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2l4.3 4.3M6.5 8.5h4"/>', 'Zoom menu', 'Click the zoom % for quick sizes, or press ⌘+, ⌘−, ⌘0 and ⇧1.'],
+    ['<rect x="2.5" y="5.5" width="10" height="9" rx="2"/><path d="M12.5 9l5-2.5v7l-5-2.5"/>', 'Videos, flipped and written out', 'Flip your camera like a selfie, and turn what you said in a video into words.'],
   ] };
   // the button on each version's card: try the headline thing
   const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }], '1.3.0': ['Write a doc', () => openDoc(addAtCenter('doc', { text: 'My first real doc' }))], '1.4.0': ['Record a video', () => startPlacing('video')], '1.5.0': ['Pick your camera', () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('settings').querySelector('.set-devices')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };
+  // a bigger update walks through extra steps: [title, subtitle] for each, after the list
+  const NEWS_STEPS = { '1.6.0': [['Two new widgets, if you’d like them', 'They’re off until you switch them on.'], ['Find them anytime', 'Settings → Widgets turns any widget on or off.']] };
+  let nwStep = 0, nwSteps = null, nwHead = null, nwGooT = 0;
+  const nwGoo = Goo($('nwGoo'), { wearing: () => window.__nwFit || {} });
+  const NW_FITS = [{ hat: 'party', held: 'balloon' }, { hat: 'crown', face: 'hearts' }, { hat: 'witch', neck: 'scarf', held: 'wand' }, { hat: 'frog' }, { hat: 'beanie', face: 'round', held: 'boba' }, { hat: 'bow', neck: 'pearls' }];
+  function newsShow(n) {
+    nwStep = n; const steps = nwSteps || [];
+    $('newsList').hidden = n > 0; document.querySelectorAll('#news .nw-step').forEach(s => s.hidden = +s.dataset.s !== n);
+    $('news').querySelector('h2').textContent = n ? steps[n - 1][0] : nwHead[0]; $('newsV').textContent = n ? steps[n - 1][1] : nwHead[1];
+    $('news').querySelector('.nw-mochi').hidden = n > 0;
+    $('nwDots').hidden = !steps.length; [...$('nwDots').children].forEach((d, i) => { d.hidden = i > steps.length; d.classList.toggle('on', i === n); });
+    const last = n >= steps.length;
+    $('newsOk').textContent = last ? 'Love it' : 'Next →';
+    if (steps.length) { $('newsTry').textContent = n === 0 ? 'Skip' : last ? 'Show me' : '← Back'; }
+    $('nwDress').checked = settings.wDressup !== false; $('nwMusic').checked = settings.wMusic !== false;
+    clearInterval(nwGooT); if (n === 1) { let i = 0; window.__nwFit = NW_FITS[0]; nwGooT = setInterval(() => { window.__nwFit = NW_FITS[++i % NW_FITS.length]; nwGoo.hop(); }, 1300); }
+  }
+  $('nwDress').onchange = () => { settings.wDressup = $('nwDress').checked; applySettings(); if (settings.wDressup) nwGoo.hop(); };
+  $('nwMusic').onchange = () => { settings.wMusic = $('nwMusic').checked; applySettings(); };
+  $('nwListen').onclick = () => { if (music.playing) music.pause(); else music.play(0); $('nwListen').textContent = music.playing ? '❚❚ Pause' : '▶ Listen'; };
   const newsKey = 'mochiboard:newsSeen';
   async function maybeNews() {
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
@@ -3558,13 +3834,15 @@ ${proseCSS()}
     const num = x => String(x || '0').replace(/^v/, '').split('.').map(n => +n || 0), after = (x, y) => { const a = num(x), b = num(y); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
     const items = Object.keys(NEWS).filter(k => (!seen || after(k, seen)) && !after(k, v)).flatMap(k => NEWS[k]);
     if (seen === v || !items.length) return;
-    $('newsV').textContent = `Mochiboard ${v}`;
+    $('newsV').textContent = `Mochiboard ${v}`; nwHead = ['What’s new ✦', `Mochiboard ${v}`];
+    nwSteps = Object.keys(NEWS_STEPS).filter(k => (!seen || after(k, seen)) && !after(k, v)).flatMap(k => NEWS_STEPS[k]); if (!nwSteps.length) nwSteps = null;
     $('newsList').innerHTML = items.map(([e, t, d]) => `<li><span class="nw-e"><svg viewBox="0 0 20 20">${e}</svg></span><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
     const tryK = Object.keys(NEWS_TRY).filter(k => !after(k, v)).pop(), tr = NEWS_TRY[tryK]; $('newsTry').textContent = tr[0]; $('newsTry').onclick = () => { closeNews(); tr[1](); };
-    $('news').classList.add('on');
+    $('news').classList.add('on'); newsShow(0);
+    if (nwSteps) $('newsTry').onclick = () => { if (nwStep === 0) closeNews(); else if (nwStep >= nwSteps.length) { closeNews(); $('gearBtn').click(); setTab('widgets'); } else newsShow(nwStep - 1); };
   }
-  const closeNews = () => $('news').classList.remove('on');
-  $('newsOk').onclick = closeNews;
+  const closeNews = () => { $('news').classList.remove('on'); clearInterval(nwGooT); if (music.playing && settings.wMusic === false) music.pause(); $('nwListen').textContent = '▶ Listen'; };   // a song they only previewed stops with the card
+  $('newsOk').onclick = () => nwSteps && nwStep < nwSteps.length ? newsShow(nwStep + 1) : closeNews();
   $('news').onclick = e => { if (e.target === $('news')) closeNews(); };
 
   // ---------- phone: the board gets the whole screen. Panels slide up as bottom sheets, and the bottom bar becomes a hub ----------
@@ -3581,10 +3859,10 @@ ${proseCSS()}
     const sh = document.createElement('div'); sh.className = 'sheet'; sh.id = 'sheet';
     sh.innerHTML = '<div class="sh-veil"></div><div class="sh-panel" role="dialog"><div class="sh-grab"><i></i></div><div class="sh-head"><b id="shTitle"></b><div class="sh-tabs" id="shTabs"></div><button class="sh-x" aria-label="Close">×</button></div><div class="sh-body" id="shBody"></div></div>';
     document.body.appendChild(sh);
-    const hubGoo = Goo(hub.querySelector('#hubGoo')); goos.push(hubGoo);
+    const hubGoo = Goo(hub.querySelector('#hubGoo'), { outfit: 'wear' }); goos.push(hubGoo);
     const box = k => document.querySelector(`.box[data-box="${k}"]`);
     const SHEETS = {
-      boards: { title: 'Boards', tabs: [['Boards', () => box('boards')]] },
+      boards: { title: 'Boards', tabs: [['Boards', () => box('boards')], ['Dress up Mochi', () => box('dressup')], ['Music', () => box('music')]] },
       layers: { title: 'Layers', tabs: [['Layers', () => box('layers')]] },
       add: { title: 'Add', tabs: [['Basics', () => $('tools')], ['Wireframe', () => $('design')], ['Colors', () => box('colors')]] },
       tray: { title: 'Unsorted', tabs: [['Ideas', () => $('tray')]] },
@@ -3594,7 +3872,8 @@ ${proseCSS()}
     const adopt = el => { if (!home.has(el)) home.set(el, [el.parentNode, el.nextSibling]); };
     const restoreAll = () => home.forEach(([p, n], el) => { p.insertBefore(el, n && n.parentNode === p ? n : null); el.classList.remove('in-sheet'); });
     function show(name, t = 0) {
-      const S = SHEETS[name]; if (!S) return; open = name; tab = t;
+      const S0 = SHEETS[name]; if (!S0) return; open = name; tab = t;
+      const S = { ...S0, tabs: S0.tabs.filter(([, get]) => { const el = get(); return el && !el.classList.contains('wg-off'); }) };   // widgets turned off in Settings stay out of the sheets too
       $('shTitle').textContent = S.title;
       $('shTabs').innerHTML = S.tabs.length > 1 ? S.tabs.map(([l], i) => `<button data-t="${i}" class="${i === t ? 'on' : ''}">${l}</button>`).join('') : '';
       const body = $('shBody'); [...body.children].forEach(c => c.classList.remove('shown'));
@@ -3683,5 +3962,5 @@ ${proseCSS()}
     setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
-  window.__mb = { openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
+  window.__mb = { music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar };   // handy for testing
 })();

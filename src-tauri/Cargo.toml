@@ -1,6 +1,6 @@
 [package]
 name = "mochiboard"
-version = "1.5.1"
+version = "1.6.0"
 description = "A planning board with a tiny helper"
 authors = ["Jessa Wolfe"]
 edition = "2021"

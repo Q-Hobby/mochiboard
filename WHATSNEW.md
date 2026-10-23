@@ -3,6 +3,19 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.6.0
+
+- Make the sidebars yours: drag any widget by its title into a spot on either side (little boxes show where it can go). Turn widgets on and off in Settings → Widgets, where Reset layout puts everything back. The Boards panel always stays.
+- Dress up Mochi: a new widget with hats, glasses, scarves, a balloon and more. Hover to try things on, click to wear them, and she wears her outfit everywhere she shows up.
+- Mochi's music: a new widget with three little lo-fi songs (Strawberry Milk Beats, Cloud Desk and Jelly Jog) that loop seamlessly while you work. It never plays on its own.
+- Bring to front and send to back: right-click a card, or press ⇧⌘] / ⌘] / ⌘[ / ⇧⌘[. Layers follows along.
+- Click the zoom % at the bottom for Zoom in, Zoom out, 100%, Zoom to fit and quick sizes. Or press ⌘+, ⌘−, ⌘0 and ⇧1.
+- Flip your camera: video cards mirror you like a selfie, or tap Flip to see the room the right way round. Your video saves just the way it looked.
+- Videos can be written out too: tap the little captions button on a video, and what you said shows up underneath, ready to copy or turn into notes.
+- Smoother on a Mac: hovering over notes no longer makes the board stutter, and the little Mochis use half the effort to animate.
+- On Windows, Mochiboard talks about your PC, File Explorer and PowerShell, and the browser version shows Ctrl shortcuts on Windows and Linux.
+- Without Claude, Mochi still writes out your voice memos and videos, and doesn't offer notes she can't make.
+
 ## October 2026 · 1.5.1
 
 - Hold Option (Alt on Windows) while you drag to make a copy, just like in Figma. Works on groups, frames and connected cards too.
