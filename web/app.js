@@ -31,7 +31,7 @@
       tray: ['call the printer', 'idea: animated logo', 'that font from the cafe menu', 'reply to Sam', 'moodboard for spring'].map(t => card('note', { text: t })) }),
   };
   function card(type, o = {}) {
-    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24], icon: [28, 28], font: [300, 210] }[type] || [220, 140];
+    const size = { note: [220, 140], title: [320, 50], image: [260, 220], link: [260, 210], todo: [240, 180], swatch: [120, 150], coll: [288, 200], doc: [240, 52], canvas: [260, 180], shape: [160, 160], stamp: [56, 56], audio: [290, 150], video: [360, 246], ink: [10, 10], frame: [393, 852], box: [160, 100], text: [220, 24], icon: [28, 28], font: [300, 210] }[type] || [220, 140];
     return Object.assign({ id: uid(), type, x: 0, y: 0, w: size[0], h: size[1], r: type === 'title' ? 0 : tilt(), color: 'white' }, o);
   }
   function newBoard(name = 'Untitled board', tpl) {
@@ -442,6 +442,27 @@
     setTimeout(() => glow.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; el.classList.remove('just-made'); void el.offsetWidth; el.classList.add('just-made'); setTimeout(() => el.classList.remove('just-made'), 1900); }), inView ? 0 : 450);
   }
 
+  // ---------- the grid's shape: plain dots, or a tiny repeating shape in the dot color ----------
+  const GRID_SHAPES = {
+    dot: ['Dots', '<circle cx="13" cy="13" r="1.6"/>'],
+    cross: ['Crosses', '<rect x="9.6" y="12.25" width="6.8" height="1.5" rx=".75"/><rect x="12.25" y="9.6" width="1.5" height="6.8" rx=".75"/>'],
+    x: ['X marks', '<g transform="rotate(45 13 13)"><rect x="9.8" y="12.3" width="6.4" height="1.4" rx=".7"/><rect x="12.3" y="9.8" width="1.4" height="6.4" rx=".7"/></g>'],
+    heart: ['Hearts', '<path d="M13 16.2c-.2 0-.4-.1-.5-.2-1.4-1.2-3.2-2.6-3.2-4.3 0-1.1.8-2 1.9-2 .8 0 1.4.4 1.8 1 .4-.6 1-1 1.8-1 1.1 0 1.9.9 1.9 2 0 1.7-1.8 3.1-3.2 4.3-.1.1-.3.2-.5.2z"/>'],
+    tri: ['Triangles', '<path d="M13 10.3l3 5.2h-6z" stroke-linejoin="round"/>'],
+    square: ['Squares', '<rect x="10.9" y="10.9" width="4.2" height="4.2" rx=".9"/>'],
+    sparkle: ['Sparkles', '<path d="M13 9.4c.3 1.9 1.7 3.3 3.6 3.6-1.9.3-3.3 1.7-3.6 3.6-.3-1.9-1.7-3.3-3.6-3.6 1.9-.3 3.3-1.7 3.6-3.6z"/>'],
+  };
+  const gridMask = k => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="#000">${(GRID_SHAPES[k] || GRID_SHAPES.dot)[1]}</svg>`)}")`;
+  function applyGridShape() {
+    const k = GRID_SHAPES[settings.gridShape] ? settings.gridShape : 'dot', on = k !== 'dot';
+    grid.classList.toggle('shaped', on); if (on) grid.style.setProperty('--gm', gridMask(k)); else grid.style.removeProperty('--gm');
+    const box = $('gridShapes'); if (!box) return;
+    if (!box.children.length) { box.innerHTML = Object.entries(GRID_SHAPES).map(([id, [name]]) => `<button type="button" data-gshape="${id}" title="${name}" aria-label="${name}"><i style="--gm:${gridMask(id).replace(/"/g, '&quot;')}"></i></button>`).join('');
+      box.onclick = e => { const b = e.target.closest('[data-gshape]'); if (!b) return; settings.gridShape = b.dataset.gshape; if (!settings.grid) settings.grid = true; applySettings(); }; }
+    box.querySelectorAll('[data-gshape]').forEach(b => b.classList.toggle('on', b.dataset.gshape === k));
+    applyView();
+  }
+
   // ---------- view ----------
   let movingT = 0;
   function applyView() {
@@ -450,6 +471,7 @@
     stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => stage.classList.remove('moving'), 180);
     let s = 26 * view.z; while (s < 20) s *= 2; while (s > 40) s /= 2;   // dots keep their size; zooming out skips every other dot instead of crowding them
     grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
+    if (grid.classList.contains('shaped')) { grid.style.webkitMaskSize = grid.style.maskSize = `${s}px ${s}px`; grid.style.webkitMaskPosition = grid.style.maskPosition = `${view.x}px ${view.y}px`; }
     $('zoom').textContent = Math.round(view.z * 100) + '%';
   }
   // ---------- the resize corner lives on its own layer above every card (like Figma), so a neighbor that overlaps can never hide it ----------
@@ -492,7 +514,14 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : pxSrc(c.emoji || '⭐') ? `<img src="${pxSrc(c.emoji || '⭐')}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
-      case 'audio': return c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
+      case 'video': {
+        if (c.src) return `<div class="vd-stage"><video class="vd-v"></video><button class="vd-play" data-act="vd-play" aria-label="Play">${PLAY}</button></div><div class="vd-bar"><button class="vd-pp" data-act="vd-play" aria-label="Play or pause">${PLAY}</button><div class="vd-prog" data-act="vd-seek"><i></i></div><span class="vd-time">${fmtT(c.dur || 0)}</span><button class="vd-mute${c.muted ? ' off' : ''}" data-act="vd-mute" aria-label="Sound">${SPK}</button></div>`;
+        if (c.saving) return `<div class="vd-stage"><div class="vd-msg"><b>Saving your video…</b><span>${Math.round((c.pct || 0) * 100)}%</span></div></div><div class="vd-bar"><span class="vd-title">${esc(c.title || 'Video')}</span></div>`;
+        return `<div class="vd-stage live"><video class="vd-live"></video>${c.camErr ? `<div class="vd-msg"><b>${esc(c.camErr)}</b></div>` : c.camRest ? `<button class="vd-msg vd-wake" data-act="vd-wake"><b>Your camera is resting</b><span>Click to turn it on</span></button>` : ''}${c.count ? `<div class="vd-count">${c.count}</div>` : ''}${c.rec && !c.count ? `<div class="vd-recdot"><i></i><span class="vd-rtime">0:00</span></div>` : ''}${!c.rec && !c.camErr ? `<div class="vd-shape"><button data-act="vd-wide" class="${c.vert ? '' : 'on'}"><i class="w"></i>Wide</button><button data-act="vd-tall" class="${c.vert ? 'on' : ''}"><i class="t"></i>Phone</button></div>` : ''}</div>`
+          + `<div class="vd-bar">${c.rec ? `<button class="vd-stop" data-act="vd-stop"><i></i>Stop</button>` : `<button class="vd-start" data-act="vd-start"><span class="au-rec"></span>${c.vert ? 'Record' : 'Start recording'}</button><button class="vd-file" data-act="vd-file" title="Use a video file">${c.vert ? '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.5v1.5a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-1.5M10 3.5v9M6.5 7L10 3.5 13.5 7"/></svg>' : 'Use a video file'}</button>`}</div>`;
+      }
+      case 'audio': return c.ready && !c.rec && !c.src ? `<div class="au-top"><span class="au-mic">${MIC}</span><span class="text">${esc(c.title || 'Voice memo')}</span></div><button class="au-start" data-act="au-start"><span class="au-rec"></span>Start recording</button><div class="au-hint">Press when you’re ready. I’ll count you in ✦</div>`
+        : c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
@@ -524,6 +553,7 @@
     el.style.setProperty('--tilt', c.r + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff'); el.classList.add('c-' + (COLORS[c.color] && c.color !== 'white' ? c.color : 'white'));
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     el.style.setProperty('--fs', FS[c.fs] || 1);
+    el.classList.toggle('has-font', !!c.font && SIZED.includes(c.type)); if (c.font && SIZED.includes(c.type)) { el.style.setProperty('--cf', `"${String(c.font).replace(/"/g, '')}"`); useFont(c.font); } else el.style.removeProperty('--cf');
     ['bold', 'italic', 'under', 'strike'].forEach(k => { el.classList.toggle('t-' + k, c[k] === true); el.classList.toggle('t-no' + k, c[k] === false); });
     if (c.type === 'doc') el.classList.toggle('has-body', !!(c.body || '').trim());
     if (c.type === 'audio') { el.classList.toggle('paused', !!c.paused); if (!c.rec) requestAnimationFrame(() => fitAudio(c, el)); }
@@ -534,6 +564,7 @@
     if (c.type === 'coll') { const t = COLL[c.color] || COLL.pink; el.style.setProperty('--chead', t[0]); el.style.setProperty('--cframe', t[1]); el.classList.toggle('nohead', c.head === false); el.style.height = c.h + 'px'; }
     else if (parentOf(c.id)) el.classList.add('inside');
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>`;
+    if (c.type === 'video') setupVideo(c, el);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     return el;
   }
@@ -671,7 +702,7 @@
     const t = {
       frame: c.name || 'Screen', coll: c.name || 'Collection', note: lyText(c.name) || lyText(c.text), text: lyText(c.text), title: lyText(c.text), todo: lyText(c.text) || lyText(c.items?.[0]?.t),
       image: c.tagText || 'Image', link: c.title || (c.url ? host(c.url) : 'Link'), doc: c.text || 'Doc', canvas: c.text || 'Canvas', swatch: c.label || (c.hex || '').toUpperCase(),
-      shape: SHAPE_N[c.shape || 'rect'], stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
+      shape: SHAPE_N[c.shape || 'rect'], stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', video: 'Video', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
     }[c.type];
     return t || ({ note: 'Note', text: 'Text', title: 'Title', todo: 'Checklist' })[c.type] || c.type;
   }
@@ -823,6 +854,8 @@
       res({ src: png && out.length < 6e6 ? out : cv.toDataURL('image/jpeg', .86), w: cv.width, h: cv.height }); }; im.src = fr.result; }; fr.readAsDataURL(file); });
   }
   async function addImages(files, at, toTray) {
+    files = [...files]; const vfs = files.filter(f => f.type.startsWith('video/')); files = files.filter(f => !f.type.startsWith('video/'));
+    vfs.forEach((f, n) => addVideo(f, at ? { x: at.x + n * 30, y: at.y + n * 30 } : null));
     let i = 0;
     for (const f of files) { if (!f.type.startsWith('image/')) continue; const im = await imageFromFile(f);
       const w = 260, h = Math.round(w * im.h / im.w) + 16, c = card('image', { src: im.src, w, h });
@@ -1038,6 +1071,7 @@
   // card buttons: pull colours, checklist items
   cardsEl.addEventListener('click', e => {
     const el = e.target.closest('.card'); if (!el) return; const c = byId(el.dataset.id), act = e.target.closest('[data-act]')?.dataset.act;
+    if (act && act.startsWith('vd-')) return videoAct(c, act, e);
     if (act && act.startsWith('au-')) return audioAct(c, act, e);
     if (act === 'colors') pullColors(c);
     if (act === 'item') { c.items = c.items || []; c.items.push({ t: 'new thing', done: false }); renderCard(c); save(); }
@@ -1088,6 +1122,41 @@
     board.cards.forEach(c => cardsEl.querySelector(`[data-id="${c.id}"]`)?.classList.toggle('dim', !!focusSet && !focusSet.has(c.id)));
     if (focusSet) { fit(board.cards.filter(c => focusSet.has(c.id)), 160); say('Focus mode: just these. Press Esc when you want everything back.'); }
   }
+
+  // ---------- your toolbar: pick which tools show at the bottom and in what order (shortcuts keep working for hidden ones) ----------
+  const TB_DEFAULT = [...$('tools').querySelectorAll(':scope > [data-add]')].map(b => b.dataset.add);
+  const tbName = b => (b.dataset.tip || b.getAttribute('aria-label') || '').split('·')[0].trim();
+  function applyToolbar() {
+    const box = $('tools'), cfg = settings.toolbar || {}, hidden = new Set(cfg.hidden || []);
+    const order = (cfg.order || []).filter(k => TB_DEFAULT.includes(k)); TB_DEFAULT.forEach((k, i) => { if (!order.includes(k)) order.splice(Math.min(i, order.length), 0, k); });   // tools added in a later version slot in where they belong
+    const end = $('zoom'); order.forEach(k => { const b = box.querySelector(`:scope > [data-add="${k}"]`); if (b) { box.insertBefore(b, end); b.hidden = hidden.has(k); } });
+    return order;
+  }
+  function toolbarEditor() {
+    let p = $('tbEdit'); if (p && !p.hidden) { p.hidden = true; return; }
+    if (placing) stopPlacing(); if (sel.size) selectOnly([]); if (drawOn) exitDraw();   // the tools have to be showing to edit them
+    if (!p) { p = document.createElement('div'); p.id = 'tbEdit'; p.className = 'tb-edit'; document.body.appendChild(p);
+      ['pointerdown', 'mousedown', 'wheel', 'dblclick'].forEach(t => p.addEventListener(t, e => e.stopPropagation(), { passive: true })); }
+    const draw = () => { const order = applyToolbar(), hidden = new Set((settings.toolbar || {}).hidden || []);
+      p.innerHTML = `<div class="tbe-head"><b>Your toolbar</b><small>Switch tools on or off, drag to reorder</small></div><div class="tbe-list">${order.map(k => { const b = $('tools').querySelector(`:scope > [data-add="${k}"]`);
+        return `<div class="tbe-row${hidden.has(k) ? ' off' : ''}" draggable="true" data-tb="${k}"><span class="tbe-grip">⋮⋮</span><span class="tbe-ic">${b.querySelector('svg')?.outerHTML || ''}</span><span class="tbe-name">${esc(tbName(b))}</span><input type="checkbox" class="tgl" ${hidden.has(k) ? '' : 'checked'} aria-label="Show ${esc(tbName(b))}"></div>`; }).join('')}</div>
+        <div class="tbe-foot"><button class="set-btn" data-tbe="reset">Reset</button><button class="set-btn hot" data-tbe="done">Done</button></div>`; };
+    const commit = (order, hidden) => { settings.toolbar = { order, hidden }; applySettings(); };
+    const now = () => ({ order: [...p.querySelectorAll('.tbe-row')].map(r => r.dataset.tb), hidden: [...p.querySelectorAll('.tbe-row')].filter(r => !r.querySelector('input').checked).map(r => r.dataset.tb) });
+    p.onchange = e => { if (e.target.matches('input')) { e.target.closest('.tbe-row').classList.toggle('off', !e.target.checked); const n = now(); commit(n.order, n.hidden); } };
+    p.onclick = e => { const a = e.target.closest('[data-tbe]')?.dataset.tbe; if (a === 'done') p.hidden = true; if (a === 'reset') { delete settings.toolbar; applySettings(); draw(); } };
+    let dragging = null;
+    p.ondragstart = e => { dragging = e.target.closest('.tbe-row'); if (!dragging) return; dragging.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragging.dataset.tb); };
+    p.ondragover = e => { if (!dragging) return; e.preventDefault(); const L = p.querySelector('.tbe-list'), lr = L.getBoundingClientRect(); if (e.clientY < lr.top + 36) L.scrollTop -= 10; else if (e.clientY > lr.bottom - 36) L.scrollTop += 10;   // scroll the list when dragging near its edges
+      const r = e.target.closest('.tbe-row'); if (!r || r === dragging) return; const box = r.getBoundingClientRect(); r.parentNode.insertBefore(dragging, e.clientY < box.top + box.height / 2 ? r : r.nextSibling); };
+    p.ondragend = () => { if (!dragging) return; dragging.classList.remove('drag'); dragging = null; const n = now(); commit(n.order, n.hidden); };
+    draw(); p.hidden = false;
+    const place = () => { const t = $('tools').getBoundingClientRect(); if (!t.width) return; p.style.left = Math.max(12, Math.min(innerWidth - 312, t.left + t.width / 2 - 150)) + 'px'; p.style.bottom = (innerHeight - t.top + 12) + 'px'; };
+    place(); requestAnimationFrame(place); setTimeout(place, 250);   // again once the tools have slid back in
+  }
+  $('tools').addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); boardMenu(e, [{ label: 'Customize toolbar…', run: toolbarEditor }]); });
+  $('tbCustomize').onclick = () => { closeSettings(); setTimeout(toolbarEditor, 120); };
+  document.addEventListener('pointerdown', e => { const p = $('tbEdit'); if (p && !p.hidden && !e.target.closest('#tbEdit, #rowMenu')) p.hidden = true; }, true);
 
   // ---------- just the board: every panel tucks away (⌘\, like Figma), and comes back with ⌘\ or Esc ----------
   const CLEAN_EL = ['side', 'tray', 'dock', 'keys', 'design'].map(id => $(id)).concat([document.querySelector('.top')]).filter(Boolean);
@@ -1144,6 +1213,7 @@
     if (k === 'l') startPlacing('link');
     if (k === 'p') drawOn ? exitDraw() : enterDraw();
     if (k === 'a') readyToRecord().then(ok => ok && startPlacing('audio'));
+    if (k === 'v') startPlacing('video');
     if (k === 'i') $('filePick').click();
     if (k === '0') fit(board.cards);
     if (k === 'm') { e.preventDefault(); mochiOpen(true); }
@@ -1165,7 +1235,9 @@
     if (t === 'tpl') { const on = !$('tplPick').classList.contains('on'); stopPlacing(); const r = b.getBoundingClientRect(), sr = stage.getBoundingClientRect(); $('tplPick').style.left = (r.left + r.width / 2 - sr.left) + 'px'; $('tplPick').classList.toggle('on', on); b.classList.toggle('on', on); $('mBubble').classList.remove('on'); return; }
     if (t === 'audio') return readyToRecord().then(ok => ok && startPlacing('audio'));
     startPlacing(t); };
-  $('filePick').onchange = e => { addImages([...e.target.files]); e.target.value = ''; };
+  $('filePick').onchange = e => { const fs = [...e.target.files], tgt = $('filePick').dataset.into; delete $('filePick').dataset.into; e.target.value = '';
+    const c = tgt && byId(tgt), v = fs.find(f => f.type.startsWith('video/'));
+    if (c && v) return fillVideo(c, v); addImages(fs); };
   $('boardName').oninput = e => { board.name = e.target.value || 'Untitled board'; save(); };
   // + Board / + Folder add into wherever you are: the folder you're in, or the project you're in
   function scope() {
@@ -1255,7 +1327,7 @@
   const settings = Object.assign({ mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   function applySettings() {
-    queueMicrotask(() => applyColors());
+    queueMicrotask(() => applyColors()); queueMicrotask(() => applyGridShape()); queueMicrotask(() => applyToolbar());
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
     const dark = settings.theme === 'dark' || (settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.body.classList.toggle('dark', dark); document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
@@ -1326,7 +1398,7 @@
   $('setName').onkeydown = e => e.stopPropagation();
   $('curColors').onclick = e => { const b = e.target.closest('[data-cc]'); if (b) { settings.cursor = b.dataset.cc; applySettings(); } };
   $('colReset').onclick = () => { settings.colors[modeName()] = {}; applySettings(); };
-  $('gearBtn').onclick = e => { e.stopPropagation(); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  $('gearBtn').onclick = e => { e.stopPropagation(); if (placing) stopPlacing(); if (sel.size) selectOnly([]); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
   // settings tabs: one topic at a time, so it isn't one long scroll
   function setTab(t) { $('setTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); $('settings').querySelectorAll('.set-body section[data-tab]').forEach(sec => sec.classList.toggle('tab-off', sec.dataset.tab !== t)); $('settings').querySelector('.set-body').scrollTop = 0; if (t === 'helpers') showUsage(); }
@@ -1472,7 +1544,7 @@
     (r.collections || []).forEach(o => { place(o); const s2 = card('coll', { x: o.x, y: o.y, text: o.name || o.text || '', color: COLL[o.color] ? o.color : 'pink', kids: [], cols: o.cols || 1, r: 0 }); addCard(s2); made[(o.name || '').toLowerCase()] = s2; added.push(s2); });
     const collFor = k => k && (byId(k)?.type === 'coll' ? byId(k) : made[String(k).toLowerCase()] || colls().find(s2 => s2.text.toLowerCase() === String(k).toLowerCase()));
     const file = (c, k) => { const s2 = collFor(k); if (!s2 || c.id === s2.id) return; const from = parentOf(c.id); if (from) from.kids = from.kids.filter(x => x !== c.id); s2.kids.push(c.id); };
-    (r.add || []).forEach(o => { place(o); const c = card(['todo', 'title', 'swatch', 'doc', 'font'].includes(o.type) ? o.type : 'note', { font: o.type === 'font' ? (o.font || o.text) : undefined, body: o.type === 'doc' ? (o.body || '') : undefined,
+    (r.add || []).forEach(o => { place(o); const c = card(['todo', 'title', 'swatch', 'doc', 'font'].includes(o.type) ? o.type : 'note', { font: o.type === 'font' ? (o.font || o.text) : (o.font ? String(o.font) : undefined), body: o.type === 'doc' ? (o.body || '') : undefined,
       x: o.x, y: o.y, text: o.type === 'font' ? (o.sample || '') : o.text || '', color: COLOR_NAMES.includes(o.color) ? o.color : 'white', hex: o.hex, label: o.label,
       items: o.items ? o.items.map(t => ({ t: typeof t === 'string' ? t : t.t, done: false })) : undefined, tagText: o.tag, name: o.name }); addCard(c); added.push(c); if (o.in) file(c, o.in); });
     (r.titles || []).forEach(o => { place(o); added.push(addCard(card('title', { x: o.x, y: o.y, text: o.text }))); });
@@ -1559,7 +1631,7 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], piece: ['', [300, 60]], icon: ['', [28, 28]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] };
+  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], piece: ['', [300, 60]], icon: ['', [28, 28]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] , video: ['Video', [360, 246]] };
   function startPlacing(type, extra = {}) {
     if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
@@ -1597,7 +1669,8 @@
     if (['note', 'todo', 'title', 'doc', 'canvas', 'text'].includes(type)) startEdit(c.id);   // ready to type right away, so the first letters never act as shortcuts
     if (type === 'coll') startEdit(c.id);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
-    if (type === 'audio') record(c);
+    if (type === 'audio') { c.ready = true; renderCard(c); selectOnly([c.id]); save(); }
+    if (type === 'video') { c.ready = true; renderCard(c); selectOnly([c.id]); save(); camOn(c); }   // it waits for Start recording, so nothing records by surprise
   }
 
   // ---------- design thinking templates: a ready-made layout with one or two examples, plus Mochi's how-to note (delete it anytime) ----------
@@ -1756,12 +1829,103 @@
   const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
   const live = new Map();     // card id → { recorder, stream, timer, ... } while recording
   const players = new Map();  // card id → Audio
+  const MIC = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7.5" y="2.5" width="5" height="9.5" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg>';
   function fitAudio(c, el) { const b = el.querySelector('.body'); if (!b) return; b.style.height = 'auto'; const h = Math.max(150, b.offsetHeight); b.style.height = ''; if (Math.abs(h - c.h) > 2) { c.h = h; el.style.height = h + 'px'; renderWires(); } }
   // the first time someone picks the voice memo tool, ask for the mic (and speech) right then; macOS remembers the answer
   let micOK = false, warm = null, warmT = 0;
   // the mic switches on as soon as the tool is picked, so the first words aren't lost while it wakes up; it switches off again if nothing gets recorded
   function warmMic(st) { clearTimeout(warmT); if (warm && warm !== st) warm.getTracks().forEach(t => t.stop()); warm = st; warmT = setTimeout(coolMic, 60000); }
   function coolMic() { if (warm && !live.size) { warm.getTracks().forEach(t => t.stop()); warm = null; } }
+  // ---------- video cards: record yourself with the camera, or drop in a video file ----------
+  const SPK = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8v4h3l4 3.5v-11l-4 3.5z"/><path class="w" d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.5 6.5 0 0 1 0 9"/></svg>';
+  const vids = new Map(), cams = new Map(), VBAR = 44;   // one long-lived player / camera per card, moved back in after every redraw so playback never restarts
+  const vEl = id => cardsEl.querySelector(`[data-id="${id}"]`);
+  function setupVideo(c, el) {
+    if (c.src) {
+      let v = vids.get(c.id);
+      if (!v) { v = document.createElement('video'); v.className = 'vd-v'; v.playsInline = true; v.preload = 'metadata'; if (c.poster) v.poster = c.poster; vids.set(c.id, v);
+        MB.mediaURL(c.src).then(u => { if (u) v.src = u; });
+        const paint = () => { const e2 = vEl(c.id); if (!e2) return; const f = (v.currentTime || 0) / (v.duration || c.dur || 1);
+          const bar = e2.querySelector('.vd-prog i'); if (bar) bar.style.width = (f * 100).toFixed(2) + '%';
+          const t = e2.querySelector('.vd-time'); if (t) t.textContent = v.paused && !v.currentTime ? fmtT(c.dur || v.duration || 0) : `${fmtT(v.currentTime)} / ${fmtT(c.dur || v.duration || 0)}`; };
+        v.addEventListener('timeupdate', paint); v.addEventListener('seeked', paint);
+        ['play', 'pause', 'ended'].forEach(t => v.addEventListener(t, () => { vEl(c.id)?.classList.toggle('playing', !v.paused); paint(); }));
+        v.addEventListener('loadedmetadata', () => { if (!c.dur && isFinite(v.duration)) { c.dur = v.duration; save(); } paint(); }); }
+      v.muted = !!c.muted; el.querySelector('.vd-v').replaceWith(v); el.classList.toggle('playing', !v.paused);
+      return;
+    }
+    const cam = cams.get(c.id), slot = el.querySelector('.vd-live');
+    if (slot && cam) { slot.replaceWith(cam.view); cam.view.play().catch(() => {}); }
+  }
+  async function camOn(c) {
+    if (cams.has(c.id)) return cams.get(c.id);
+    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
+    catch (e) { c.camErr = 'Mochiboard needs the camera. Turn it on in System Settings → Privacy & Security → Camera, then click Start recording again.'; c.camRest = false; renderCard(c); return null; }
+    const view = document.createElement('video'); view.className = 'vd-live'; view.muted = true; view.playsInline = true; view.autoplay = true; view.srcObject = stream;
+    const cam = { stream, view, idle: 0 }; cams.set(c.id, cam); c.camErr = ''; c.camRest = false;
+    // the camera rests after a minute of waiting (no recording), and switches off if the card goes away
+    cam.tick = setInterval(() => { if (!vEl(c.id) || (!c.rec && (cam.idle += 2) >= 60)) { camOff(c.id); if (byId(c.id) && !c.src) { c.camRest = true; renderCard(c); } } }, 2000);
+    renderCard(c); return cam;
+  }
+  function camOff(id) { const cam = cams.get(id); if (!cam) return; clearInterval(cam.tick); cam.stream.getTracks().forEach(t => t.stop()); cams.delete(id); }
+  async function videoRecord(c) {
+    const cam = await camOn(c); if (!cam) return;
+    const type = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+    let stream = cam.stream, stopSlice = () => {};
+    if (c.vert) { const st = cam.stream.getVideoTracks()[0]?.getSettings() || {}, W0 = st.width || cam.view.videoWidth || 1280, H0 = st.height || cam.view.videoHeight || 720;
+      const H = H0, W = Math.round(H * 9 / 16 / 2) * 2, cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = W; cv.height = H; let on = true;
+      (function slice() { if (!on) return; try { g.drawImage(cam.view, (W0 - W) / 2, 0, W, H, 0, 0, W, H); } catch (e) {} requestAnimationFrame(slice); })();
+      stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...cam.stream.getAudioTracks()]); stopSlice = () => { on = false; stream.getVideoTracks().forEach(t => t.stop()); }; }
+    const rec = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: c.vert ? 3000000 : 2500000 } : undefined), chunks = [];
+    cam.rec = rec; cam.idle = 0; c.rec = true; c.ready = false; selectOnly([c.id]);
+    for (const n of [3, 2, 1]) { c.count = n; renderCard(c); await new Promise(r => setTimeout(r, 700)); if (!cams.has(c.id) || !c.rec) return; }
+    c.count = 0; renderCard(c);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => { stopSlice(); const blob = new Blob(chunks, { type: (rec.mimeType || 'video/mp4').split(';')[0] }), secs = (Date.now() - cam.t0) / 1000; camOff(c.id);
+      const when = new Date(); c.title = c.title || `Video · ${when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+      await fillVideo(c, blob, secs); };
+    cam.t0 = Date.now(); rec.start(500);
+    (function clock() { const e2 = vEl(c.id); if (!c.rec || !cams.has(c.id)) return; const t = e2?.querySelector('.vd-rtime'); if (t) t.textContent = fmtT((Date.now() - cam.t0) / 1000);
+      if (Date.now() - cam.t0 > 15 * 60 * 1000) return videoAct(c, 'vd-stop');   // a 15 minute limit keeps files a sensible size
+      setTimeout(clock, 250); })();
+  }
+  // a still from the video (for the poster and the board's thumbnails), plus its size and length
+  function videoInfo(url) {
+    return new Promise(res => { const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url; let done = false;
+      const finish = poster => { if (done) return; done = true; res({ poster, vw: v.videoWidth, vh: v.videoHeight, dur: isFinite(v.duration) ? v.duration : 0 }); };
+      v.onloadeddata = () => { try { v.currentTime = Math.min(.3, (v.duration || 1) / 10); } catch (e) { finish(''); } };
+      v.onseeked = () => { try { const W = 480, cv = document.createElement('canvas'); cv.width = W; cv.height = Math.round(W * v.videoHeight / (v.videoWidth || 1)) || 270; cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height); finish(cv.toDataURL('image/jpeg', .8)); } catch (e) { finish(''); } };
+      v.onerror = () => finish(''); setTimeout(() => finish(''), 8000); });
+  }
+  async function fillVideo(c, blob, secs) {
+    if (blob.size > 1024 * 1024 * 1024) return say('That video is over 1 GB, which is too big for a board. Try a shorter clip ✦', 7000);
+    c.rec = false; c.ready = false; c.count = 0; c.saving = true; c.pct = 0; c.title = c.title || (blob.name ? blob.name.replace(/\.[^.]+$/, '') : 'Video'); renderCard(c);
+    const local = URL.createObjectURL(blob), info = await videoInfo(local); URL.revokeObjectURL(local);
+    let src; try { src = await MB.saveMedia(blob, f => { c.pct = f; const s2 = vEl(c.id)?.querySelector('.vd-msg span'); if (s2) s2.textContent = Math.round(f * 100) + '%'; }); }
+    catch (e) { c.saving = false; c.ready = true; renderCard(c); return say("I couldn't save that video: " + e.message, 8000); }
+    vids.get(c.id)?.pause(); vids.delete(c.id);
+    Object.assign(c, { saving: false, pct: 0, src, poster: info.poster, dur: info.dur || secs || 0, vw: info.vw, vh: info.vh });
+    if (info.vw && info.vh) c.h = Math.round(c.w * info.vh / info.vw) + VBAR;
+    renderCard(c); selectOnly([c.id]); save();
+  }
+  function addVideo(file, at) {
+    const p = at || centerWorld(), c = card('video', { title: file.name.replace(/\.[^.]+$/, '') }); c.x = p.x - c.w / 2; c.y = p.y - c.h / 2; addCard(c); fillVideo(c, file);
+  }
+  function videoAct(c, act, e) {
+    const v = vids.get(c.id), el = vEl(c.id);
+    if (act === 'vd-play' && v) { if (v.paused) { if (v.ended) v.currentTime = 0; v.play().catch(() => {}); } else v.pause(); }
+    if (act === 'vd-seek' && v && e) { const r = el.querySelector('.vd-prog').getBoundingClientRect(); v.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * (v.duration || c.dur || 0); }
+    if (act === 'vd-mute') { c.muted = !c.muted; if (v) v.muted = c.muted; renderCard(c); save(); }
+    if (act === 'vd-wake') camOn(c);
+    if ((act === 'vd-wide' || act === 'vd-tall') && !c.rec) { const vert = act === 'vd-tall'; if (!!c.vert === vert) return;
+      const cx = c.x + c.w / 2, cy = c.y + c.h / 2; c.vert = vert; c.w = vert ? 230 : 360; c.h = vert ? Math.round(230 * 16 / 9) + VBAR : 246; c.x = cx - c.w / 2; c.y = cy - c.h / 2; renderCard(c); selectOnly([c.id]); save(); }
+    if (act === 'vd-start') videoRecord(c);
+    if (act === 'vd-stop') { const cam = cams.get(c.id);
+      if (cam?.rec && cam.rec.state !== 'inactive' && !c.count) cam.rec.stop();
+      else { c.rec = false; c.count = 0; c.ready = true; renderCard(c); } }   // stopped during the countdown: back to ready (nothing was sliced yet)
+    if (act === 'vd-file') { $('filePick').dataset.into = c.id; $('filePick').click(); }
+  }
+
   async function readyToRecord() {
     if (micOK) { if (!warm) try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); } catch (e) {} return true; }
     try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); }
@@ -1777,7 +1941,7 @@
     catch (e) { say("I can't hear you yet. Let Mochiboard use the microphone (System Settings → Privacy & Security → Microphone), then try again.", 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
     const chunks = [], recorder = new MediaRecorder(stream), ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 256; ac.createMediaStreamSource(stream).connect(an);
     const L = { recorder, stream, ac, start: Date.now(), paused: 0, pausedAt: 0 }; live.set(c.id, L);
-    c.rec = true; c.paused = false; c.starting = true; renderCard(c); selectOnly([c.id]);
+    c.rec = true; c.ready = false; c.paused = false; c.starting = true; renderCard(c); selectOnly([c.id]);
     recorder.onstart = () => { c.starting = false; L.start = Date.now(); renderCard(c); };   // only say "Recording…" once it's really listening
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = async () => {
@@ -1817,9 +1981,10 @@
   function audioAct(c, act, e) {
     const L = live.get(c.id), el = cardsEl.querySelector(`[data-id="${c.id}"]`);
     if (act === 'au-stop' && L) { if (L.recorder.state !== 'inactive') L.recorder.stop();
-      else { L.stream.getTracks().forEach(t => t.stop()); L.ac.close(); live.delete(c.id); c.rec = false; c.count = 0; c.starting = false; if (!c.src) { sel = new Set([c.id]); removeSelected(); } else renderCard(c); } }   // stopped before it began
+      else { L.stream.getTracks().forEach(t => t.stop()); L.ac.close(); live.delete(c.id); c.rec = false; c.count = 0; c.starting = false; if (!c.src) c.ready = true; renderCard(c); save(); } }   // stopped before it began
     if (act === 'au-pause' && L && L.recorder.state === 'inactive') return;
     if (act === 'au-pause' && L) { if (c.paused) { L.recorder.resume(); L.paused += Date.now() - L.pausedAt; } else { L.recorder.pause(); L.pausedAt = Date.now(); } c.paused = !c.paused; renderCard(c); }
+    if (act === 'au-start') { readyToRecord().then(ok => { if (ok) record(c); }); return; }
     if (act === 'au-replace') { players.get(c.id)?.pause(); players.delete(c.id); record(c); }
     if (act === 'au-notes') ask(`This is a voice memo I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
     if (act === 'au-play' || act === 'au-seek') {
@@ -2605,11 +2770,11 @@ ${proseCSS()}
       const k = blockOf(); p.innerHTML = BLOCKS.map(([id, name]) => `<button type="button" class="dp-row dp-st st-${id} ${id === k ? 'on' : ''}" data-block="${id}">${name}</button>`).join('');
     } else if (kind === 'font') {
       const cur = fontName(ed.getAttributes('textStyle').fontFamily) || DOC_FONT;
-      const onBoard = [...new Set(board.cards.filter(c => c.type === 'font' && c.font).map(c => c.font))];
+      const onBoard = boardFonts();
       const row = f => `<button type="button" class="dp-row dp-font ${f === cur ? 'on' : ''}" data-font="${escH(f)}" style="font-family:'${escH(f)}', ${DOC_FONT}, system-ui">${escH(f)}${onMac(f) ? '' : '<small>Google Fonts</small>'}</button>`;
       p.innerHTML = `<input class="dp-search" id="dpFontQ" placeholder="Search fonts…" autocomplete="off" spellcheck="false">
-        <div class="dp-scroll" id="dpFontList">${onBoard.length ? `<div class="dp-h">On this board</div>${onBoard.map(row).join('')}` : ''}<div class="dp-h">Suggested</div>${SUGGESTED_FONTS.map(row).join('')}
-        <div class="dp-h">On your Mac</div>${FONTS.filter(f => !SUGGESTED_FONTS.includes(f)).slice(0, 400).map(row).join('')}</div>`;
+        <div class="dp-scroll" id="dpFontList">${onBoard.length ? `<div class="dp-h">Used on this board</div>${onBoard.map(row).join('')}` : ''}<div class="dp-h">Suggested</div>${SUGGESTED_FONTS.filter(f => !onBoard.includes(f)).map(row).join('')}
+        <div class="dp-h">On your Mac</div>${FONTS.filter(f => !SUGGESTED_FONTS.includes(f) && !onBoard.includes(f)).slice(0, 400).map(row).join('')}</div>`;
       SUGGESTED_FONTS.concat(onBoard).forEach(useFont);
       const q = $('dpFontQ'); q.addEventListener('keydown', e => e.stopPropagation());
       q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); p.querySelectorAll('.dp-font').forEach(b => b.hidden = !!v && !b.dataset.font.toLowerCase().includes(v)); p.querySelectorAll('.dp-h').forEach(h => h.hidden = !!v); });
@@ -2791,6 +2956,42 @@ ${proseCSS()}
     open: I('<path d="M11 3.5h5.5V9M16.5 3.5L9 11M14 12v3.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1H8"/>'),
     link: I('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
   };
+  // fonts for board text: the same list as docs (fonts on this board first, then suggestions, then everything on this Mac)
+  // every font this board uses: picked for notes and titles, wireframe text, font cards, and fonts set inside docs (most used first)
+  function boardFonts() {
+    const n = new Map(), add = f => { f = String(f || '').replace(/^["']|["']$/g, '').trim(); if (f && !/^(system-ui|sans-serif|serif|monospace|inherit|-apple-system)$/i.test(f)) n.set(f, (n.get(f) || 0) + 1); };
+    board.cards.forEach(c => { if (c.font) add(c.font); if (c.type === 'doc' && c.doc) for (const m of JSON.stringify(c.doc).matchAll(/"fontFamily":"([^"]+)"/g)) add(m[1].split(',')[0]); });
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([f]) => f);
+  }
+  function boardFontPop(btn, list) {
+    let p = $('fontPop'); if (p && !p.hidden && p.dataset.for === list.map(c => c.id).join()) { p.hidden = true; return; }
+    if (!p) { p = document.createElement('div'); p.id = 'fontPop'; p.className = 'dv-pop pop-font board-font'; document.body.appendChild(p);
+      ['pointerdown', 'mousedown', 'wheel', 'dblclick'].forEach(t => p.addEventListener(t, e => e.stopPropagation(), { passive: true })); }
+    p.dataset.for = list.map(c => c.id).join();
+    const cur = list.every(c => (c.font || '') === (list[0].font || '')) ? (list[0].font || '') : null;
+    const onBoard = boardFonts();
+    const row = f => `<button type="button" class="dp-row dp-font ${f === cur ? 'on' : ''}" data-bfont="${escH(f)}" style="font-family:'${escH(f)}', ${DOC_FONT}, system-ui">${escH(f)}${onMac(f) ? '' : '<small>Google Fonts</small>'}</button>`;
+    p.innerHTML = `<input class="dp-search" placeholder="Search fonts…" autocomplete="off" spellcheck="false">
+      <div class="dp-scroll"><button type="button" class="dp-row dp-font ${cur === '' ? 'on' : ''}" data-bfont="">Default font<small>Mochiboard’s own</small></button>
+      ${onBoard.length ? `<div class="dp-h">Used on this board</div>${onBoard.map(row).join('')}` : ''}<div class="dp-h">Suggested</div>${SUGGESTED_FONTS.filter(f => !onBoard.includes(f)).map(row).join('')}
+      <div class="dp-h">On your Mac</div>${FONTS.filter(f => !SUGGESTED_FONTS.includes(f) && !onBoard.includes(f)).slice(0, 400).map(row).join('')}</div>`;
+    SUGGESTED_FONTS.concat(onBoard).forEach(useFont);
+    const r = btn.getBoundingClientRect(); p.hidden = false; p.style.position = 'fixed'; p.style.width = '260px';
+    p.style.left = Math.max(10, Math.min(innerWidth - 270, r.left + r.width / 2 - 130)) + 'px';
+    const above = r.top > innerHeight / 2; p.style.top = ''; p.style.bottom = '';
+    if (above) p.style.bottom = (innerHeight - r.top + 8) + 'px'; else p.style.top = (r.bottom + 8) + 'px';
+    const els = list.map(c => cardsEl.querySelector(`[data-id="${c.id}"]`)).filter(Boolean);
+    const preview = f => els.forEach((el, i) => { const c = list[i]; const v = f === undefined ? c.font : f;
+      el.classList.toggle('has-font', !!v); if (v) { useFont(v); el.style.setProperty('--cf', `"${v.replace(/"/g, '')}"`); } else el.style.removeProperty('--cf'); });
+    const q = p.querySelector('.dp-search'); q.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { preview(); p.hidden = true; } if (e.key === 'Enter') p.querySelector('.dp-font:not([hidden])')?.click(); });
+    q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); p.querySelectorAll('.dp-font').forEach(b => b.hidden = !!v && !b.dataset.bfont.toLowerCase().includes(v)); p.querySelectorAll('.dp-h').forEach(h => h.hidden = !!v); });
+    p.onmouseover = e => { const b = e.target.closest('[data-bfont]'); if (b) preview(b.dataset.bfont); };
+    p.onmouseleave = () => preview();
+    p.onclick = e => { const b = e.target.closest('[data-bfont]'); if (!b) return; const f = b.dataset.bfont;
+      remember(); list.forEach(c => { if (f) c.font = f; else delete c.font; renderCard(c); }); p.hidden = true; $('selbar').dataset.key = ''; selectOnly(list.map(c => c.id)); save(); };
+    setTimeout(() => q.focus(), 30);
+  }
+  document.addEventListener('pointerdown', e => { const p = $('fontPop'); if (p && !p.hidden && !e.target.closest('#fontPop, [data-sbfont]')) p.hidden = true; }, true);
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
     if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow; if (bar.dataset.key === key) return; bar.dataset.key = key;
@@ -2800,10 +3001,10 @@ ${proseCSS()}
       return; }
     const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !$('cpop').classList.contains('on');
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { if (bar.dataset.key !== '') { bar.dataset.key = ''; renderDesign(); } return; }
-    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src + c.group).join();
+    const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.font + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src + c.group).join();
     if (bar.dataset.key === key) { syncDesign(); return; } bar.dataset.key = key; renderDesign();
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', video: 'Video', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
@@ -2822,6 +3023,8 @@ ${proseCSS()}
       const isOn = (c, k) => c[k] ?? (k === 'bold' && ['title', 'coll'].includes(c.type));
       const ST = [['bold', '<b>B</b>', 'Bold'], ['italic', '<i>I</i>', 'Italic'], ['under', '<u>U</u>', 'Underline'], ['strike', '<s>S</s>', 'Strikethrough']];
       h += `<span class="sb-sep"></span><div class="sb-sizes sb-style">${ST.map(([k, l, t]) => `<button data-ts="${k}" title="${t}" class="${sized.every(c => isOn(c, k)) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+      const fnt = sized.every(c => (c.font || '') === (sized[0].font || '')) ? (sized[0].font || '') : null;
+      h += `<span class="sb-sep"></span><button class="sb-txt sb-font" data-sbfont="1" title="Font"><span style="${fnt ? `font-family:'${esc(fnt)}', var(--font)` : ''}">${fnt === null ? 'Mixed fonts' : esc(fnt || 'Default font')}</span><svg viewBox="0 0 12 12" width="10" height="10"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
       h += `<span class="sb-sep"></span><div class="sb-sizes" title="Text size">${['s', 'm', 'l', 'xl'].map(z => `<button data-fs="${z}" class="${cur === z ? 'on' : ''}">${z.toUpperCase()}</button>`).join('')}</div>`; }
     const oneGroup = cs.length > 1 && cs.every(c => c.group && c.group === cs[0].group);
     if (cs.length > 1) h += `<span class="sb-sep"></span><button class="sb-txt" data-sb="${oneGroup ? 'ungroup' : 'group'}" title="${oneGroup ? 'Ungroup · ⇧⌘G' : 'Group, so they move together · ⌘G'}">${oneGroup ? 'Ungroup' : 'Group'}</button>`;
@@ -2867,6 +3070,7 @@ ${proseCSS()}
     const sf = e.target.closest('[data-sf]'); if (sf) { one.fill = sf.dataset.sf; redraw(); }
     const ts = e.target.closest('[data-ts]'); if (ts) { const k = ts.dataset.ts, list = cs.filter(c => SIZED.includes(c.type)), isOn = c => c[k] ?? (k === 'bold' && ['title', 'coll'].includes(c.type)), to = !list.every(isOn);
       list.forEach(c => c[k] = to); redraw(); }
+    if (e.target.closest('[data-sbfont]')) return boardFontPop(e.target.closest('[data-sbfont]'), cs.filter(c => SIZED.includes(c.type)));
     const fz = e.target.closest('[data-fs]'); if (fz) { cs.filter(c => SIZED.includes(c.type)).forEach(c => { if (fz.dataset.fs === 'm') delete c.fs; else c.fs = fz.dataset.fs;
       if (c.type === 'note' && !parentOf(c.id)) { renderCard(c); const el = cardsEl.querySelector(`[data-id="${c.id}"]`), b2 = el.querySelector('.body'); b2.style.height = 'auto'; c.h = Math.max(80, b2.offsetHeight); b2.style.height = ''; } }); redraw(); }
     if (a === 'crop') return startCrop(one);
@@ -3174,9 +3378,15 @@ ${proseCSS()}
     ['<path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z"/><path d="M15.5 13.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>', 'Mochi edits with you', 'Select words in a doc and ask me to make them shorter, clearer, friendlier, or anything you type.'],
     ['<path d="M10 3v9.5M6 8.5l4 4 4-4"/><path d="M4 16.5h12"/>', 'PDF and Word', 'Download any doc as a PDF or a Word file, on Letter or A4 pages. Headings, lists and tables come along.'],
     ['<path d="M7.5 4.5h5a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z"/><path d="M8 10.5l1.5 1.5L12.5 9"/>', 'Easier to set up', 'I find Claude Code wherever it lives, and a step-by-step guide shows up if I can\u2019t think yet.'],
+ ], '1.4.0': [
+    ['<rect x="2.5" y="5.5" width="10.5" height="9" rx="2.2"/><path d="M13 9l4.5-2.6v7.2L13 11"/>', 'Video cards', 'Press V to record yourself, wide or phone-shaped, or drop in a video. It plays right on the board.'],
+    ['<path d="M3.5 15.5L8 4.5l4.5 11M5.2 11.5h5.6"/><path d="M13.5 10.5h4M15.5 8.5v6"/>', 'Your fonts', 'Any font on your Mac for notes, titles and checklists, with a live preview as you hover.'],
+    ['<path d="M5 6.2c-.1 0-.2 0-.3-.1C4 5.5 3 4.8 3 3.9c0-.6.4-1 1-1 .4 0 .8.2 1 .5.2-.3.6-.5 1-.5.6 0 1 .4 1 1 0 .9-1 1.6-1.7 2.2-.1.1-.2.1-.3.1z" fill="currentColor" stroke="none"/><circle cx="10" cy="4.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="4.5" r="1" fill="currentColor" stroke="none"/><circle cx="5" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M15 12.6c-.1 0-.2 0-.3-.1-.7-.6-1.7-1.3-1.7-2.2 0-.6.4-1 1-1 .4 0 .8.2 1 .5.2-.3.6-.5 1-.5.6 0 1 .4 1 1 0 .9-1 1.6-1.7 2.2-.1.1-.2.1-.3.1z" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="5" cy="15.5" r="1" fill="currentColor" stroke="none"/><circle cx="10" cy="15.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="1" fill="currentColor" stroke="none"/>', 'Grid shapes', 'Dots, crosses, hearts, sparkles and more behind your cards. Settings → Board.'],
+    ['<path d="M3.5 6h13M3.5 10h13M3.5 14h13"/><circle cx="7" cy="6" r="1.6" fill="currentColor"/><circle cx="13" cy="10" r="1.6" fill="currentColor"/><circle cx="9" cy="14" r="1.6" fill="currentColor"/>', 'Your toolbar', 'Right-click the toolbar to hide tools you don\u2019t use and drag the rest into your own order.'],
+    ['<rect x="7.5" y="2.5" width="5" height="9.5" rx="2.5"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/>', 'Memos wait for you', 'Drop a voice memo and press Start recording when you\u2019re ready. Nothing records by surprise.'],
   ] };
   // the button on each version's card: try the headline thing
-  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }], '1.3.0': ['Write a doc', () => openDoc(addAtCenter('doc', { text: 'My first real doc' }))] };
+  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }], '1.3.0': ['Write a doc', () => openDoc(addAtCenter('doc', { text: 'My first real doc' }))], '1.4.0': ['Record a video', () => startPlacing('video')] };
   const newsKey = 'mochiboard:newsSeen';
   async function maybeNews() {
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();

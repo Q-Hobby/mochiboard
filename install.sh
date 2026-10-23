@@ -41,6 +41,7 @@ cat > build/Mochiboard.app/Contents/Info.plist <<PLIST
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Mochiboard records voice memos onto your board.</string>
+  <key>NSCameraUsageDescription</key><string>Mochiboard records videos of you onto your board, only when you press Start recording.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Mochi writes out your voice memos on your Mac, so you can search and sort them.</string>
 </dict></plist>
 PLIST

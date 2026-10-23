@@ -7,6 +7,30 @@ import Speech
 
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
 let boardsDir = support.appendingPathComponent("boards")
+let mediaDir = support.appendingPathComponent("media", isDirectory: true)   // videos live here as their own files; boards just point at them
+final class MediaScheme: NSObject, WKURLSchemeHandler {
+    static func mime(_ ext: String) -> String { ["mp4": "video/mp4", "m4v": "video/mp4", "mov": "video/quicktime", "webm": "video/webm", "jpg": "image/jpeg", "png": "image/png"][ext.lowercased()] ?? "application/octet-stream" }
+    func webView(_ w: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url else { return }
+        let name = url.lastPathComponent, f = mediaDir.appendingPathComponent(name)
+        guard !name.isEmpty, !name.contains(".."), let size = (try? FileManager.default.attributesOfItem(atPath: f.path)[.size] as? NSNumber)?.int64Value, size > 0,
+              let h = try? FileHandle(forReadingFrom: f) else { return task.didFailWithError(NSError(domain: "Mochiboard", code: 404)) }
+        defer { try? h.close() }
+        var start: Int64 = 0, end: Int64 = size - 1, partial = false
+        if let r = task.request.value(forHTTPHeaderField: "Range"), r.hasPrefix("bytes=") {
+            let p = r.dropFirst(6).split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).map(String.init); partial = true
+            if p[0].isEmpty, p.count > 1, let n = Int64(p[1]) { start = max(0, size - n) }   // "bytes=-500": the last 500
+            else { start = Int64(p[0]) ?? 0; if p.count > 1, let e = Int64(p[1]) { end = min(e, size - 1) } }
+        }
+        guard start <= end else { return task.didFailWithError(NSError(domain: "Mochiboard", code: 416)) }
+        try? h.seek(toOffset: UInt64(start)); let data = h.readData(ofLength: Int(end - start + 1))
+        var head = ["Content-Type": MediaScheme.mime(f.pathExtension), "Content-Length": "\(data.count)", "Accept-Ranges": "bytes", "Access-Control-Allow-Origin": "*"]
+        if partial { head["Content-Range"] = "bytes \(start)-\(start + Int64(data.count) - 1)/\(size)" }
+        task.didReceive(HTTPURLResponse(url: url, statusCode: partial ? 206 : 200, httpVersion: "HTTP/1.1", headerFields: head)!)
+        task.didReceive(data); task.didFinish()
+    }
+    func webView(_ w: WKWebView, stop task: WKURLSchemeTask) {}
+}
 
 // JSON can't hold "not a number" or infinity, and writing one throws (which quits the app), so swap them for 0 first
 func jsonSafe(_ v: Any) -> Any {
@@ -44,6 +68,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         buildMenu()
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "mb")
+        config.setURLSchemeHandler(MediaScheme(), forURLScheme: "mbmedia")
+        try? FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true); DispatchQueue.global(qos: .utility).async { self.sweepMedia() }
         // tell the page it's in the app (it makes room for the window buttons)
         config.userContentController.addUserScript(WKUserScript(source: "document.documentElement.classList.add('native')", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
@@ -191,6 +217,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "transcribe":
             transcribe(args["audio"] as? String ?? "") { ok, text in reply(ok, text) }
         // updates: the installer records where the repo lives; check GitHub for new commits, and update with one tap
+        case "mediaBegin":
+            let ext = String((args["ext"] as? String ?? "mp4").filter { $0.isLetter || $0.isNumber }.prefix(5)), name = UUID().uuidString.lowercased() + "." + (ext.isEmpty ? "mp4" : ext)
+            FileManager.default.createFile(atPath: mediaDir.appendingPathComponent(name).path, contents: nil); reply(true, name)
+        case "mediaChunk":
+            let name = (args["name"] as? String ?? "").replacingOccurrences(of: "/", with: ""), f = mediaDir.appendingPathComponent(name)
+            guard !name.isEmpty, let d = Data(base64Encoded: args["data"] as? String ?? ""), let h = try? FileHandle(forWritingTo: f) else { return reply(false, "I couldn't save that video.") }
+            h.seekToEndOfFile(); h.write(d); try? h.close(); reply(true, true)
+        case "mediaEnd":
+            reply(true, "mbmedia://media/" + (args["name"] as? String ?? "").replacingOccurrences(of: "/", with: ""))
         case "updateCheck":
             // a preview of the update bar for testing: defaults write io.github.jessawolfe-ux.mochiboard previewUpdate -bool YES
             if UserDefaults.standard.bool(forKey: "previewUpdate") {
@@ -511,6 +546,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             }.resume()
         }
     }
+    // videos no board points to anymore (deleted cards, replaced recordings) are cleared out after a couple of days, so undo still has them for a while
+    func sweepMedia() {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: mediaDir, includingPropertiesForKeys: [.contentModificationDateKey]), !files.isEmpty else { return }
+        var used = ""; for b in (try? fm.contentsOfDirectory(at: boardsDir, includingPropertiesForKeys: nil)) ?? [] where b.pathExtension == "json" { used += (try? String(contentsOf: b, encoding: .utf8)) ?? "" }
+        let old = Date().addingTimeInterval(-2 * 86400)
+        for f in files where !used.contains(f.lastPathComponent) {
+            if let d = try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate, d < old { try? fm.removeItem(at: f) }
+        }
+    }
     // ---- automatic updates: the new version waits here until Mochiboard quits ----
     var pendingDir: URL { support.appendingPathComponent("pending-update", isDirectory: true) }
     var pendingApp: URL { pendingDir.appendingPathComponent("Mochiboard.app", isDirectory: true) }
@@ -667,7 +712,7 @@ app.run()
 extension AppDelegate {
     // the microphone, for voice memos (macOS asks the person once)
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        decisionHandler(type == .microphone ? .grant : .deny)
+        decisionHandler(.grant)   // the microphone for voice memos, the camera for video cards (macOS still asks the person once)
     }
     // voice memo → words, using Apple's speech recognition on this Mac (on-device when the Mac supports it)
     func transcribe(_ dataURL: String, done: @escaping (Bool, String) -> Void) {

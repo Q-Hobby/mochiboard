@@ -3,6 +3,16 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.4.0
+
+- Pick a font for notes, titles, checklists and collections: any font on your Mac, with a live preview as you hover.
+- Font menus start with the fonts already used on your board, including inside docs and wireframes, so it's easy to stay consistent.
+- Voice memos wait for you: drop one on the board and press Start recording when you're ready. Nothing records by surprise.
+- The grid can be dots, crosses, little x's, hearts, triangles, squares or sparkles. Pick one in Settings → Board.
+- Video cards: record yourself with your camera (press V), wide or phone-shaped for reels and stories, or drop in a video file. Videos play right on the board, and you can scrub and mute them.
+- Opening Settings lets go of whatever you had selected or were holding.
+- Make the toolbar yours: right-click it (or go to Settings → General) to hide tools you don't use and drag the rest into your own order.
+
 ## October 2026 · 1.3.2
 
 - A quiet bar at the top of your board tells you when a new version is ready. Update now, or hide it until the next one. No more pop-ups.

@@ -9,6 +9,23 @@
   const call = (op, args = {}) => new Promise((res, rej) => { const id = ++seq; waiting.set(id, { res, rej }); window.webkit.messageHandlers.mb.postMessage({ id, op, args }); });
 
   const LS = 'mochiboard:';
+  const extOf = blob => ({ 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v' }[(blob.type || '').split(';')[0]] || (blob.name || '').split('.').pop() || 'mp4');
+  const b64 = slice => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = rej; fr.readAsDataURL(slice); });
+  async function saveMediaNative(blob, onProgress) {
+    const name = await call('mediaBegin', { ext: extOf(blob) }), STEP = 3 * 1024 * 1024;
+    for (let i = 0; i < blob.size; i += STEP) { await call('mediaChunk', { name, data: await b64(blob.slice(i, i + STEP)) }); onProgress && onProgress(Math.min(1, (i + STEP) / blob.size)); }
+    return call('mediaEnd', { name });
+  }
+  // in a browser: IndexedDB keeps the video; the card stores "idbmedia:<id>" and gets a blob URL when it's shown
+  const idb = () => new Promise((res, rej) => { const r = indexedDB.open('mochiboard-media', 1); r.onupgradeneeded = () => r.result.createObjectStore('media'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const blobURLs = new Map();
+  async function saveMediaBrowser(blob) { const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36), db = await idb();
+    await new Promise((res, rej) => { const t = db.transaction('media', 'readwrite'); t.objectStore('media').put(blob, id); t.oncomplete = res; t.onerror = () => rej(t.error); });
+    blobURLs.set('idbmedia:' + id, URL.createObjectURL(blob)); return 'idbmedia:' + id; }
+  async function mediaURL(src) {
+    if (!src || !String(src).startsWith('idbmedia:')) return src; if (blobURLs.has(src)) return blobURLs.get(src);
+    const db = await idb(), blob = await new Promise(res => { const r = db.transaction('media').objectStore('media').get(src.slice(9)); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+    if (!blob) return ''; const u = URL.createObjectURL(blob); blobURLs.set(src, u); return u; }
   // the web demo: a real website (or ?web) can't reach Claude Code, Mobbin or Higgsfield on the visitor's computer
   const web = !native && (!/^(localhost|127\.0\.0\.1|\[::1\]|)$/.test(location.hostname) || /[?&]web\b/.test(location.search));
   const browser = {
@@ -27,6 +44,7 @@
     async connections() { return { claude: false, mobbin: false, higgsfield: false, browser: true, web }; },
     async usage() { return null; }, async resetUsage() { return true; }, async version() { return null; },
     async fetchImage(url) { return url; },
+    saveMedia: (blob, onProgress) => saveMediaBrowser(blob, onProgress), mediaURL,
     async openURL(url) { window.open(url, '_blank'); },
     async speechAuth() { return 'ok'; },
     async higgsQuote() { throw new Error('Higgsfield works in the Mac app'); },
@@ -64,6 +82,7 @@
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     usage: () => call('usage'), resetUsage: () => call('resetUsage'), version: () => call('version'),
     linkPreview: url => call('linkPreview', { url }), rewrite: (text, how, title, around) => call('rewrite', { text, how, title, around }), docPDF: (html, name, paper) => call('docPDF', { html, name, paper }), saveFile: (data, name, ext) => call('saveFile', { data, name, ext }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
+    saveMedia: (blob, onProgress) => saveMediaNative(blob, onProgress), mediaURL: async src => src,
     connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'), higgsQuote: o => call('higgsQuote', o || {}), updateCheck: () => call('updateCheck'), updateNow: () => call('updateNow'), updatePrepare: () => call('updatePrepare'), higgsMake: o => call('higgsMake', o), drawFill: o => call('drawFill', o),
   } : Object.assign({ native: false }, browser);
 })();
