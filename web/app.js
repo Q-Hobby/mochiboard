@@ -2,6 +2,25 @@
 (() => {
   const $ = id => document.getElementById(id);
   const stage = $('stage'), world = $('world'), cardsEl = $('cards'), wires = $('wires'), grid = $('grid');
+  // ---------- shortcut labels on Windows and Linux: ⌘K reads Ctrl+K, ⇧⌘G reads Ctrl+Shift+G (the keys themselves already take Ctrl) ----------
+  if (MB.platform === 'windows' || MB.platform === 'linux') {
+    const MOD = { '⌃': 'Ctrl', '⌘': 'Ctrl', '⌥': 'Alt', '⇧': 'Shift' }, ORDER = ['Ctrl', 'Alt', 'Shift'];
+    const winKeys = t => t.replace(/([⌃⌥⇧⌘]+)(\s?)([^\s⌃⌥⇧⌘]?)/g, (m, mods, sp, key) => {
+      const ms = ORDER.filter(o => [...mods].some(c => MOD[c] === o));
+      return ms.join('+') + (key === '-' ? '-' : key ? (sp ? ' ' : '+') + (key === '↩' ? 'Enter' : key.toUpperCase()) : '');   // ⌘-click reads Ctrl-click
+    }).replace(/Ctrl\+(\S)\s*\/\s*ctrl/i, 'Ctrl+$1');   // "⌘/ctrl" said twice
+    const ATTRS = ['title', 'data-tip', 'aria-label', 'placeholder'];
+    const fix = n => {
+      if (n.nodeType === 3) { if (/[⌃⌥⇧⌘]/.test(n.nodeValue)) n.nodeValue = winKeys(n.nodeValue); return; }
+      if (n.nodeType !== 1) return;
+      ATTRS.forEach(a => { const v = n.getAttribute(a); if (v && /[⌃⌥⇧⌘]/.test(v)) n.setAttribute(a, winKeys(v)); });
+      const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); let t; while ((t = w.nextNode())) if (/[⌃⌥⇧⌘]/.test(t.nodeValue)) t.nodeValue = winKeys(t.nodeValue);
+      n.querySelectorAll?.(ATTRS.map(a => `[${a}]`).join(',')).forEach(e => ATTRS.forEach(a => { const v = e.getAttribute(a); if (v && /[⌃⌥⇧⌘]/.test(v)) e.setAttribute(a, winKeys(v)); }));
+    };
+    fix(document.body);
+    new MutationObserver(ms => ms.forEach(m => { if (m.type === 'characterData') fix(m.target); else if (m.type === 'attributes') fix(m.target); else m.addedNodes.forEach(fix); }))
+      .observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+  }
   const COLORS = { white: '#ffffff', pink: '#ffe0ec', butter: '#fff5c8', mint: '#dcf5e7', lilac: '#eadfff', sky: '#dcedff', peach: '#ffe9d6' };
   const COLOR_NAMES = Object.keys(COLORS);
   const uid = () => Math.random().toString(36).slice(2, 10);
