@@ -3,6 +3,10 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.4.1
+
+- Phone-shaped video recordings stay centered on every camera.
+
 ## October 2026 · 1.4.0
 
 - Pick a font for notes, titles, checklists and collections: any font on your Mac, with a live preview as you hover.

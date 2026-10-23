@@ -1872,9 +1872,9 @@
     const cam = await camOn(c); if (!cam) return;
     const type = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
     let stream = cam.stream, stopSlice = () => {};
-    if (c.vert) { const st = cam.stream.getVideoTracks()[0]?.getSettings() || {}, W0 = st.width || cam.view.videoWidth || 1280, H0 = st.height || cam.view.videoHeight || 720;
+    if (c.vert) { const st = cam.stream.getVideoTracks()[0]?.getSettings() || {}, W0 = cam.view.videoWidth || st.width || 1280, H0 = cam.view.videoHeight || st.height || 720;   // the real frame size, not what the camera says it sends
       const H = H0, W = Math.round(H * 9 / 16 / 2) * 2, cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = W; cv.height = H; let on = true;
-      (function slice() { if (!on) return; try { g.drawImage(cam.view, (W0 - W) / 2, 0, W, H, 0, 0, W, H); } catch (e) {} requestAnimationFrame(slice); })();
+      (function slice() { if (!on) return; try { const fw = cam.view.videoWidth || W0, fh = cam.view.videoHeight || H0, sw = Math.round(fh * 9 / 16); g.drawImage(cam.view, (fw - sw) / 2, 0, sw, fh, 0, 0, W, H); } catch (e) {} requestAnimationFrame(slice); })();   // re-measured every frame, in case the camera changes size
       stream = new MediaStream([...cv.captureStream(30).getVideoTracks(), ...cam.stream.getAudioTracks()]); stopSlice = () => { on = false; stream.getVideoTracks().forEach(t => t.stop()); }; }
     const rec = new MediaRecorder(stream, type ? { mimeType: type, videoBitsPerSecond: c.vert ? 3000000 : 2500000 } : undefined), chunks = [];
     cam.rec = rec; cam.idle = 0; c.rec = true; c.ready = false; selectOnly([c.id]);
