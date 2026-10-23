@@ -1037,7 +1037,8 @@
     if (!drag) return; const w = toWorld(e.clientX, e.clientY);
     if (drag.mode === 'pan') { view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; applyView(); }
     if (drag.mode === 'move') {
-      let dx = w.x - drag.sx, dy = w.y - drag.sy; if (Math.hypot(dx, dy) > 2) drag.moved = true;
+      let dx = w.x - drag.sx, dy = w.y - drag.sy;
+      if (!drag.moved && Math.hypot(dx, dy) > 2) { drag.moved = true; if (e.altKey) cloneForDrag(); }
       const sn = snapWF(drag.start, dx, dy); dx = sn.dx; dy = sn.dy;
       // move on the GPU: the card is lifted as an already-drawn picture and slid with a transform, so the wobbly-edge filter isn't redrawn every frame (Safari is slow at that)
       drag.start.forEach(s => { s.c.x = s.x + dx; s.c.y = s.y + dy; const el = s.el || (s.el = cardsEl.querySelector(`[data-id="${s.c.id}"]`)); if (!el) return;
@@ -1079,7 +1080,7 @@
   stage.addEventListener('pointerup', e => {
     if (!drag) return; const d = drag; drag = null; stage.classList.remove('panning'); $('guides').innerHTML = ''; $('marquee').style.display = 'none'; $('tray').classList.remove('drop');
     if (d.mode === 'move') {
-      stage.classList.remove('dragging-cards');
+      stage.classList.remove('dragging-cards', 'cloning');
       // set it down: the transform becomes its real position again
       d.start.forEach(s => { const el = s.el || cardsEl.querySelector(`[data-id="${s.c.id}"]`); if (!el) return; el.style.left = s.c.x + 'px'; el.style.top = s.c.y + 'px'; el.style.transform = ''; el.style.willChange = ''; el.classList.remove('dragging'); });
       if (d.moved && overTray(e)) {                       // dropped on the tray: back to Unsorted
@@ -1331,6 +1332,25 @@
     try { localStorage.setItem(CLIP, JSON.stringify(lastClip)); } catch (e) {}   // big pictures may not fit; the copy still works while the app is open
     return lastClip;
   }
+  // a fresh copy of a card, pointing at the copies of whatever it holds (collection cards, frame contents, its group)
+  function copyOf(c, map, gmap) {
+    const n = JSON.parse(JSON.stringify(c)); n.id = map[c.id];
+    if (n.kids) n.kids = n.kids.map(k => map[k]).filter(Boolean);
+    if (n.colOf) n.colOf = Object.fromEntries(Object.entries(n.colOf).filter(([k]) => map[k]).map(([k, v]) => [map[k], v]));
+    if (n.onFrame) { if (map[n.onFrame]) n.onFrame = map[n.onFrame]; else delete n.onFrame; }
+    if (n.group) n.group = gmap[n.group] || (gmap[n.group] = uid());
+    return n;
+  }
+  // Option-drag (Alt on Windows): the originals stay put and a copy comes along with the cursor, like in Figma
+  function cloneForDrag() {
+    const src = drag.start.map(s => s.c), map = {}, gmap = {}; src.forEach(c => map[c.id] = uid());
+    const fresh = src.map(c => copyOf(c, map, gmap)), links = board.links.filter(l => map[l.a] && map[l.b]);
+    board.cards.push(...fresh); fresh.forEach(c => renderCard(c, true));
+    links.forEach(l => board.links.push({ ...l, id: uid(), a: map[l.a], b: map[l.b] }));
+    layoutAll(); renderWires();
+    selectOnly([...sel].map(i => map[i]).filter(Boolean));
+    drag.start = fresh.map(c => ({ c, x: c.x, y: c.y })); drag.cloned = true; stage.classList.add('cloning');
+  }
   function pasteCards() {
     const c0 = lastClip; if (!c0?.cards?.length || !board) return;
     remember();
@@ -1339,12 +1359,7 @@
     let dx, dy;
     if (c0.from === board.id) { pasteN++; dx = dy = 30 * pasteN; }                    // same board: a little down and right of the original
     else { const ctr = centerWorld(); dx = ctr.x - (x0 + x1) / 2; dy = ctr.y - (y0 + y1) / 2; }   // another board: right in the middle of the view
-    const fresh = c0.cards.map(c => { const n = JSON.parse(JSON.stringify(c)); n.id = map[c.id]; n.x += dx; n.y += dy;
-      if (n.kids) n.kids = n.kids.map(k => map[k]).filter(Boolean);
-      if (n.colOf) n.colOf = Object.fromEntries(Object.entries(n.colOf).filter(([k]) => map[k]).map(([k, v]) => [map[k], v]));
-      if (n.onFrame) { if (map[n.onFrame]) n.onFrame = map[n.onFrame]; else delete n.onFrame; }
-      if (n.group) n.group = gmap[n.group] || (gmap[n.group] = uid());
-      return n; });
+    const fresh = c0.cards.map(c => { const n = copyOf(c, map, gmap); n.x += dx; n.y += dy; return n; });
     board.cards.push(...fresh); fresh.forEach(c => renderCard(c, true));   // all in first, so collections find the cards that belong in them
     (c0.links || []).forEach(l => board.links.push({ ...l, id: uid(), a: map[l.a], b: map[l.b] }));
     layoutAll(); renderWires(); save();

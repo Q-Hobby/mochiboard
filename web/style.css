@@ -1757,3 +1757,6 @@ body.dark .card.spotify .body { background: #28252e; }
 .dev-sel:focus { outline: none; box-shadow: 0 0 0 2px var(--accent, #f27aa8); }
 body.dark .dev-sel { background-color: rgba(255, 255, 255, .07); }
 #devAllow { margin-top: 4px; }
+
+/* Option/Alt-drag makes a copy: the cursor says so */
+.stage.cloning, .stage.cloning * { cursor: copy !important; }

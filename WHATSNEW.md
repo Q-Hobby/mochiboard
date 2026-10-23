@@ -3,6 +3,10 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.5.1
+
+- Hold Option (Alt on Windows) while you drag to make a copy, just like in Figma. Works on groups, frames and connected cards too.
+
 ## October 2026 · 1.5.0
 
 - Mochiboard for Windows! The same board on your PC, with Ctrl shortcuts. Download it from mochiboard.app.

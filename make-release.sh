@@ -43,5 +43,7 @@ echo "  ✓ $OUT/Mochiboard.zip ($(du -h "$OUT/Mochiboard.zip" | cut -f1))"
 NOTES="$(awk '/^## /{n++} n==1 && /^- /' WHATSNEW.md)"
 gh release create "v$V" "$OUT/Mochiboard.zip" --title "Mochiboard $V" --notes "$NOTES
 
-**Download:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, then right-click it and choose **Open** the first time (it isn't from the App Store, so your Mac asks once)."
+**Mac:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, then right-click it and choose **Open** the first time (it isn't from the App Store, so your Mac asks once).
+
+**Windows:** Mochiboard-Setup.exe below (it appears a few minutes after this release). Open it and follow the steps. If Edge holds the download, choose Keep from its … menu; if Windows says it “protected your PC”, click More info, then Run anyway."
 echo "  ✓ Published v$V"
