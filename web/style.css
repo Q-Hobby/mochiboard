@@ -1739,3 +1739,14 @@ body.dark .tb-edit { background: #28252e; color: #f3eef6; } body.dark .tbe-row:h
 .stage.panning .sp-frame, .stage.placing .sp-frame, body.exporting .sp-frame { pointer-events: none; }
 body.exporting .sp-frame { visibility: hidden; }
 body.dark .card.spotify .body { background: #28252e; }
+
+/* which camera / microphone: a small pill on the card, a menu of devices */
+.vd-dev { position: absolute; left: 8px; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 6px; max-width: calc(100% - 16px); padding: 6px 10px; border: 0; border-radius: 99px;
+  background: rgba(0, 0, 0, .5); color: #fff; font: 600 11px/1 var(--font); cursor: pointer; backdrop-filter: blur(6px); }
+.vd-dev span, .au-dev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .vd-dev i, .au-dev i { font-style: normal; opacity: .7; }
+.vd-dev:hover { background: rgba(0, 0, 0, .7); }
+.au-dev { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 9px; padding: 5px 8px; border: 0; border-radius: 99px; background: none;
+  font: 500 11.5px/1.3 var(--font); color: var(--ink-soft); cursor: pointer; }
+.au-dev:hover { background: rgba(120, 80, 120, .07); color: var(--ink); } .au-dev svg { width: 13px; height: 13px; flex: none; }
+.row-menu .dm-h { font: 700 10.5px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); pointer-events: none; }
+.row-menu .dm-ck { display: inline-block; width: 16px; color: var(--accent, #e2649a); font-weight: 700; }

@@ -540,10 +540,10 @@
       case 'video': {
         if (c.src) return `<div class="vd-stage"><video class="vd-v"></video><button class="vd-play" data-act="vd-play" aria-label="Play">${PLAY}</button></div><div class="vd-bar"><button class="vd-pp" data-act="vd-play" aria-label="Play or pause">${PLAY}</button><div class="vd-prog" data-act="vd-seek"><i></i></div><span class="vd-time">${fmtT(c.dur || 0)}</span><button class="vd-mute${c.muted ? ' off' : ''}" data-act="vd-mute" aria-label="Sound">${SPK}</button></div>`;
         if (c.saving) return `<div class="vd-stage"><div class="vd-msg"><b>Saving your video…</b><span>${Math.round((c.pct || 0) * 100)}%</span></div></div><div class="vd-bar"><span class="vd-title">${esc(c.title || 'Video')}</span></div>`;
-        return `<div class="vd-stage live"><video class="vd-live"></video>${c.camErr ? `<div class="vd-msg"><b>${esc(c.camErr)}</b></div>` : c.camRest ? `<button class="vd-msg vd-wake" data-act="vd-wake"><b>Your camera is resting</b><span>Click to turn it on</span></button>` : ''}${c.count ? `<div class="vd-count">${c.count}</div>` : ''}${c.rec && !c.count ? `<div class="vd-recdot"><i></i><span class="vd-rtime">0:00</span></div>` : ''}${!c.rec && !c.camErr ? `<div class="vd-shape"><button data-act="vd-wide" class="${c.vert ? '' : 'on'}"><i class="w"></i>Wide</button><button data-act="vd-tall" class="${c.vert ? 'on' : ''}"><i class="t"></i>Phone</button></div>` : ''}</div>`
+        return `<div class="vd-stage live"><video class="vd-live"></video>${c.camErr ? `<div class="vd-msg"><b>${esc(c.camErr)}</b></div>` : c.camRest ? `<button class="vd-msg vd-wake" data-act="vd-wake"><b>Your camera is resting</b><span>Click to turn it on</span></button>` : ''}${c.count ? `<div class="vd-count">${c.count}</div>` : ''}${c.rec && !c.count ? `<div class="vd-recdot"><i></i><span class="vd-rtime">0:00</span></div>` : ''}${!c.rec && !c.camErr && cams.get(c.id) ? `<button class="vd-dev" data-act="vd-dev"><svg viewBox="0 0 20 20" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="10.5" height="9" rx="2.2"/><path d="M13 9l4.5-2.6v7.2L13 11"/></svg><span>${esc(devName(cams.get(c.id).stream.getVideoTracks()[0], 'Camera'))}</span><i>▾</i></button>` : ''}${!c.rec && !c.camErr ? `<div class="vd-shape"><button data-act="vd-wide" class="${c.vert ? '' : 'on'}"><i class="w"></i>Wide</button><button data-act="vd-tall" class="${c.vert ? 'on' : ''}"><i class="t"></i>Phone</button></div>` : ''}</div>`
           + `<div class="vd-bar">${c.rec ? `<button class="vd-stop" data-act="vd-stop"><i></i>Stop</button>` : `<button class="vd-start" data-act="vd-start"><span class="au-rec"></span>${c.vert ? 'Record' : 'Start recording'}</button><button class="vd-file" data-act="vd-file" title="Use a video file">${c.vert ? '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.5v1.5a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-1.5M10 3.5v9M6.5 7L10 3.5 13.5 7"/></svg>' : 'Use a video file'}</button>`}</div>`;
       }
-      case 'audio': return c.ready && !c.rec && !c.src ? `<div class="au-top"><span class="au-mic">${MIC}</span><span class="text">${esc(c.title || 'Voice memo')}</span></div><button class="au-start" data-act="au-start"><span class="au-rec"></span>Start recording</button><div class="au-hint">Press when you’re ready. I’ll count you in ✦</div>`
+      case 'audio': return c.ready && !c.rec && !c.src ? `<div class="au-top"><span class="au-mic">${MIC}</span><span class="text">${esc(c.title || 'Voice memo')}</span></div><button class="au-start" data-act="au-start"><span class="au-rec"></span>Start recording</button><button class="au-dev" data-act="au-dev">${MIC}<span>${esc(devName(warm?.getAudioTracks?.()[0], 'Microphone'))}</span><i>▾</i></button>`
         : c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
@@ -1714,7 +1714,7 @@
     if (['note', 'todo', 'title', 'doc', 'canvas', 'text'].includes(type)) startEdit(c.id);   // ready to type right away, so the first letters never act as shortcuts
     if (type === 'coll') startEdit(c.id);
     if (type === 'swatch') setTimeout(() => openColor(c), 60);
-    if (type === 'audio') { c.ready = true; renderCard(c); selectOnly([c.id]); save(); }
+    if (type === 'audio') { c.ready = true; renderCard(c); selectOnly([c.id]); save(); readyToRecord().then(() => renderCard(c)); }
     if (type === 'video') { c.ready = true; renderCard(c); selectOnly([c.id]); save(); camOn(c); }   // it waits for Start recording, so nothing records by surprise
   }
 
@@ -1904,7 +1904,7 @@
   }
   async function camOn(c) {
     if (cams.has(c.id)) return cams.get(c.id);
-    let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
+    let stream; try { stream = await openMedia(true); }
     catch (e) { c.camErr = `Mochiboard needs the camera. Turn it on in ${privacy('Camera')}, then click Start recording again.`; c.camRest = false; renderCard(c); return null; }
     const view = document.createElement('video'); view.className = 'vd-live'; view.muted = true; view.playsInline = true; view.autoplay = true; view.srcObject = stream;
     const cam = { stream, view, idle: 0 }; cams.set(c.id, cam); c.camErr = ''; c.camRest = false;
@@ -1962,6 +1962,7 @@
     if (act === 'vd-seek' && v && e) { const r = el.querySelector('.vd-prog').getBoundingClientRect(); v.currentTime = clamp((e.clientX - r.left) / r.width, 0, 1) * (v.duration || c.dur || 0); }
     if (act === 'vd-mute') { c.muted = !c.muted; if (v) v.muted = c.muted; renderCard(c); save(); }
     if (act === 'vd-wake') camOn(c);
+    if (act === 'vd-dev') return devicePick(e, [['videoinput', 'Camera', 'camId'], ['audioinput', 'Microphone', 'micId']], () => { camOff(c.id); camOn(c); });
     if ((act === 'vd-wide' || act === 'vd-tall') && !c.rec) { const vert = act === 'vd-tall'; if (!!c.vert === vert) return;
       const cx = c.x + c.w / 2, cy = c.y + c.h / 2; c.vert = vert; c.w = vert ? 230 : 360; c.h = vert ? Math.round(230 * 16 / 9) + VBAR : 246; c.x = cx - c.w / 2; c.y = cy - c.h / 2; renderCard(c); selectOnly([c.id]); save(); }
     if (act === 'vd-start') videoRecord(c);
@@ -1972,9 +1973,33 @@
   }
 
   const privacy = what => MB.platform === 'windows' ? `Windows Settings → Privacy & security → ${what}` : `System Settings → Privacy & Security → ${what}`;
+  // ---------- which camera and microphone: the person picks, Mochiboard remembers, and falls back to the default if one is unplugged ----------
+  const micC = () => settings.micId ? { deviceId: { exact: settings.micId } } : true;
+  async function openMedia(video) {
+    const want = () => ({ audio: micC(), video: video ? { width: { ideal: 1920 }, height: { ideal: 1080 }, ...(settings.camId ? { deviceId: { exact: settings.camId } } : {}) } : false });
+    try { return await navigator.mediaDevices.getUserMedia(want()); }
+    catch (e) { if (!/Overconstrained|NotFound|NotReadable/.test(e.name || '') || !(settings.micId || settings.camId)) throw e;
+      delete settings.micId; delete settings.camId; applySettings(); return navigator.mediaDevices.getUserMedia(want()); }
+  }
+  const devName = (track, fallback) => (track?.label || fallback).replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '').replace(/^(Default|Communications) - /, '').trim() || fallback;
+  // the little menu: cameras (for video) and microphones, the one in use checked
+  async function devicePick(e, kinds, onPick) {
+    let list = []; try { list = await navigator.mediaDevices.enumerateDevices(); } catch (er) {}
+    const items = [];
+    for (const [kind, title, key] of kinds) {
+      const ds = list.filter(d => d.kind === kind && d.deviceId && d.deviceId !== 'communications'); if (!ds.length) continue;
+      if (items.length) items.push('-');
+      items.push({ label: `<span class="dm-h">${title}</span>`, run: () => {} });
+      const def = ds.find(d => d.deviceId === 'default'), cur = settings[key] || (def && ds.find(d => d.deviceId !== 'default' && d.groupId === def.groupId) || def || ds[0]).deviceId;   // "default" is a stand-in: check the real device behind it
+      ds.filter(d => !(d.deviceId === 'default' && ds.length > 1)).forEach(d => items.push({ label: `<span class="dm-ck">${d.deviceId === cur ? '✓' : ''}</span>${esc(devName(d, title))}`, run: () => { settings[key] = d.deviceId; applySettings(); onPick(); } }));
+    }
+    if (!items.length) items.push({ label: 'No devices found', run: () => {} });
+    boardMenu(e, items);
+  }
+
   async function readyToRecord() {
-    if (micOK) { if (!warm) try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); } catch (e) {} return true; }
-    try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); }
+    if (micOK) { if (!warm) try { warmMic(await openMedia(false)); } catch (e) {} return true; }
+    try { warmMic(await openMedia(false)); }
     catch (e) { say(`Mochiboard needs the microphone for voice memos. Turn it on in ${privacy('Microphone')}, then try again ✦`, 10000); return false; }
     micOK = true;
     const sp = await MB.speechAuth().catch(() => 'off');
@@ -1983,7 +2008,7 @@
   }
   async function record(c) {
     let stream = warm && warm.active ? warm : null; warm = null; clearTimeout(warmT);
-    try { if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    try { if (!stream) stream = await openMedia(false); }
     catch (e) { say(`I can't hear you yet. Let Mochiboard use the microphone (${privacy('Microphone')}), then try again.`, 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
     const chunks = [], recorder = new MediaRecorder(stream), ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 256; ac.createMediaStreamSource(stream).connect(an);
     const L = { recorder, stream, ac, start: Date.now(), paused: 0, pausedAt: 0 }; live.set(c.id, L);
@@ -2031,6 +2056,7 @@
     if (act === 'au-pause' && L && L.recorder.state === 'inactive') return;
     if (act === 'au-pause' && L) { if (c.paused) { L.recorder.resume(); L.paused += Date.now() - L.pausedAt; } else { L.recorder.pause(); L.pausedAt = Date.now(); } c.paused = !c.paused; renderCard(c); }
     if (act === 'au-start') { readyToRecord().then(ok => { if (ok) record(c); }); return; }
+    if (act === 'au-dev') return devicePick(e, [['audioinput', 'Microphone', 'micId']], async () => { if (warm) { warm.getTracks().forEach(t => t.stop()); warm = null; } await readyToRecord(); renderCard(c); });
     if (act === 'au-replace') { players.get(c.id)?.pause(); players.delete(c.id); record(c); }
     if (act === 'au-notes') ask(`This is a voice memo I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
     if (act === 'au-play' || act === 'au-seek') {
