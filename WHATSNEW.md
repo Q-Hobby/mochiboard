@@ -3,6 +3,11 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.3.2
+
+- A quiet bar at the top of your board tells you when a new version is ready. Update now, or hide it until the next one. No more pop-ups.
+- Updates can happen by themselves: say yes once and new versions slip in when you quit Mochiboard. Change it anytime in Settings → General.
+
 ## October 2026 · 1.3.1
 
 - Just the board: press ⌘\ (or the corners button by the zoom) to hide every panel. ⌘\ or Esc brings them back.

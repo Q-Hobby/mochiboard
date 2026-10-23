@@ -192,8 +192,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             transcribe(args["audio"] as? String ?? "") { ok, text in reply(ok, text) }
         // updates: the installer records where the repo lives; check GitHub for new commits, and update with one tap
         case "updateCheck":
+            // a preview of the update bar for testing: defaults write io.github.jessawolfe-ux.mochiboard previewUpdate -bool YES
+            if UserDefaults.standard.bool(forKey: "previewUpdate") {
+                return reply(true, ["release": true, "behind": 1, "latest": "v1.4.0", "since": appVersion, "preview": true,
+                                    "notes": ["Widgets: choose what shows on each board", "A Start recording button for voice memos", "Dot grids in little shapes: hearts, crosses and more"]])
+            }
             checkForUpdate { reply(true, $0) }
+        case "updatePrepare":   // automatic updates: download and unpack the new version now, swap it in when Mochiboard quits
+            if UserDefaults.standard.bool(forKey: "previewUpdate") { return reply(true, "preview") }
+            if repoDir != nil { return reply(false, "This copy updates from its folder, so it can't update by itself.") }
+            prepareUpdate { ok, msg in reply(ok, msg) }
         case "updateNow":
+            if UserDefaults.standard.bool(forKey: "previewUpdate") { return reply(false, "This is just a preview, so nothing changed ✦") }
             startUpdate { ok, msg in reply(ok, msg) }
         case "reveal":
             NSWorkspace.shared.activateFileViewerSelecting([boardsDir]); reply(true, true)
@@ -450,7 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return (p.terminationStatus == 0, (String(data: d, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     }
     // downloaded copies (no git folder) update from GitHub Releases instead
-    let releaseAPI = "https://api.github.com/repos/jessawolfe-ux/mochiboard/releases/latest"
+    let releaseAPI = ProcessInfo.processInfo.environment["MB_RELEASE_API"] ?? "https://api.github.com/repos/jessawolfe-ux/mochiboard/releases/latest"   // the override is only for testing updates
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0" }
     func newer(_ a: String, than b: String) -> Bool {
         let x = a.trimmingCharacters(in: CharacterSet(charactersIn: "v")).split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
@@ -500,6 +510,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { NSApp.terminate(nil) }
             }.resume()
         }
+    }
+    // ---- automatic updates: the new version waits here until Mochiboard quits ----
+    var pendingDir: URL { support.appendingPathComponent("pending-update", isDirectory: true) }
+    var pendingApp: URL { pendingDir.appendingPathComponent("Mochiboard.app", isDirectory: true) }
+    func version(of app: URL) -> String? { (NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any])?["CFBundleShortVersionString"] as? String }
+    func prepareUpdate(done: @escaping (Bool, String) -> Void) {
+        latestRelease { r in
+            guard let r, let tag = r["tag_name"] as? String else { return done(false, "I couldn't reach GitHub just now.") }
+            if let v = self.version(of: self.pendingApp), !self.newer(tag, than: v) { return done(true, v) }   // already waiting
+            guard let assets = r["assets"] as? [[String: Any]], let url = assets.first(where: { ($0["name"] as? String) == "Mochiboard.zip" })?["browser_download_url"] as? String, let u = URL(string: url) else { return done(false, "The new version isn't there yet.") }
+            URLSession.shared.downloadTask(with: u) { file, _, err in
+                guard let file else { return done(false, err?.localizedDescription ?? "The download didn't finish.") }
+                let fm = FileManager.default, tmp = fm.temporaryDirectory.appendingPathComponent("mochiboard-pending-\(UUID().uuidString)")
+                try? fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+                let zip = tmp.appendingPathComponent("Mochiboard.zip"); try? fm.moveItem(at: file, to: zip)
+                let unzip = Process(); unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto"); unzip.arguments = ["-x", "-k", zip.path, tmp.path]
+                try? unzip.run(); unzip.waitUntilExit()
+                let fresh = tmp.appendingPathComponent("Mochiboard.app")
+                guard fm.fileExists(atPath: fresh.path + "/Contents/MacOS/Mochiboard") else { return done(false, "The new version didn't unpack properly.") }
+                try? fm.removeItem(at: self.pendingDir); try? fm.createDirectory(at: self.pendingDir, withIntermediateDirectories: true)
+                do { try fm.moveItem(at: fresh, to: self.pendingApp) } catch { return done(false, error.localizedDescription) }
+                try? fm.removeItem(at: tmp)
+                done(true, self.version(of: self.pendingApp) ?? tag)
+            }.resume()
+        }
+    }
+    // on quit: if a newer version is waiting, a tiny helper swaps it in once this app has fully closed (it doesn't reopen; the next launch is just newer)
+    func applicationWillTerminate(_ n: Notification) {
+        guard repoDir == nil, let v = version(of: pendingApp) else { return }
+        if !newer(v, than: appVersion) { try? FileManager.default.removeItem(at: pendingDir); return }
+        let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = ["-c", "nohup bash -c 'while kill -0 \"$2\" 2>/dev/null; do sleep 0.3; done; rm -rf \"$1\" && /usr/bin/ditto \"$0\" \"$1\" && xattr -dr com.apple.quarantine \"$1\"; rm -rf \"$3\"' \"$0\" \"$1\" \"$2\" \"$3\" >/dev/null 2>&1 &",
+                       pendingApp.path, Bundle.main.bundlePath, String(ProcessInfo.processInfo.processIdentifier), pendingDir.path]
+        try? p.run(); p.waitUntilExit()
     }
     func startUpdate(done: @escaping (Bool, String) -> Void) {
         guard let dir = repoDir else { return updateFromRelease(done: done) }

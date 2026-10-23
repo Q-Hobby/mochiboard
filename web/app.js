@@ -1346,7 +1346,7 @@
   $('setClose').onclick = closeSettings;
   $('settings').onclick = e => { if (e.target === $('settings')) closeSettings(); };
   $('obMochi').onclick = $('mochiColors').onclick = e => { const b = e.target.closest('[data-mc]'); if (b) { settings.mochi = b.dataset.mc; applySettings(); hopMochi(); } };
-  document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); });
+  document.querySelectorAll('[data-set]').forEach(t => t.onchange = () => { settings[t.dataset.set] = t.checked; applySettings(); if (t.dataset.set === 'autoUpdate') { showUpdate.answered = true; if (t.checked && updInfo) showUpdate(); } });
   $('recheck').onclick = () => showConnections(true);
   // switching chats off (or to "until I quit") removes what's saved in the board files right away
   async function clearSavedChats() { const list = await MB.list(); for (const b of list) { const bb = b.id === board?.id ? board : await MB.load(b.id); if (bb?.chat?.length) { bb.chat = []; await MB.save(bb); } } }
@@ -3036,11 +3036,41 @@ ${proseCSS()}
     const notes = (u.notes || []).slice(0, 8);
     $('suNotes').hidden = !(n > 0 && notes.length);
     $('suNotes').innerHTML = notes.map(t => `<li>${esc(t)}</li>`).join('');
-    // a little nudge from Mochi, once per new version
-    if (fresh && n > 0) { const key = (u.since || '') + ':' + n; let seen = ''; try { seen = localStorage.getItem('mochiboard:updSeen') || ''; } catch (e) {}
-      if (seen !== key) { try { localStorage.setItem('mochiboard:updSeen', key); } catch (e) {} chirp('There’s a new version of me ✦ It’s in Settings whenever you’re ready.', 0, [{ label: 'See what’s new', run: () => $('gearBtn').click() }, { label: 'Later', ghost: true, run: () => {} }]); } }
+    // a quiet bar on the board instead of a pop-up: shown once there's a new version, hidden with × until the next one
+    const ver = String(u.latest || u.since || '').replace(/^v/, '').replace(/\.0$/, ''), key = (u.latest || '') + ':' + (u.since || '') + ':' + n; let hid = ''; try { hid = localStorage.getItem('mochiboard:upbarHidden') || ''; } catch (e) {}
+    $('ubText').textContent = u.latest ? `Mochiboard ${ver} is ready` : 'A new Mochiboard is ready';
+    $('ubGo').disabled = false; $('ubGo').textContent = 'Update now'; $('upBar').classList.remove('busy');
+    // the first time there's an update, the bar asks once if Mochi may keep things up to date; the answer becomes a switch in Settings
+    const asking = n > 0 && (settings.autoUpdate === undefined || (u.preview && !showUpdate.answered));   // the preview always asks, so it can be shown again
+    $('upBar').classList.toggle('ask', asking); requestAnimationFrame(fitUpBar); $('ubYes').hidden = $('ubNo').hidden = !asking; $('ubNotes').hidden = $('ubGo').hidden = asking;
+    if (asking) $('ubText').textContent = `Mochiboard ${ver} is ready. Keep it up to date for you?`;
+    else if (n > 0 && settings.autoUpdate) $('ubText').textContent = `Mochiboard ${ver} is ready. I’ll put it in when you quit, or`;
+    if (n > 0 && settings.autoUpdate && !asking) prepareUpdate();
+    $('upBar').hidden = !(n > 0) || (!asking && hid === key && !u.preview); $('upBar').dataset.key = key;
+    fitUpBar();
   }
   $('suCheck').onclick = () => checkUpdate(true);
+  ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('upBar').addEventListener(t, e => e.stopPropagation()));
+  // the bar sits at the top centre; if it would touch the board's name, it slides down just below it
+  function fitUpBar() { const b = $('upBar'); if (b.hidden) return; b.classList.remove('low'); b.style.left = '';
+    // centre it in the open space between the board's name and the panels on the right; only if that's too tight does it step down
+    const st = stage.getBoundingClientRect(), t = document.querySelector('.top')?.getBoundingClientRect(), w = b.getBoundingClientRect().width;
+    const right = [$('design'), $('tray')].map(el => el?.getBoundingClientRect()).filter(r => r && r.width && r.top < 140).reduce((m, r) => Math.min(m, r.left), st.right);
+    const from = (t ? t.right : st.left) + 20, to = right - 20;
+    if (to - from >= w) b.style.left = (from + to) / 2 - st.left + 'px';
+    else if (t) { const r = b.getBoundingClientRect(); if (r.left < t.right + 16 && r.right > t.left - 16) b.classList.add('low'); } }
+  addEventListener('resize', () => fitUpBar());   // the board mustn't grab presses on the bar
+  // automatic updates: get the new version ready quietly; it goes in when Mochiboard quits
+  let preparing = null;
+  function prepareUpdate() { if (preparing || !MB.updatePrepare) return; preparing = MB.updatePrepare().catch(() => { preparing = null; }); }
+  $('ubYes').onclick = () => { showUpdate.answered = true; settings.autoUpdate = true; applySettings(); showUpdate(); prepareUpdate(); $('ubText').textContent = 'Lovely ✦ I’ll update when you quit Mochiboard, or'; fitUpBar(); };
+  $('ubNo').onclick = () => { showUpdate.answered = true; settings.autoUpdate = false; applySettings(); showUpdate(); };
+  $('ubX').onclick = () => { try { localStorage.setItem('mochiboard:upbarHidden', $('upBar').dataset.key || ''); } catch (e) {} $('upBar').hidden = true; };
+  $('ubNotes').onclick = () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('setUpdate').scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); };
+  $('ubGo').onclick = async () => {
+    $('ubGo').disabled = true; $('ubGo').textContent = 'Updating…'; $('upBar').classList.add('busy'); $('ubText').textContent = 'Getting the new version. Mochiboard will reopen in a moment';
+    try { await MB.updateNow(); } catch (e) { $('ubText').textContent = e.message; $('ubGo').textContent = 'Update now'; $('ubGo').disabled = false; $('upBar').classList.remove('busy'); }
+  };
   $('suGo').onclick = async () => {
     $('suGo').disabled = true; $('suGo').textContent = 'Updating…'; $('suSub').textContent = 'Getting the new version and rebuilding. Mochiboard will close and reopen in about 30 seconds.';
     try { await MB.updateNow(); } catch (e) { $('suGo').disabled = false; $('suGo').textContent = 'Update now'; $('suSub').textContent = e.message; }

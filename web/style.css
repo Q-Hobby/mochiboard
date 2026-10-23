@@ -1610,3 +1610,32 @@ body.dark .clean-back { background: rgba(40, 37, 46, .94); color: #f3eef6; box-s
 body.dark .clean-back kbd { background: rgba(255, 255, 255, .1); }
 body.dark .clean-btn:hover { background: rgba(255, 255, 255, .08); color: #f3eef6; }
 body.phone .clean-btn, body.exporting .clean-back { display: none; }
+
+/* the update bar: quiet, at the top of the board, never in the way */
+.upbar { position: absolute; z-index: 12; top: 16px; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; padding: 5px 5px 5px 14px; border-radius: 999px;
+  background: #fff; color: var(--ink); font: 600 13px/1 var(--font); white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(120, 80, 120, .16), 0 0 0 1px rgba(120, 80, 120, .07); animation: ubIn .45s cubic-bezier(.3, 1.4, .5, 1); }
+.upbar[hidden] { display: none; }
+@keyframes ubIn { from { opacity: 0; translate: -50% -10px; } }
+.ub-spark { color: var(--accent, #e2649a); font-size: 13px; margin-right: 4px; }
+.ub-text { margin-right: 6px; }
+.upbar button { border: 0; cursor: pointer; font: inherit; border-radius: 999px; }
+.ub-link { padding: 7px 10px; background: none; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; }
+.ub-link:hover { color: var(--ink); }
+.ub-go { padding: 8px 14px; background: var(--ink); color: #fff; font-weight: 700; }
+.ub-go:hover { background: #2b2630; }
+.ub-go:disabled { opacity: .7; cursor: default; }
+.ub-x { width: 28px; height: 28px; background: none; color: var(--ink-soft); font-size: 17px; line-height: 1; }
+.ub-x:hover { background: rgba(120, 80, 120, .08); color: var(--ink); }
+.upbar.busy .ub-link, .upbar.busy .ub-x { display: none; }
+body.dark .upbar { background: #28252e; color: #f3eef6; box-shadow: 0 10px 28px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .07); }
+body.dark .ub-go { background: #f3eef6; color: #2b2630; }
+body.dark .ub-link, body.dark .ub-x { color: #b9b0c2; }
+body.clean .upbar, body.exporting .upbar, .stage.doc-open .upbar { display: none; }
+body.phone .upbar { top: auto; bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100% - 24px); }
+body.phone .ub-link { display: none; }
+.ub-yes { padding: 8px 14px; background: var(--ink); color: #fff; font-weight: 700; }
+body.dark .ub-yes { background: #f3eef6; color: #2b2630; }
+.upbar.ask .ub-text { margin-right: 10px; }
+.upbar.low { top: 84px; }
+html.native .upbar.low { top: 80px; }

@@ -48,6 +48,8 @@
   <div class="marquee" id="marquee"></div>
   <div class="focus-veil" id="veil"></div>
 
+  <!-- a quiet bar when there's a new version: it never pops up or interrupts, it just waits here until you want it -->
+  <div class="upbar" id="upBar" hidden><span class="ub-spark">✦</span><span class="ub-text" id="ubText">A new Mochiboard is ready</span><button class="ub-yes" id="ubYes" type="button" hidden>Yes, automatically</button><button class="ub-link" id="ubNo" type="button" hidden>I’ll do it myself</button><button class="ub-link" id="ubNotes" type="button">What’s new</button><button class="ub-go" id="ubGo" type="button">Update now</button><button class="ub-x" id="ubX" type="button" aria-label="Hide until the next version">×</button></div>
   <header class="top">
     <nav class="crumbs" id="crumbs"></nav>
     <input class="board-name" id="boardName" spellcheck="false" aria-label="Board name">
@@ -256,6 +258,7 @@
     <div class="seg set-tabs" id="setTabs"><button data-tab="general" class="on">General</button><button data-tab="mochi">Mochi</button><button data-tab="helpers">Helpers</button><button data-tab="board">Board</button><button data-tab="about">About</button></div>
     <div class="set-body">
       <section class="set-update native-only" id="setUpdate" data-tab="general"><div class="su-top"><div class="su-icon"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 3.5v3.2h-3.2"/></svg></div><div class="su-text"><b id="suTitle">Updates</b><small id="suSub">Checking for a new version…</small></div><button class="set-btn hot" id="suGo" hidden>Update now</button><button class="set-btn" id="suCheck">Check now</button></div><ul class="su-notes" id="suNotes" hidden></ul></section>
+      <section class="set-auto native-only" data-tab="general"><label class="set-row"><div><b>Update automatically</b><small>New versions install quietly when you quit Mochiboard. Your boards never change.</small></div><input type="checkbox" class="tgl" data-set="autoUpdate"></label></section>
       <section class="set-start" data-tab="general"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section data-tab="general"><h3>Look</h3>
         <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
