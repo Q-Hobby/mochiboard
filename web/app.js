@@ -1016,7 +1016,7 @@
   });
   stage.addEventListener('dblclick', e => {
     if (document.elementFromPoint(e.clientX, e.clientY)?.closest('.card, .selbar')) return;
-    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar')) return;
+    if (e.target.closest('.card, .tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .docview, .hub, .sheet')) return;
     const w = toWorld(e.clientX, e.clientY), c = card('note', { color: newNoteColor() }); c.x = snapTo(w.x - c.w / 2); c.y = snapTo(w.y - c.h / 2); addCard(c); selectOnly([c.id]); startEdit(c.id);
   });
   // card buttons: pull colours, checklist items
@@ -1049,6 +1049,14 @@
     const up = ev => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); ghost.remove(); it.style.opacity = '';
       if (!overTray(ev) && !ev.target.closest('.side, .box')) { const w = toWorld(ev.clientX, ev.clientY); c.x = w.x - c.w / 2; c.y = w.y - 20; board.tray = board.tray.filter(x => x !== c); addCard(c); renderTray(); } };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  });
+
+  // no Mac beep: keys pressed on the board (not while typing) are Mochiboard's own, so tell macOS they were handled.
+  // Otherwise Delete, Escape, arrows and the letter shortcuts fall through to the window, and macOS beeps.
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    if (e.key === ' ' && e.target.closest?.('button, a, [role="button"]')) return;   // Space still presses a focused button
+    if (/^(Backspace|Delete|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Home|End|PageUp|PageDown)$/.test(e.key) || e.key.length === 1) e.preventDefault();
   });
 
   // ---------- quick capture (⌘K) ----------
@@ -1445,7 +1453,7 @@
     (r.edit || []).forEach(o => { const c = byId(o.id) || board.tray.find(x => x.id === o.id); if (!c) return;
       if (o.text != null) { if (c.type === 'link') c.title = o.text; else c.text = o.text; }
       if (o.desc != null) c.desc = o.desc;
-      if (o.body != null && c.type === 'doc') c.body = o.body;
+      if (o.body != null && c.type === 'doc') { c.body = o.body; c.doc = null; if (docCard === c && ed) ed.commands.setContent(mdToHTML(c.body), false); }
       if (o.items) c.items = o.items.map((t, k) => ({ t: typeof t === 'string' ? t : t.t, done: (typeof t === 'object' && t.done) || (c.items?.[k]?.t === t && c.items[k].done) || false }));
       if (o.color && COLOR_NAMES.includes(o.color)) c.color = o.color;
       if (o.tag !== undefined) { if (o.tag) c.tagText = o.tag; else delete c.tagText; }
@@ -2307,22 +2315,378 @@
     };
   }
 
-  // ---------- docs: open beside the board (or full page); back is always one click ----------
-  let docCard = null;
+  // ---------- docs: a real document editor (styles, fonts, sizes, colors, lists, tables, images, Mochi on any words), beside the board ----------
+  // A doc keeps its rich content in c.doc (the editor's own structured format) and a plain-text copy in c.body (for the card, search and Mochi).
+  let docCard = null, ed = null, dvT = 0; const bubbleEl = $('dvBubble');   // the editor's popup moves the floating bar out of the page, so keep hold of it
+  const DOC_FONT = 'DM Sans', SIZES = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
+  const BLOCKS = [['title', 'Title', 36], ['heading', 'Heading', 26], ['sub', 'Subheading', 20], ['body', 'Body', 16], ['lead', 'Lead', 19], ['caption', 'Caption', 13], ['quote', 'Quote', 18], ['code', 'Code', 14]];
+  const TEXT_COLORS = ['#2b2630', '#6b6370', '#a39aa8', '#e2649a', '#e8590c', '#c99a00', '#1f9d63', '#1f7ae0', '#6b4fe0', '#c0392b'];
+  const HIGHLIGHTS = ['#fff1a8', '#ffd3e5', '#cdf2df', '#d4e8ff', '#e5dbff', '#ffe0c9', '#e9e4ec'];
+  const SUGGESTED_FONTS = ['DM Sans', 'Inter', 'Helvetica Neue', 'Avenir Next', 'Futura', 'Gill Sans', 'Georgia', 'Baskerville', 'Palatino', 'Times New Roman', 'Didot', 'Playfair Display', 'Lora', 'Fraunces', 'Merriweather', 'Space Grotesk', 'IBM Plex Mono', 'Menlo', 'Caveat'];
+  const DI = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const DICON = {
+    left: DI('<path d="M3.5 5h13M3.5 8.5h9M3.5 12h13M3.5 15.5h9"/>'), center: DI('<path d="M3.5 5h13M5.5 8.5h9M3.5 12h13M5.5 15.5h9"/>'),
+    right: DI('<path d="M3.5 5h13M7.5 8.5h9M3.5 12h13M7.5 15.5h9"/>'), justify: DI('<path d="M3.5 5h13M3.5 8.5h13M3.5 12h13M3.5 15.5h13"/>'),
+    bullet: DI('<circle cx="4.5" cy="6" r="1" fill="currentColor"/><circle cx="4.5" cy="10" r="1" fill="currentColor"/><circle cx="4.5" cy="14" r="1" fill="currentColor"/><path d="M8 6h8.5M8 10h8.5M8 14h8.5"/>'),
+    ordered: DI('<path d="M3.5 4.5h1.2v3.2M3.4 7.7h2.2M3.4 12.2c.2-.7 2.2-.8 2.2.3 0 .8-2.2 1.4-2.2 2.2h2.3M8.5 6h8M8.5 13.5h8"/>'),
+    task: DI('<rect x="3" y="4" width="5" height="5" rx="1.3"/><path d="M4.3 6.5l1 1 1.6-2"/><rect x="3" y="11.5" width="5" height="5" rx="1.3"/><path d="M10.5 6.5h6M10.5 14h6"/>'),
+    link: CIC.link, image: DI('<rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3.5 14.5l4-3.5 3 2.5 2.5-2 3.5 3"/>'),
+    more: DI('<circle cx="5" cy="10" r="1.1" fill="currentColor"/><circle cx="10" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/>'),
+    hl: DI('<path d="M11.5 3.5l5 5-6 6H6v-4.5z"/><path d="M4 18h12" stroke-width="3" class="bar"/>'), undo: DI('<path d="M7.5 7.5H13a3.5 3.5 0 0 1 0 7H8"/><path d="M10 4.5l-3 3 3 3"/>'), redo: DI('<path d="M12.5 7.5H7a3.5 3.5 0 0 0 0 7h5"/><path d="M10 4.5l3 3-3 3"/>'),
+    mochi: DI('<path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z"/><path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>'),
+    table: DI('<rect x="3" y="4" width="14" height="12" rx="1.6"/><path d="M3 8h14M3 12h14M8 4v12M12.5 4v12"/>'), hr: DI('<path d="M3 10h14"/><path d="M6 6h8M6 14h8" opacity=".4"/>'),
+    clear: DI('<path d="M5 4.5h10M10 4.5L7.5 16"/><path d="M12.5 12l4 4M16.5 12l-4 4"/>'),
+  };
+  const fontName = f => String(f || '').replace(/["']/g, '').split(',')[0].trim();
+  const escH = s => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  // plain text or Mochi's light markdown → editor HTML (headings, lists, checklists, quotes, dividers, **bold**, *italic*, `code`)
+  function mdToHTML(src) {
+    const inl = s => escH(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<em>$2</em>').replace(/`(.+?)`/g, '<code>$1</code>');
+    const lines = String(src || '').replace(/\r/g, '').split('\n'); let out = '', list = null;
+    const close = () => { if (list) { out += `</${list === 'task' ? 'ul' : list}>`; list = null; } };
+    const open = k => { if (list !== k) { close(); out += k === 'task' ? '<ul data-type="taskList">' : `<${k}>`; list = k; } };
+    for (const raw of lines) {
+      const l = raw.trimEnd(); let m;
+      if (!l.trim()) { close(); continue; }
+      if ((m = l.match(/^(#{1,3})\s+(.*)/))) { close(); out += `<h${m[1].length}>${inl(m[2])}</h${m[1].length}>`; }
+      else if ((m = l.match(/^\s*(?:(?:[-*]\s+)?\[( |x|X)\]|([☐☑]))\s*(.*)/))) { open('task'); const on = (m[1] || '').toLowerCase() === 'x' || m[2] === '☑'; out += `<li data-type="taskItem" data-checked="${on}"><p>${inl(m[3])}</p></li>`; }
+      else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { open('ul'); out += `<li><p>${inl(m[1])}</p></li>`; }
+      else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { open('ol'); out += `<li><p>${inl(m[1])}</p></li>`; }
+      else if ((m = l.match(/^>\s?(.*)/))) { close(); out += `<blockquote><p>${inl(m[1])}</p></blockquote>`; }
+      else if (/^(-{3,}|\*{3,})$/.test(l.trim())) { close(); out += '<hr>'; }
+      else { close(); out += `<p>${inl(l)}</p>`; }
+    }
+    close(); return out || '<p></p>';
+  }
+  const docHTML = c => c.doc && window.MBEditor ? MBEditor.generateHTML(c.doc, MBEditor.extensions()) : mdToHTML(c.body);
+  // load any web fonts a doc uses, so it looks right on this Mac
+  function fontsIn(json) { const out = new Set(); (function walk(n) { (n?.marks || []).forEach(m => m.type === 'textStyle' && m.attrs?.fontFamily && out.add(fontName(m.attrs.fontFamily))); (n?.content || []).forEach(walk); })(json); return [...out]; }
+
+  function ensureEditor() {
+    if (ed) return ed; if (!window.MBEditor) return null;
+    ed = new MBEditor.Editor({
+      element: $('dvBody'),
+      extensions: [...MBEditor.extensions('Start writing, or drag cards here from the board…'),
+        MBEditor.BubbleMenu.configure({ element: bubbleEl, tippyOptions: { duration: [140, 90], placement: 'top', offset: [0, 10], maxWidth: 'none', zIndex: 60, appendTo: () => document.body, popperOptions: { strategy: 'fixed' } },
+          shouldShow: ({ editor, state }) => !state.selection.empty && editor.isEditable && !editor.isActive('image') && !document.querySelector('#dvPop:not([hidden])') })],
+      editorProps: {
+        attributes: { class: 'dv-prose', spellcheck: 'true' },
+        handleKeyDown: (v, e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); showPop('link', $('dvTools').querySelector('[data-pop="link"]')); return true; } return false; },
+        // images dropped or pasted in become part of the doc (kept inside the doc, so they never go missing)
+        handleDrop: (v, e) => { const fs = [...(e.dataTransfer?.files || [])].filter(f => f.type.startsWith('image/')); if (!fs.length) return false; e.preventDefault(); const pos = v.posAtCoords({ left: e.clientX, top: e.clientY })?.pos; fs.forEach(f => addDocImage(f, pos)); return true; },
+        handlePaste: (v, e) => { const fs = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/')); if (!fs.length) return false; fs.forEach(f => addDocImage(f)); return true; },
+      },
+      onUpdate: () => { if (!docCard) return; clearTimeout(dvT); $('dvSaved').textContent = 'saving…'; dvT = setTimeout(syncDoc, 350); paintCount(); },
+      onSelectionUpdate: () => paintTools(), onTransaction: () => requestAnimationFrame(paintTools),
+    });
+    buildTools(); return ed;
+  }
+  function syncDoc() {
+    clearTimeout(dvT); if (!docCard || !ed) return;
+    docCard.doc = ed.getJSON(); docCard.body = ed.getText({ blockSeparator: '\n' }).replace(/\n{3,}/g, '\n\n').trim();
+    renderCard(docCard); save(); $('dvSaved').textContent = 'saved';
+  }
+  const paintCount = () => { if (!ed) return; const w = ed.storage.characterCount.words(); $('dvCount').textContent = `${w.toLocaleString()} word${w === 1 ? '' : 's'}`; };
+  function addDocImage(file, pos) {
+    const r = new FileReader(); r.onload = () => { const ch = ed.chain().focus(); (pos != null ? ch.insertContentAt(pos, { type: 'image', attrs: { src: r.result } }) : ch.setImage({ src: r.result })).run(); };
+    r.readAsDataURL(file);
+  }
+  const imgPick = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, hidden: true }); document.body.appendChild(imgPick);
+  imgPick.onchange = () => { [...imgPick.files].forEach(f => addDocImage(f)); imgPick.value = ''; };
+
   function openDoc(c) {
-    docCard = c; $('dvTitle').value = c.text || ''; $('dvBody').innerText = c.body || '';
+    if (docCard && docCard !== c) syncDoc();
+    docCard = c; $('dvTitle').value = c.text || '';
     $('dvWhere').textContent = `${board.name} › ${c.text || 'Untitled'}`;
     $('docview').classList.add('on'); stage.classList.add('doc-open'); selectOnly([]);
-    setTimeout(() => (c.text ? $('dvBody') : $('dvTitle')).focus(), 250);
+    const e = ensureEditor();
+    if (e) { e.commands.setContent(docHTML(c), false); if (c.doc) fontsIn(c.doc).forEach(useFont); e.commands.setTextSelection(0); paintTools(); paintCount(); $('dvSaved').textContent = ''; }
+    $('dvPage').scrollTop = 0;
+    setTimeout(() => c.text ? e?.commands.focus('end') : $('dvTitle').focus(), 250);
   }
-  function closeDoc() { if (!docCard) return; const c = docCard; docCard = null; $('docview').classList.remove('on', 'wide'); stage.classList.remove('doc-open'); document.activeElement.blur(); renderCard(c); selectOnly([c.id]); save(); }
+  function closeDoc() { if (!docCard) return; syncDoc(); hidePop(); const c = docCard; docCard = null; $('docview').classList.remove('on', 'wide'); stage.classList.remove('doc-open'); document.activeElement.blur(); renderCard(c); selectOnly([c.id]); save(); }
   $('dvTitle').oninput = () => { if (!docCard) return; docCard.text = $('dvTitle').value; $('dvWhere').textContent = `${board.name} › ${docCard.text || 'Untitled'}`; renderCard(docCard); save(); };
-  $('dvTitle').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('dvBody').focus(); } };
-  $('dvBody').oninput = () => { if (!docCard) return; docCard.body = $('dvBody').innerText; save(); };
+  $('dvTitle').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ed?.commands.focus('start'); } };
   $('dvBack').onclick = closeDoc; $('dvClose').onclick = closeDoc;
-  $('dvWide').onclick = () => { const w = $('docview').classList.toggle('wide'); $('dvWide').textContent = w ? '⤡' : '⤢'; $('dvWide').title = w ? 'Half page' : 'Full page'; };
+  $('dvExport').onclick = e => { ensureEditor(); showPop('export', e.currentTarget); };
+  // writing on a dark page: only the view changes, never what gets saved or downloaded
+  const pagePref = () => { try { return localStorage.getItem('mochiboard:docPage') || 'auto'; } catch (e) { return 'auto'; } };
+  function applyDocPage() { const p = pagePref(), dark = p === 'dark' || (p === 'auto' && document.body.classList.contains('dark')); $('docview').classList.toggle('page-dark', dark); }
+  $('dvPageMode').onclick = e => { ensureEditor(); showPop('page', e.currentTarget); };
+  new MutationObserver(applyDocPage).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  applyDocPage();
 
-  // ---------- dropping cards into a doc: their words join the doc ----------
+  // ---------- a doc as a PDF: the same styles you see, laid out on real pages ----------
+  // the editor's own text styles, read from the app's stylesheet, so the PDF always matches the screen
+  function proseCSS() {
+    let out = '';
+    for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; }
+      for (const r of rules) if (r.selectorText && /\.dv-prose/.test(r.selectorText) && !/page-dark|ProseMirror-selectednode|selectedCell|column-resize|resize-cursor|is-empty|::selection|is-editor-empty/.test(r.selectorText)) out += r.cssText + '\n'; }
+    return out;
+  }
+  function docPrintHTML(paper) {
+    // glue each heading to the block after it, so a heading never sits alone at the bottom of a page (WebKit's print ignores break-after)
+    const glue = html => { const d = new DOMParser().parseFromString(`<div id="r">${html}</div>`, 'text/html'), r = d.getElementById('r');
+      [...r.querySelectorAll(':scope > h1, :scope > h2, :scope > h3')].forEach(h => { const w = d.createElement('div'); w.className = 'keep'; h.before(w); w.append(h); const n = w.nextElementSibling; if (n && !/^H[1-3]$/.test(n.tagName)) w.append(n); });
+      return r.innerHTML; };
+    const body = glue(ed ? ed.getHTML() : docHTML(docCard)), first = (ed ? ed.state.doc.firstChild?.textContent : '') || '';
+    const title = (docCard?.text || '').trim() && first.trim().toLowerCase() !== (docCard.text || '').trim().toLowerCase() ? docCard.text.trim() : '';   // no double title when the doc already starts with it
+    const web = [...new Set(fontsIn(ed ? ed.getJSON() : docCard.doc || {}))].filter(f => !onMac(f));
+    const size = paper === 'a4' ? '210mm 297mm' : '8.5in 11in';
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escH(title || 'Document')}</title>
+<link rel="stylesheet" href="__WEB__/fonts.css">${web.map(f => `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, '+')}:ital,wght@0,400;0,700;1,400&display=swap">`).join('')}
+<style>
+@page { size: ${size}; margin: 0.8in 0.85in 0.85in; }   /* browsers use these; the Mac app sets the same margins on its printer */
+html, body { margin: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { padding: 0; }
+:root { --paper: #ffffff; --paper-ink: #2b2630; --paper-soft: #6b6370; }   /* downloads are always light pages */
+.doc-title { margin: 0 0 18px; font: 800 36px/1.1 "DM Sans", system-ui, sans-serif; letter-spacing: -.035em; color: #2b2630; }
+${proseCSS()}
+.dv-prose { min-height: 0; }
+.dv-prose h1, .dv-prose h2, .dv-prose h3 { break-after: avoid; page-break-after: avoid; }
+.dv-prose img, .dv-prose tr, .dv-prose blockquote, .dv-prose pre, .dv-prose li { break-inside: avoid; page-break-inside: avoid; }
+.dv-prose p { orphans: 3; widows: 3; }
+.dv-prose .keep { break-inside: avoid; page-break-inside: avoid; }
+.dv-prose .keep > :first-child { margin-top: 0; } .dv-prose > .keep { margin-top: 1.5em; } .dv-prose > .keep:first-child { margin-top: 0; }
+.dv-prose a { color: #c4417f; }
+.dv-prose ul[data-type="taskList"] input[type="checkbox"] { pointer-events: none; }
+</style></head><body>${title ? `<h1 class="doc-title">${escH(title)}</h1>` : ''}<div class="dv-prose">${body}</div></body></html>`;
+  }
+  // ---------- a doc as a Word file: real headings, lists, tables and pictures, with DM Sans built in ----------
+  let docxLoading = null;
+  const loadDocx = () => docxLoading || (docxLoading = new Promise((res, rej) => { if (window.MBDocx) return res(); const sc = document.createElement('script'); sc.src = 'vendor/docx.js'; sc.onload = res; sc.onerror = () => { docxLoading = null; rej(new Error("the Word maker didn't load")); }; document.head.appendChild(sc); }));
+  async function downloadWord() {
+    if (!docCard) return; syncDoc();
+    const paper = (() => { try { return localStorage.getItem('mochiboard:paper') || 'letter'; } catch (e) { return 'letter'; } })();
+    $('dvSaved').textContent = 'making your Word file…';
+    try {
+      await loadDocx();
+      const bytes = await MBDocx.toDocx(ed ? ed.getJSON() : docCard.doc || MBEditor.generateJSON(docHTML(docCard), MBEditor.extensions()), { title: (docCard.text || '').trim(), paper });
+      let b64 = ''; for (let i = 0; i < bytes.length; i += 0x8000) b64 += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); b64 = btoa(b64);
+      const name = await MB.saveFile(b64, (docCard.text || 'Document').trim() || 'Document', 'docx');
+      if (name) say(`Saved “${name}” ✦`, 5000);
+    } catch (err) { say("I couldn't make the Word file: " + err.message, 8000); }
+    finally { $('dvSaved').textContent = ''; }
+  }
+  async function downloadPDF() {
+    if (!docCard) return; syncDoc();
+    const paper = (() => { try { return localStorage.getItem('mochiboard:paper') || 'letter'; } catch (e) { return 'letter'; } })();
+    $('dvSaved').textContent = 'making your PDF…';
+    try {
+      const name = await MB.docPDF(docPrintHTML(paper), (docCard.text || 'Document').trim() || 'Document', paper);
+      if (name) say(`Saved “${name}” ✦`, 5000);
+    } catch (err) { say("I couldn't make the PDF: " + err.message, 8000); }
+    finally { $('dvSaved').textContent = ''; }
+  }
+  $('dvWide').onclick = () => { const w = $('docview').classList.toggle('wide'); requestAnimationFrame(fitTools); $('dvWide').textContent = w ? '⤡' : '⤢'; $('dvWide').title = w ? 'Half page' : 'Full page'; };
+
+  // ---------- the toolbar ----------
+  function buildTools() {
+    const tb = (c, label, tip, cls = '') => `<button type="button" class="dt-b ${cls}" data-c="${c}" title="${tip}" aria-label="${tip}">${label}</button>`;
+    const pop = (p, label, tip, cls = '') => `<button type="button" class="dt-b dt-drop ${cls}" data-pop="${p}" title="${tip}" aria-label="${tip}" aria-haspopup="true">${label}</button>`;
+    $('dvTools').innerHTML = [
+      tb('undo', DICON.undo, 'Undo · ⌘Z', 'dt-fold f7'), tb('redo', DICON.redo, 'Redo · ⇧⌘Z', 'dt-fold f8'), '<span class="dt-sep"></span>',
+      pop('style', '<span class="dt-lbl" id="dtStyle">Body</span><i class="dt-car"></i>', 'Text style', 'dt-style'),
+      pop('font', '<span class="dt-lbl" id="dtFont">DM Sans</span><i class="dt-car"></i>', 'Font', 'dt-font'),
+      `<span class="dt-size" title="Text size"><button type="button" class="dt-b" data-c="smaller" aria-label="Smaller">−</button><input id="dtSize" inputmode="numeric" aria-label="Text size" value="16"><button type="button" class="dt-b" data-c="bigger" aria-label="Bigger">+</button></span>`,
+      '<span class="dt-sep"></span>',
+      tb('bold', '<b>B</b>', 'Bold · ⌘B', 'dt-t'), tb('italic', '<i>I</i>', 'Italic · ⌘I', 'dt-t'), tb('underline', '<u>U</u>', 'Underline · ⌘U', 'dt-t'), tb('strike', '<s>S</s>', 'Strikethrough · ⇧⌘S', 'dt-t'),
+      pop('color', '<span class="dt-a">A<i id="dtColorBar"></i></span>', 'Text color'), pop('hl', DICON.hl, 'Highlight', 'dt-hl'),
+      '<span class="dt-sep"></span>',
+      pop('align', `<span id="dtAlign">${DICON.left}</span>`, 'Alignment', 'dt-fold f6'),
+      tb('bullet', DICON.bullet, 'Bulleted list', 'dt-fold f5'), tb('ordered', DICON.ordered, 'Numbered list', 'dt-fold f4'), tb('task', DICON.task, 'Checklist', 'dt-fold f3'),
+      '<span class="dt-sep"></span>',
+      pop('link', DICON.link, 'Link · ⌘K', 'dt-fold f2'), tb('image', DICON.image, 'Add a picture', 'dt-fold f1'), pop('more', DICON.more, 'More: line spacing, tables, dividers…'),
+      `<button type="button" class="dt-mochi dt-round" data-pop="mochi" data-tip="Mochi" aria-label="Ask Mochi about your selection">${DICON.mochi}</button>`,
+    ].join('');
+    bubbleEl.innerHTML = [tb('bold', '<b>B</b>', 'Bold', 'dt-t'), tb('italic', '<i>I</i>', 'Italic', 'dt-t'), tb('underline', '<u>U</u>', 'Underline', 'dt-t'), tb('strike', '<s>S</s>', 'Strikethrough', 'dt-t'),
+      pop('color', '<span class="dt-a">A<i class="dtBar"></i></span>', 'Text color'), pop('hl', DICON.hl, 'Highlight', 'dt-hl'), pop('link', DICON.link, 'Link'),
+      `<button type="button" class="dt-mochi" data-pop="mochi" title="Ask Mochi to rewrite this">${DICON.mochi}<span>Mochi</span></button>`].join('');
+    [$('dvTools'), bubbleEl].forEach(bar => {
+      bar.addEventListener('mousedown', e => { if (!e.target.closest('input')) e.preventDefault(); });   // keep the text selected while using the bar
+      bar.addEventListener('click', e => { const b = e.target.closest('[data-c], [data-pop]'); if (!b) return; if (b.dataset.pop) return showPop(b.dataset.pop, b); run(b.dataset.c); });
+    });
+    const sz = $('dtSize');
+    sz.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); const v = clamp(parseInt(sz.value, 10) || 16, 6, 200); ed.chain().focus().setFontSize(v + 'px').run(); } if (e.key === 'Escape') { sz.blur(); ed.commands.focus(); } });
+    sz.addEventListener('focus', () => sz.select());
+    new ResizeObserver(() => requestAnimationFrame(fitTools)).observe($('docview'));
+  }
+  // keep the toolbar to one row: when space is tight, picture, link, lists and alignment fold into More (like Word and Google Docs)
+  function fitTools() {
+    const bar = $('dvTools'); if (!bar.offsetParent) return;
+    const folds = [...bar.querySelectorAll('.dt-fold')].sort((a, b) => +a.className.match(/f(\d)/)[1] - +b.className.match(/f(\d)/)[1]);
+    folds.forEach(b => b.hidden = false); bar.querySelectorAll('.dt-sep').forEach(x => x.hidden = false);
+    const first = bar.firstElementChild, oneRow = () => bar.lastElementChild.offsetTop - first.offsetTop < 6;
+    for (const b of folds) { if (oneRow()) break; b.hidden = true; tidySeps(bar); }
+    tidySeps(bar);
+  }
+  function tidySeps(bar) {   // no separator at the edges or two in a row once buttons fold away
+    let prev = null; [...bar.children].forEach(el => { if (el.hidden && !el.classList.contains('dt-sep')) return;
+      if (el.classList.contains('dt-sep')) { el.hidden = !prev || prev.classList.contains('dt-sep'); if (!el.hidden) prev = el; } else prev = el; });
+    const vis = [...bar.children].filter(el => !el.hidden); const last = vis[vis.length - 2]; if (last?.classList.contains('dt-sep')) last.hidden = true;
+  }
+  const docSize = () => { const s = parseFloat(ed.getAttributes('textStyle').fontSize); if (s) return s; return (BLOCKS.find(b => b[0] === blockOf()) || BLOCKS[3])[2]; };
+  function blockOf() {
+    if (!ed) return 'body'; if (ed.isActive('heading', { level: 1 })) return 'title'; if (ed.isActive('heading', { level: 2 })) return 'heading'; if (ed.isActive('heading', { level: 3 })) return 'sub';
+    if (ed.isActive('codeBlock')) return 'code'; if (ed.isActive('blockquote')) return 'quote'; const k = ed.getAttributes('paragraph').kind; return k === 'lead' || k === 'caption' ? k : 'body';
+  }
+  function setBlock(k) {
+    const c = ed.chain().focus();
+    if (ed.isActive('blockquote') && k !== 'quote') c.lift('blockquote'); if (ed.isActive('codeBlock') && k !== 'code') c.setParagraph();
+    ({ title: () => c.setHeading({ level: 1 }), heading: () => c.setHeading({ level: 2 }), sub: () => c.setHeading({ level: 3 }), body: () => c.setParagraph().updateAttributes('paragraph', { kind: null }),
+      lead: () => c.setParagraph().updateAttributes('paragraph', { kind: 'lead' }), caption: () => c.setParagraph().updateAttributes('paragraph', { kind: 'caption' }),
+      quote: () => ed.isActive('blockquote') ? c : c.setParagraph().setBlockquote(), code: () => c.setCodeBlock() })[k]();
+    c.run();
+  }
+  function run(cmd) {
+    if (!ed) return; const c = ed.chain().focus();
+    const step = d => { const s = docSize(), i = SIZES.findIndex(x => x >= s); const n = d > 0 ? (SIZES.find(x => x > s) || s + 8) : ([...SIZES].reverse().find(x => x < s) || Math.max(6, s - 2)); return n + 'px'; };
+    ({ undo: () => c.undo(), redo: () => c.redo(), bold: () => c.toggleBold(), italic: () => c.toggleItalic(), underline: () => c.toggleUnderline(), strike: () => c.toggleStrike(),
+      bullet: () => c.toggleBulletList(), ordered: () => c.toggleOrderedList(), task: () => c.toggleTaskList(),
+      smaller: () => c.setFontSize(step(-1)), bigger: () => c.setFontSize(step(1)), image: () => (imgPick.click(), c),
+    })[cmd]?.().run();
+  }
+  // show what's true where the cursor is: style, font, size, bold…, alignment, colors
+  function paintTools() {
+    if (!ed || !docCard) return;
+    const k = blockOf(), st = ed.getAttributes('textStyle');
+    $('dtStyle').textContent = (BLOCKS.find(b => b[0] === k) || BLOCKS[3])[1];
+    const f = fontName(st.fontFamily) || DOC_FONT; $('dtFont').textContent = f; $('dtFont').style.fontFamily = `"${f}", ${DOC_FONT}, system-ui`;
+    if (document.activeElement !== $('dtSize')) $('dtSize').value = Math.round(docSize());
+    const on = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', bullet: 'bulletList', ordered: 'orderedList', task: 'taskList' };
+    [$('dvTools'), bubbleEl].forEach(bar => bar.querySelectorAll('[data-c]').forEach(b => { const n = on[b.dataset.c]; if (n) b.classList.toggle('on', ed.isActive(n)); }));
+    const al = ['center', 'right', 'justify'].find(a => ed.isActive({ textAlign: a })) || 'left'; $('dtAlign').innerHTML = DICON[al];
+    const col = st.color || ''; [$('dtColorBar'), ...bubbleEl.querySelectorAll('.dtBar')].forEach(b => b.style.background = col || 'var(--ink)');
+    const hl = ed.getAttributes('highlight').color || ''; [...$('dvTools').querySelectorAll('.dt-hl .bar'), ...bubbleEl.querySelectorAll('.dt-hl .bar')].forEach(b => b.style.stroke = hl || '#f4dc6c');
+    $('dvTools').querySelector('[data-c="undo"]').disabled = !ed.can().undo(); $('dvTools').querySelector('[data-c="redo"]').disabled = !ed.can().redo();
+  }
+
+  // ---------- the drop-down menus ----------
+  let popKind = null;
+  function hidePop() { $('dvPop').hidden = true; popKind = null; document.querySelectorAll('.dt-b.open, .dt-mochi.open').forEach(b => b.classList.remove('open')); }
+  function showPop(kind, btn) {
+    if (popKind === kind && !$('dvPop').hidden) return hidePop();
+    hidePop(); popKind = kind; btn.classList.add('open'); const p = $('dvPop'); p.className = 'dv-pop pop-' + kind;
+    const swatches = (list, cur, attr) => list.map(h => `<button type="button" class="dp-sw ${cur && cur.toLowerCase() === h.toLowerCase() ? 'on' : ''}" ${attr}="${h}" style="--sw:${h}" title="${h.toUpperCase()}" aria-label="${h.toUpperCase()}"></button>`).join('');
+    const boardCols = [...new Set((board.palette || []).map(x => x.hex).concat(board.cards.filter(c => c.type === 'swatch').map(c => c.hex)))].slice(0, 14);
+    if (kind === 'style') {
+      const k = blockOf(); p.innerHTML = BLOCKS.map(([id, name]) => `<button type="button" class="dp-row dp-st st-${id} ${id === k ? 'on' : ''}" data-block="${id}">${name}</button>`).join('');
+    } else if (kind === 'font') {
+      const cur = fontName(ed.getAttributes('textStyle').fontFamily) || DOC_FONT;
+      const onBoard = [...new Set(board.cards.filter(c => c.type === 'font' && c.font).map(c => c.font))];
+      const row = f => `<button type="button" class="dp-row dp-font ${f === cur ? 'on' : ''}" data-font="${escH(f)}" style="font-family:'${escH(f)}', ${DOC_FONT}, system-ui">${escH(f)}${onMac(f) ? '' : '<small>Google Fonts</small>'}</button>`;
+      p.innerHTML = `<input class="dp-search" id="dpFontQ" placeholder="Search fonts…" autocomplete="off" spellcheck="false">
+        <div class="dp-scroll" id="dpFontList">${onBoard.length ? `<div class="dp-h">On this board</div>${onBoard.map(row).join('')}` : ''}<div class="dp-h">Suggested</div>${SUGGESTED_FONTS.map(row).join('')}
+        <div class="dp-h">On your Mac</div>${FONTS.filter(f => !SUGGESTED_FONTS.includes(f)).slice(0, 400).map(row).join('')}</div>`;
+      SUGGESTED_FONTS.concat(onBoard).forEach(useFont);
+      const q = $('dpFontQ'); q.addEventListener('keydown', e => e.stopPropagation());
+      q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); p.querySelectorAll('.dp-font').forEach(b => b.hidden = !!v && !b.dataset.font.toLowerCase().includes(v)); p.querySelectorAll('.dp-h').forEach(h => h.hidden = !!v); });
+      setTimeout(() => q.focus(), 30);
+    } else if (kind === 'color' || kind === 'hl') {
+      const isHl = kind === 'hl', cur = isHl ? ed.getAttributes('highlight').color : ed.getAttributes('textStyle').color;
+      p.innerHTML = `<button type="button" class="dp-row dp-none" data-${isHl ? 'hl' : 'tc'}="">${isHl ? 'No highlight' : 'Default color'}</button>
+        ${boardCols.length ? `<div class="dp-h">Board colors</div><div class="dp-grid">${swatches(boardCols, cur, isHl ? 'data-hl' : 'data-tc')}</div>` : ''}
+        <div class="dp-h">${isHl ? 'Highlighters' : 'Colors'}</div><div class="dp-grid">${swatches(isHl ? HIGHLIGHTS : TEXT_COLORS, cur, isHl ? 'data-hl' : 'data-tc')}</div>
+        <button type="button" class="dp-row dp-any" data-any="${kind}">Any color…</button>`;
+    } else if (kind === 'align') {
+      p.innerHTML = `<div class="dp-icons">${['left', 'center', 'right', 'justify'].map(a => `<button type="button" class="dp-ic ${ed.isActive({ textAlign: a }) || (a === 'left' && !['center', 'right', 'justify'].some(x => ed.isActive({ textAlign: x }))) ? 'on' : ''}" data-align="${a}" title="${a[0].toUpperCase() + a.slice(1)}">${DICON[a]}</button>`).join('')}</div>`;
+    } else if (kind === 'link') {
+      const href = ed.getAttributes('link').href || '';
+      p.innerHTML = `<form class="dp-link" id="dpLink"><input id="dpLinkIn" placeholder="Paste a link…" value="${escH(href)}" autocomplete="off" spellcheck="false"><button class="dp-go" type="submit">${href ? 'Update' : 'Add link'}</button></form>
+        ${href ? `<div class="dp-linkacts"><button type="button" class="dp-row" data-link="open">Open ↗</button><button type="button" class="dp-row" data-link="remove">Remove link</button></div>` : ''}`;
+      const inp = $('dpLinkIn'); inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { hidePop(); ed.commands.focus(); } });
+      $('dpLink').onsubmit = e => { e.preventDefault(); let v = inp.value.trim(); if (!v) { ed.chain().focus().extendMarkRange('link').unsetLink().run(); return hidePop(); }
+        if (!/^(https?:|mailto:|tel:)/i.test(v)) v = 'https://' + v;
+        if (ed.state.selection.empty && !ed.isActive('link')) ed.chain().focus().insertContent(`<a href="${escH(v)}">${escH(v.replace(/^https?:\/\//, ''))}</a> `).run();
+        else ed.chain().focus().extendMarkRange('link').setLink({ href: v }).run(); hidePop(); };
+      setTimeout(() => inp.focus(), 30);
+    } else if (kind === 'more') {
+      const lh = ed.getAttributes('paragraph').lineHeight || ed.getAttributes('heading').lineHeight || '';
+      const inTable = ed.isActive('table');
+      const folded = [...$('dvTools').querySelectorAll('.dt-fold[hidden]')].map(b => b.dataset.c || b.dataset.pop);
+      const foldIcons = folded.flatMap(k => k === 'align' ? ['left', 'center', 'right', 'justify'].map(a => `<button type="button" class="dp-ic ${ed.isActive({ textAlign: a }) ? 'on' : ''}" data-align="${a}" title="Align ${a}">${DICON[a]}</button>`)
+        : k === 'link' ? [`<button type="button" class="dp-ic ${ed.isActive('link') ? 'on' : ''}" data-flink="1" title="Link">${DICON.link}</button>`]
+        : [`<button type="button" class="dp-ic ${({ bullet: 'bulletList', ordered: 'orderedList', task: 'taskList' })[k] && ed.isActive(({ bullet: 'bulletList', ordered: 'orderedList', task: 'taskList' })[k]) ? 'on' : ''}" data-c2="${k}" title="${({ bullet: 'Bulleted list', ordered: 'Numbered list', task: 'Checklist', image: 'Add a picture', undo: 'Undo', redo: 'Redo' })[k]}">${DICON[k]}</button>`]).join('');
+      p.innerHTML = (foldIcons ? `<div class="dp-h">Tools</div><div class="dp-icons dp-fold">${foldIcons}</div>` : '') + `<div class="dp-h">Line spacing</div><div class="dp-seg">${[['1', 'Single'], ['1.15', '1.15'], ['1.5', '1.5'], ['2', 'Double']].map(([v, l]) => `<button type="button" class="${String(lh) === v ? 'on' : ''}" data-lh="${v}">${l}</button>`).join('')}</div>
+        <div class="dp-h">Insert</div>
+        <button type="button" class="dp-row dp-irow" data-ins="table">${DICON.table}Table</button>
+        <button type="button" class="dp-row dp-irow" data-ins="hr">${DICON.hr}Divider</button>
+        <button type="button" class="dp-row dp-irow" data-ins="sup"><b class="dp-glyph">x²</b>Superscript</button>
+        <button type="button" class="dp-row dp-irow" data-ins="sub"><b class="dp-glyph">x₂</b>Subscript</button>
+        ${inTable ? `<div class="dp-h">Table</div><div class="dp-grid2">${[['rowAfter', '+ Row'], ['colAfter', '+ Column'], ['delRow', '− Row'], ['delCol', '− Column'], ['header', 'Header row'], ['delTable', 'Delete table']].map(([a, l]) => `<button type="button" data-tbl="${a}">${l}</button>`).join('')}</div>` : ''}
+        <div class="dp-h"></div><button type="button" class="dp-row dp-irow" data-ins="clear">${DICON.clear}Clear formatting</button>`;
+    } else if (kind === 'page') {
+      const cur = pagePref();
+      p.innerHTML = `<div class="dp-h">Page color</div>${[['auto', 'Match Mochiboard', 'Light or dark, with the app'], ['light', 'Light paper', 'Always white'], ['dark', 'Dark', 'Easy on the eyes at night']].map(([v, l, sub]) => `<button type="button" class="dp-row dp-page ${cur === v ? 'on' : ''}" data-page="${v}"><i class="pg-sw pg-${v}"></i><span>${l}<small>${sub}</small></span></button>`).join('')}
+        <p class="dp-tip">Only how it looks while you write. Downloads are always regular light pages.</p>`;
+    } else if (kind === 'export') {
+      const paper = (() => { try { return localStorage.getItem('mochiboard:paper') || 'letter'; } catch (e) { return 'letter'; } })();
+      p.innerHTML = `<div class="dp-h">Paper</div><div class="dp-seg">${[['letter', 'Letter'], ['a4', 'A4']].map(([v, l]) => `<button type="button" class="${paper === v ? 'on' : ''}" data-paper="${v}">${l}</button>`).join('')}</div>
+        <button type="button" class="dp-row dp-pdf" data-pdf="1"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 2.5h6l3.5 3.5v10.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/><path d="M11.5 2.5V6H15"/></svg><span>Download PDF<small>Real pages, ready to send or print</small></span></button>
+        <button type="button" class="dp-row dp-pdf dp-word" data-word="1"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 2.5h6l3.5 3.5v10.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z"/><path d="M11.5 2.5V6H15M7 9.5l1.2 5 1.8-3.6 1.8 3.6 1.2-5"/></svg><span>Download Word<small>A .docx you can keep editing in Word or Pages</small></span></button>`;
+    } else if (kind === 'mochi') {
+      const has = !ed.state.selection.empty;
+      p.innerHTML = has ? `<div class="dp-h">Mochi, make this…</div>${[['Shorter', 'Make it shorter and tighter'], ['Clearer', 'Make it clearer and easier to read'], ['Friendlier', 'Make it warmer and friendlier'], ['More confident', 'Make it more confident and direct'], ['More professional', 'Make it more polished and professional'], ['Fix spelling & grammar', 'Fix spelling, grammar and punctuation only. Change nothing else'], ['Into bullet points', 'Turn it into a short bulleted list']].map(([l, how]) => `<button type="button" class="dp-row" data-how="${escH(how)}">${l}</button>`).join('')}
+        <form class="dp-link" id="dpAsk"><input id="dpAskIn" placeholder="Or tell Mochi what to do…" autocomplete="off"><button class="dp-go" type="submit">✦</button></form>`
+        : `<p class="dp-tip">Select some words, then ask Mochi to rewrite them: shorter, friendlier, fixed up, or anything you like ✦</p>`;
+      const ask = $('dpAskIn'); if (ask) { ask.addEventListener('keydown', e => e.stopPropagation()); $('dpAsk').onsubmit = e => { e.preventDefault(); const v = ask.value.trim(); if (v) rewrite(v); }; }
+    }
+    // place it under its button, inside the doc panel
+    p.hidden = false; const dv = $('docview').getBoundingClientRect(), r = btn.getBoundingClientRect();
+    const w = p.offsetWidth, h = p.offsetHeight; let x = r.left - dv.left, y = r.bottom - dv.top + 8;
+    if (y + h > dv.height - 10) y = Math.max(10, r.top - dv.top - h - 8);
+    p.style.left = clamp(x, 10, dv.width - w - 10) + 'px'; p.style.top = y + 'px';
+  }
+  const p_seg = b => b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  $('dvPop').addEventListener('mousedown', e => { if (!e.target.closest('input')) e.preventDefault(); });
+  $('dvPop').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.type === 'submit') return; const d = b.dataset, c = ed.chain().focus();
+    if (d.block) { setBlock(d.block); return hidePop(); }
+    if (d.font != null) { useFont(d.font); (d.font === DOC_FONT ? c.unsetFontFamily() : c.setFontFamily(`"${d.font}"`)).run(); return hidePop(); }
+    if (d.tc != null) { (d.tc ? c.setColor(d.tc) : c.unsetColor()).run(); return hidePop(); }
+    if (d.hl != null) { (d.hl ? c.setHighlight({ color: d.hl }) : c.unsetHighlight()).run(); return hidePop(); }
+    if (d.any) { const isHl = d.any === 'hl', r = b.getBoundingClientRect(), sel = { from: ed.state.selection.from, to: ed.state.selection.to }; hidePop();
+      openColor({ tint: true, title: isHl ? 'Highlight' : 'Text color', hex: (isHl ? ed.getAttributes('highlight').color : ed.getAttributes('textStyle').color) || (isHl ? '#fff1a8' : '#e2649a'), presets: isHl ? HIGHLIGHTS : TEXT_COLORS, at: { x: r.left, y: r.bottom + 8 },
+        apply: hex => { const k = ed.chain().setTextSelection(sel); (isHl ? k.setHighlight({ color: hex }) : k.setColor(hex)).run(); }, reset: () => { const k = ed.chain().setTextSelection(sel); (isHl ? k.unsetHighlight() : k.unsetColor()).run(); } }); return; }
+    if (d.align) { c.setTextAlign(d.align).run(); return hidePop(); }
+    if (d.c2) { hidePop(); return run(d.c2); }
+    if (d.flink) { const more = $('dvTools').querySelector('[data-pop="more"]'); hidePop(); return showPop('link', more); }
+    if (d.link === 'open') { MB.openURL(ed.getAttributes('link').href); return hidePop(); }
+    if (d.link === 'remove') { c.extendMarkRange('link').unsetLink().run(); return hidePop(); }
+    if (d.lh) { (ed.getAttributes('paragraph').lineHeight === d.lh || ed.getAttributes('heading').lineHeight === d.lh ? c.unsetLineHeight() : c.setLineHeight(d.lh)).run(); return hidePop(); }
+    if (d.ins) { ({ table: () => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }), hr: () => c.setHorizontalRule(), sup: () => c.toggleSuperscript(), sub: () => c.toggleSubscript(), clear: () => c.unsetAllMarks().clearNodes() })[d.ins]().run(); return hidePop(); }
+    if (d.tbl) { ({ rowAfter: () => c.addRowAfter(), colAfter: () => c.addColumnAfter(), delRow: () => c.deleteRow(), delCol: () => c.deleteColumn(), header: () => c.toggleHeaderRow(), delTable: () => c.deleteTable() })[d.tbl]().run(); return hidePop(); }
+    if (d.page) { try { localStorage.setItem('mochiboard:docPage', d.page); } catch (er) {} applyDocPage(); return hidePop(); }
+    if (d.paper) { try { localStorage.setItem('mochiboard:paper', d.paper); } catch (er) {} p_seg(b); return; }
+    if (d.pdf) { hidePop(); return downloadPDF(); }
+    if (d.word) { hidePop(); return downloadWord(); }
+    if (d.how) rewrite(d.how);
+  });
+  addEventListener('pointerdown', e => { if (!$('dvPop').hidden && !e.target.closest('#dvPop, .dt-drop, .dt-mochi, #cpop')) hidePop(); }, true);
+  $('docview').addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dvPop').hidden) { e.stopPropagation(); hidePop(); ed?.commands.focus(); } }, true);
+
+  // ---------- Mochi rewrites the words you selected ----------
+  async function rewrite(how) {
+    hidePop(); if (!ed) return; const { from, to } = ed.state.selection; if (from === to) return;
+    const text = ed.state.doc.textBetween(from, to, '\n'), size = ed.state.doc.content.size;
+    const around = ed.state.doc.textBetween(Math.max(0, from - 700), Math.min(size, to + 700), '\n');
+    $('docview').classList.add('mochi-busy'); goo.think(true); $('dvSaved').textContent = 'Mochi is rewriting…';
+    try {
+      const out = (await MB.rewrite(text, how, docCard?.text || '', around) || '').trim(); if (!out) throw new Error('Mochi came back empty-handed');
+      const multi = /\n/.test(out);
+      ed.chain().focus().insertContentAt({ from, to }, multi ? mdToHTML(out) : escH(out)).run();
+      const end = ed.state.selection.from; ed.commands.setTextSelection({ from, to: end });
+      say('Rewritten ✦ Undo brings back your words.', 6000, [{ label: 'Undo', run: () => ed.chain().focus().undo().run() }]);
+    } catch (err) {
+      const m = err.message || '';
+      if (/Claude Code/.test(m)) say("I need Claude Code to rewrite things. It's a one-time setup with your Claude account.", 0, [{ label: 'Show me how to connect', run: () => MB.openURL(GUIDE) }]);
+      else if (SIGNIN.test(m)) say("Claude Code is here, but it isn't signed in yet. Open Terminal, type claude, and sign in.", 0, [{ label: 'Show me how', run: () => MB.openURL(GUIDE) }]);
+      else say(MB.native ? "Hmm, I couldn't rewrite that: " + m : 'Mochi rewrites text with Claude in the Mac app ✦', 8000);
+    } finally { $('docview').classList.remove('mochi-busy'); goo.think(false); $('dvSaved').textContent = ''; }
+  }
+
+  // ---------- dropping cards into a doc: they arrive as real content (a checklist stays a checklist) ----------
   const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape', 'audio'];
   function cardWords(c) {
     if (c.type === 'note') return [c.name, c.text].filter(x => (x || '').trim()).join('\n');
@@ -2333,6 +2697,15 @@
     if (c.type === 'doc') return [c.text, c.body].filter(x => (x || '').trim()).join('\n');
     return c.text || '';
   }
+  function cardHTML(c) {
+    if (c.type === 'note') return (c.name ? `<p><strong>${escH(c.name)}</strong></p>` : '') + mdToHTML(c.text);
+    if (c.type === 'todo') return (c.text ? `<p><strong>${escH(c.text)}</strong></p>` : '') + `<ul data-type="taskList">${(c.items || []).map(i => `<li data-type="taskItem" data-checked="${!!i.done}"><p>${escH(i.t)}</p></li>`).join('')}</ul>`;
+    if (c.type === 'link') return `<p><a href="${escH(c.url)}">${escH(c.title || c.url)}</a></p>`;
+    if (c.type === 'swatch') return `<p><span style="color: ${c.hex}">■</span> ${escH(c.label || '')} <code>${c.hex.toUpperCase()}</code></p>`;
+    if (c.type === 'title') return `<h2>${escH(c.text)}</h2>`;
+    if (c.type === 'doc') return (c.text ? `<h2>${escH(c.text)}</h2>` : '') + docHTML(c);
+    return mdToHTML(cardWords(c));
+  }
   // the open doc page, or a doc card on the board, under the pointer (only for cards that have words)
   function docTarget(e, w, moving) {
     const cs = moving.map(m => m.c || m); if (!cs.length || !cs.every(c => WORDY.includes(c.type))) return null;
@@ -2340,17 +2713,17 @@
     return [...board.cards].reverse().find(c => c.type === 'doc' && !cs.includes(c) && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h) || null;
   }
   function dropIntoDoc(t, cs, e) {
-    const doc = t === 'page' ? docCard : t, before = doc.body || '', words = cs.map(cardWords).filter(Boolean).join('\n\n');
-    if (t === 'page') {
-      // drop the words right where you let go on the page
-      const body = $('dvBody'), r = document.caretRangeFromPoint?.(e.clientX, e.clientY);
-      if (r && body.contains(r.startContainer)) { r.insertNode(document.createTextNode((r.startOffset ? '\n' : '') + words + '\n')); }
-      else body.innerText = (body.innerText.trim() ? body.innerText.replace(/\s+$/, '') + '\n\n' : '') + words;
-      doc.body = body.innerText;
-    } else doc.body = (before.trim() ? before.replace(/\s+$/, '') + '\n\n' : '') + words;
+    const doc = t === 'page' ? docCard : t, html = cs.map(cardHTML).join(''), before = { body: doc.body, doc: doc.doc };
+    if (t === 'page' && ed) {
+      // right where you let go on the page
+      const at = ed.view.posAtCoords({ left: e.clientX, top: e.clientY }); const $p = at && ed.state.doc.resolve(at.pos);
+      const pos = $p ? ($p.depth ? $p.after(1) : at.pos) : ed.state.doc.content.size;
+      ed.chain().focus().insertContentAt(pos, html).run(); syncDoc();
+    } else { doc.doc = MBEditor.generateJSON(docHTML(doc) + html, MBEditor.extensions()); doc.body = [doc.body, ...cs.map(cardWords)].filter(x => (x || '').trim()).join('\n\n'); }
     selectOnly(cs.map(c => c.id)); renderCard(doc); renderWires(); save();
     say(`Copied ${cs.length === 1 ? 'that' : cs.length + ' cards'} into “${doc.text || 'Untitled'}” ✦`, 6000, [{ label: 'Undo', run: () => {
-      doc.body = before; if (docCard === doc) $('dvBody').innerText = before; renderCard(doc); save(); } }]);
+      if (t === 'page' && ed && docCard === doc) { ed.commands.undo(); syncDoc(); } else { doc.body = before.body; doc.doc = before.doc; if (docCard === doc && ed) ed.commands.setContent(docHTML(doc), false); }
+      renderCard(doc); save(); } }]);
   }
 
   // ---------- canvases: a board inside this board, like a folder you can open ----------
@@ -2735,9 +3108,14 @@
     ['<rect x="3.5" y="3.5" width="13" height="13" rx="2"/><path d="M11 16.5h5.5V11M16.5 16.5l-5-5"/>', 'Reshape wireframes', 'Drag any piece’s corner to resize it. Double-click to reach inside a button or input.'],
     ['<path d="M13.5 3.5l3 3L8 15l-4 1 1-4z"/><path d="M3 18.5h14" stroke-width="1.2"/>', 'Any pen size', 'A slider for every thickness, and [ and ] while you draw. Stamps are all pixel art now too.'],
     ['<path d="M11 2.5L4.5 11h5l-1 6.5L15.5 9h-5z"/>', 'Smoother', 'Dragging and zooming glide on big boards, and the dots stay the same size as you zoom.'],
+  ], '1.3.0': [
+    ['<path d="M5.5 2.5h6l4 4v11h-10z"/><path d="M11.5 2.5v4h4"/><path d="M8 10h5M8 13h5"/>', 'Real docs', 'Styles, any font on your Mac, colors and highlights, lists, tables and pictures. Open any doc to try it.'],
+    ['<path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5l-1.6-4.4L4 8.5l4.4-1.6z"/><path d="M15.5 13.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/>', 'Mochi edits with you', 'Select words in a doc and ask me to make them shorter, clearer, friendlier, or anything you type.'],
+    ['<path d="M10 3v9.5M6 8.5l4 4 4-4"/><path d="M4 16.5h12"/>', 'PDF and Word', 'Download any doc as a PDF or a Word file, on Letter or A4 pages. Headings, lists and tables come along.'],
+    ['<path d="M7.5 4.5h5a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z"/><path d="M8 10.5l1.5 1.5L12.5 9"/>', 'Easier to set up', 'I find Claude Code wherever it lives, and a step-by-step guide shows up if I can\u2019t think yet.'],
   ] };
   // the button on each version's card: try the headline thing
-  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };
+  const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }], '1.3.0': ['Write a doc', () => openDoc(addAtCenter('doc', { text: 'My first real doc' }))] };
   const newsKey = 'mochiboard:newsSeen';
   async function maybeNews() {
     let v = null; try { v = await MB.version(); } catch (e) {} if (!v) v = Object.keys(NEWS).pop();
@@ -2825,11 +3203,11 @@
         $('tools').querySelectorAll('[data-tip]').forEach(b => b.dataset.name = b.dataset.tip.split(' · ')[0]);   // no keyboard on a phone, so just the names
         if (board?.cards.length && view.z < .6) { fit(board.cards, 40, 1); applyView(); } }   // start where the cards are, at a size you can read
       else { hide(); restoreAll(); hub.remove(); }
-      $('hubN').textContent = board?.tray?.length || '';
+      hub.querySelector('#hubN').textContent = board?.tray?.length || '';
     }
     mq.addEventListener('change', e => set(e.matches));
     $('selbar').addEventListener('scroll', e => e.target.classList.toggle('end', e.target.scrollLeft + e.target.clientWidth >= e.target.scrollWidth - 4), { passive: true });
-    return { on: false, set, hide, count: () => { $('hubN').textContent = board?.tray?.length || ''; }, init: () => set(mq.matches) };
+    return { on: false, set, hide, count: () => { hub.querySelector('#hubN').textContent = board?.tray?.length || ''; }, init: () => set(mq.matches) };
   })();
   window.__phone = phone;
 

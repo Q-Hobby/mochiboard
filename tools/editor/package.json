@@ -1,0 +1,36 @@
+{
+  "name": "mochiboard-editor-bundle",
+  "private": true,
+  "description": "Builds web/vendor/editor.js (TipTap, bundled so docs work offline). Run: npm run build",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --format=iife --global-name=MBEditor --minify --target=safari15 --outfile=../../web/vendor/editor.js && npm run build:docx",
+    "build:docx": "esbuild docx-entry.js --bundle --format=iife --global-name=MBDocx --minify --target=safari15 --loader:.ttf=binary --define:global=globalThis --outfile=../../web/vendor/docx.js"
+  },
+  "dependencies": {
+    "@tiptap/core": "^2.27.3",
+    "@tiptap/extension-bubble-menu": "^2.27.3",
+    "@tiptap/extension-character-count": "^2.27.3",
+    "@tiptap/extension-color": "^2.27.3",
+    "@tiptap/extension-font-family": "^2.27.3",
+    "@tiptap/extension-highlight": "^2.27.3",
+    "@tiptap/extension-image": "^2.27.3",
+    "@tiptap/extension-link": "^2.27.3",
+    "@tiptap/extension-placeholder": "^2.27.3",
+    "@tiptap/extension-subscript": "^2.27.3",
+    "@tiptap/extension-superscript": "^2.27.3",
+    "@tiptap/extension-table": "^2.27.3",
+    "@tiptap/extension-table-cell": "^2.27.3",
+    "@tiptap/extension-table-header": "^2.27.3",
+    "@tiptap/extension-table-row": "^2.27.3",
+    "@tiptap/extension-task-item": "^2.27.3",
+    "@tiptap/extension-task-list": "^2.27.3",
+    "@tiptap/extension-text-align": "^2.27.3",
+    "@tiptap/extension-text-style": "^2.27.3",
+    "@tiptap/extension-typography": "^2.27.3",
+    "@tiptap/extension-underline": "^2.27.3",
+    "@tiptap/pm": "^2.27.3",
+    "@tiptap/starter-kit": "^2.27.3",
+    "docx": "^9.13.0",
+    "esbuild": "^0.28.2"
+  }
+}

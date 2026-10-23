@@ -86,6 +86,8 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 6px; border-radius: 6px; backgr
 .card.image img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; pointer-events: none; }
 .card .chip { position: absolute; bottom: 14px; right: 14px; padding: 5px 11px; border-radius: 999px; border: 0; background: rgba(255, 255, 255, .92); font: 600 12px/1 var(--font); cursor: pointer; opacity: 0; transition: opacity .15s; box-shadow: 0 3px 10px rgba(0, 0, 0, .12); }
 .card:hover .chip { opacity: 1; }
+.card .chip { color: #2b2630; }
+body.dark .card .chip { background: rgba(40, 37, 46, .94); color: #f3eef6; box-shadow: 0 4px 14px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .08); }
 /* link */
 .card.link .body { padding: 0; display: flex; flex-direction: column; }
 .card.link .thumb { flex: 1; min-height: 0; background: var(--sky) center / cover; }
@@ -1390,3 +1392,206 @@ body.phone .selbar .sb-ic svg, body.phone .dock .drawbar .db-tool svg { width: 2
 /* phone: the action bar scrolls sideways, so its far edge fades to say "there's more" */
 body.phone .dock .selbar { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 34px), transparent); }
 body.phone .dock .selbar.end { -webkit-mask-image: none; mask-image: none; }
+/* the left column scrolls, and scrolling clips shadows into hard edges: give it 20px of invisible room on every side
+   (and pull it out by the same amount) so the panels sit exactly where they did and their shadows fade out softly */
+.side { left: -6px; top: -6px; bottom: -6px; width: calc(var(--side) + 40px); padding: 20px; scroll-padding: 20px; }
+html.native .side { top: 18px; }
+@media (max-height: 760px) { .side { bottom: -4px; } }
+
+/* ---------- docs: a real page you write on, with a slim formatting bar ---------- */
+.docview { --paper: #ffffff; --paper-ink: #2b2630; --paper-soft: #6b6370; --desk: #f6f1f6; }
+.docview .dv-page { background: var(--desk); padding: 22px 24px 120px; }
+.docview.wide .dv-page { padding-left: calc(var(--side) + 24px); }
+.dv-sheet { width: min(816px, 100%); min-height: 1056px; margin: 0 auto; padding: 64px clamp(28px, 7%, 84px) 90px; background: var(--paper); color: var(--paper-ink); border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(60, 30, 60, .06), 0 14px 40px rgba(110, 60, 100, .12); }
+.dv-sheet .dv-title { color: var(--paper-ink); }
+.dv-body { min-height: 0; white-space: normal; font: inherit; color: inherit; }
+.dv-prose { outline: none; min-height: 700px; font: 400 16px/1.7 "DM Sans", system-ui, sans-serif; color: var(--paper-ink); caret-color: #e2649a; word-wrap: break-word; }
+.dv-prose > * + * { margin-top: .55em; }
+.dv-prose p { margin: 0; }
+.dv-prose h1 { margin: .7em 0 .25em; font-size: 36px; line-height: 1.12; font-weight: 800; letter-spacing: -.03em; }
+.dv-prose h2 { margin: 1.1em 0 .2em; font-size: 26px; line-height: 1.2; font-weight: 750; letter-spacing: -.02em; }
+.dv-prose h3 { margin: 1em 0 .15em; font-size: 20px; line-height: 1.3; font-weight: 700; letter-spacing: -.01em; }
+.dv-prose > :first-child { margin-top: 0; }
+.dv-prose .p-lead { font-size: 19px; line-height: 1.6; color: var(--paper-soft); }
+.dv-prose .p-caption { font-size: 13px; line-height: 1.5; color: var(--paper-soft); }
+.dv-prose blockquote { margin: 1em 0; padding: 4px 0 4px 18px; border-left: 3px solid #f27aa8; font-size: 18px; color: var(--paper-soft); }
+.dv-prose code { padding: 1px 5px; border-radius: 5px; background: #f6eff5; font: 500 .88em/1.4 ui-monospace, "SF Mono", Menlo, monospace; }
+.dv-prose pre { margin: 1em 0; padding: 14px 16px; border-radius: 12px; background: #262229; color: #f1ecf3; overflow-x: auto; }
+.dv-prose pre code { padding: 0; background: none; font-size: 14px; color: inherit; }
+.dv-prose ul, .dv-prose ol { margin: .5em 0; padding-left: 1.5em; } .dv-prose li > p { margin: 0; } .dv-prose li + li { margin-top: .2em; }
+.dv-prose ul[data-type="taskList"] { padding-left: 2px; list-style: none; }
+.dv-prose ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 10px; }
+.dv-prose ul[data-type="taskList"] li > label { flex: none; margin-top: .32em; }
+.dv-prose ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.dv-prose ul[data-type="taskList"] input[type="checkbox"] { width: 17px; height: 17px; margin: 0; accent-color: #e2649a; cursor: pointer; }
+.dv-prose ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--paper-soft); text-decoration: line-through; text-decoration-color: #f27aa8; }
+.dv-prose a { color: #c4417f; text-decoration: underline; text-decoration-color: rgba(226, 100, 154, .45); text-underline-offset: 3px; cursor: text; }
+.dv-prose hr { margin: 1.6em 0; border: 0; height: 1.5px; background: #eee3ec; }
+.dv-prose hr.ProseMirror-selectednode { background: #e2649a; }
+.dv-prose img { display: block; max-width: 100%; height: auto; margin: 1em 0; border-radius: 10px; }
+.dv-prose img.ProseMirror-selectednode { outline: 3px solid #e2649a; outline-offset: 3px; }
+.dv-prose mark { border-radius: 3px; padding: 0 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; color: inherit; }
+.dv-prose table { width: 100%; margin: 1em 0; border-collapse: collapse; table-layout: fixed; overflow: hidden; border-radius: 8px; }
+.dv-prose th, .dv-prose td { position: relative; min-width: 60px; padding: 8px 10px; border: 1px solid #ece2ea; vertical-align: top; }
+.dv-prose th { background: #faf5f9; font-weight: 700; text-align: left; }
+.dv-prose .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgba(226, 100, 154, .12); pointer-events: none; }
+.dv-prose .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #e2649a; pointer-events: none; }
+.dv-prose.resize-cursor { cursor: col-resize; }
+.dv-prose p.is-editor-empty:first-child::before, .dv-prose .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: #b9afbd; pointer-events: none; }
+.dv-prose ::selection { background: rgba(242, 122, 168, .28); }
+.docview.mochi-busy .dv-prose { cursor: progress; }
+.docview.mochi-busy .dt-mochi { animation: dtBusy 1s ease-in-out infinite alternate; }
+@keyframes dtBusy { from { box-shadow: 0 0 0 0 rgba(226, 100, 154, .5); } to { box-shadow: 0 0 0 6px rgba(226, 100, 154, 0); } }
+
+/* the toolbar */
+.dv-tools { display: flex; align-items: center; gap: 2px; margin: 0 16px 10px; padding: 5px 6px; border-radius: 16px; background: #fff; box-shadow: 0 4px 16px rgba(120, 80, 120, .1), inset 0 0 0 1px #f0e6ee;
+  overflow-x: auto; scrollbar-width: none; flex: none; }
+.dv-tools::-webkit-scrollbar { display: none; }
+.docview.wide .dv-tools { margin-left: calc(var(--side) + 30px); }
+.dt-b { position: relative; flex: none; display: inline-grid; place-items: center; min-width: 32px; height: 32px; padding: 0 6px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); font: 600 13px/1 var(--font); cursor: pointer; }
+.dt-b svg { width: 18px; height: 18px; }
+.dt-b:hover, .dt-b.open { background: #f7f0f6; color: var(--ink); }
+.dt-b.on { background: var(--blush); color: var(--ink); }
+.dt-b:disabled { opacity: .35; cursor: default; background: none; }
+.dt-t { font-family: Georgia, "Times New Roman", serif; font-size: 16px; }
+.dt-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: #efe5ee; }
+.dt-drop { display: inline-flex; gap: 6px; padding: 0 9px; }
+.dt-lbl { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 600; }
+.dt-style .dt-lbl { width: 78px; text-align: left; } .dt-font .dt-lbl { width: 104px; text-align: left; font-size: 13.5px; }
+.dt-car { width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; rotate: 45deg; translate: 0 -2px; opacity: .6; }
+.dt-size { flex: none; display: inline-flex; align-items: center; margin: 0 2px; border-radius: 10px; box-shadow: inset 0 0 0 1px #efe5ee; }
+.dt-size .dt-b { min-width: 26px; font-size: 16px; }
+.dt-size input { width: 34px; height: 28px; border: 0; padding: 0; background: none; text-align: center; font: 600 13px/1 var(--font); color: var(--ink); font-variant-numeric: tabular-nums; outline: none; }
+.dt-size input:focus { background: #fff6fa; border-radius: 6px; box-shadow: 0 0 0 1.5px #f27aa8; }
+.dt-a { display: grid; justify-items: center; gap: 1px; font: 700 15px/1 Georgia, serif; color: var(--ink); }
+.dt-a i { width: 15px; height: 3px; border-radius: 2px; background: var(--ink); }
+.dt-hl svg .bar { stroke: #f4dc6c; }
+.dt-mochi { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; margin-left: auto; padding: 0 12px 0 10px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font: 700 12.5px/1 var(--font); cursor: pointer; }
+.dt-mochi svg { width: 16px; height: 16px; }
+.dt-mochi:hover, .dt-mochi.open { background: #e2649a; }
+
+/* the floating bar over selected words */
+.dv-bubble { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 14px; background: #fff; box-shadow: 0 10px 28px rgba(90, 50, 90, .22), 0 0 0 1px rgba(120, 80, 120, .06); }
+.dv-bubble .dt-mochi { margin-left: 4px; height: 30px; }
+
+/* the dropdowns */
+.dv-pop { position: absolute; z-index: 35; display: grid; gap: 2px; padding: 8px; border-radius: 16px; background: #fff; box-shadow: 0 16px 40px rgba(90, 50, 90, .22), 0 0 0 1px rgba(120, 80, 120, .06); font: 500 13.5px/1.2 var(--font); color: var(--ink); }
+.dv-pop[hidden] { display: none; }
+.pop-style { width: 230px; } .pop-font { width: 270px; } .pop-color, .pop-hl { width: 228px; } .pop-link { width: 320px; } .pop-more { width: 250px; } .pop-mochi { width: 270px; } .pop-align { width: auto; }
+.dp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.dp-row:hover { background: #f7f0f6; } .dp-row.on { background: var(--blush); }
+.dp-row small { flex: none; font-size: 10.5px; color: var(--ink-faint); font-family: var(--font); }
+.dp-h { padding: 8px 10px 3px; font: 600 10.5px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.dp-h:empty { padding: 4px 0 0; border-top: 1px solid #f2e9f1; margin-top: 4px; }
+/* style menu: each style shown in its own look */
+.dp-st { font-family: "DM Sans", sans-serif; }
+.st-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; } .st-heading { font-size: 18px; font-weight: 750; } .st-sub { font-size: 15.5px; font-weight: 700; }
+.st-body { font-size: 14px; } .st-lead { font-size: 15.5px; color: var(--ink-soft); } .st-caption { font-size: 12px; color: var(--ink-soft); }
+.st-quote { font-size: 14px; color: var(--ink-soft); border-left: 3px solid #f27aa8; border-radius: 0 10px 10px 0; } .st-code { font: 500 13px/1.2 ui-monospace, Menlo, monospace; }
+/* fonts */
+.dp-search, .dp-link input { width: 100%; height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: #f7f0f6; font: 500 13.5px/1 var(--font); color: var(--ink); outline: none; }
+.dp-search:focus, .dp-link input:focus { box-shadow: 0 0 0 2px #f27aa8; background: #fff; }
+.dp-scroll { max-height: 340px; overflow-y: auto; margin-top: 4px; scrollbar-width: thin; }
+.dp-font { font-size: 15px; } .dp-font[hidden] { display: none; }
+/* colors */
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 4px 8px 6px; }
+.dp-sw { aspect-ratio: 1; width: 100%; padding: 0; border: 0; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); cursor: pointer; transition: transform .1s; }
+.dp-sw:hover { transform: scale(1.12); } .dp-sw.on { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
+.dp-none { color: var(--ink-soft); } .dp-any { color: #c4417f; font-weight: 600; }
+/* align */
+.dp-icons { display: flex; gap: 2px; } .dp-ic { display: grid; place-items: center; width: 38px; height: 36px; border: 0; border-radius: 10px; background: none; color: var(--ink-soft); cursor: pointer; }
+.dp-ic svg { width: 19px; height: 19px; } .dp-ic:hover { background: #f7f0f6; color: var(--ink); } .dp-ic.on { background: var(--blush); color: var(--ink); }
+/* link and Mochi */
+.dp-link { display: flex; gap: 6px; margin: 2px; } .dp-link input { flex: 1; min-width: 0; }
+.dp-go { flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font: 700 13px/1 var(--font); cursor: pointer; }
+.dp-go:hover { background: #e2649a; }
+.dp-linkacts { display: flex; gap: 4px; } .dp-linkacts .dp-row { justify-content: center; }
+.dp-tip { margin: 4px 6px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+/* more */
+.dp-seg { display: flex; gap: 2px; margin: 0 6px 4px; padding: 3px; border-radius: 10px; background: #f7f0f6; }
+.dp-seg button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: none; font: 600 12px/1 var(--font); color: var(--ink-soft); cursor: pointer; }
+.dp-seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(120, 80, 120, .15); }
+.dp-irow { justify-content: flex-start; } .dp-irow svg { width: 18px; height: 18px; color: var(--ink-soft); flex: none; }
+.dp-glyph { width: 18px; text-align: center; font: 700 12px/1 Georgia, serif; color: var(--ink-soft); }
+.dp-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 2px 6px 4px; }
+.dp-grid2 button { height: 32px; border: 0; border-radius: 9px; background: #f7f0f6; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; } .dp-grid2 button:hover { background: var(--blush); }
+
+/* the footer: word count */
+.dv-foot { display: flex; justify-content: space-between; gap: 10px; padding: 8px 22px 12px; font: 600 11.5px/1 var(--font); color: var(--ink-faint); background: var(--desk); }
+.docview.wide .dv-foot { padding-left: calc(var(--side) + 30px); }
+
+/* dark mode: the app goes dark, the page stays paper-white (like Word and Pages) */
+body.dark .docview { --desk: #1f1b23; }
+body.dark .dv-tools, body.dark .dv-bubble, body.dark .dv-pop { background: #2b2630; box-shadow: 0 10px 28px rgba(0, 0, 0, .4), inset 0 0 0 1px rgba(255, 255, 255, .06); color: #ece8f0; }
+body.dark .dt-b { color: #b9b0bf; } body.dark .dt-b:hover, body.dark .dt-b.open, body.dark .dp-row:hover, body.dark .dp-ic:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+body.dark .dt-lbl, body.dark .dt-size input, body.dark .dt-a { color: #ece8f0; } body.dark .dt-a i { background: #ece8f0; }
+body.dark .dt-sep, body.dark .dt-size { background: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); } body.dark .dt-sep { background: rgba(255, 255, 255, .1); box-shadow: none; }
+body.dark .dp-search, body.dark .dp-link input, body.dark .dp-seg, body.dark .dp-grid2 button { background: rgba(255, 255, 255, .07); color: #ece8f0; }
+body.dark .dp-seg button.on { background: #3a3441; color: #fff; }
+body.dark .dt-mochi { background: #ece8f0; color: #1c1920; }
+
+@media (max-width: 760px) {
+  .docview .dv-page { padding: 12px 10px 120px; }
+  .dv-sheet { padding: 34px 22px 60px; min-height: 0; border-radius: 4px; }
+  .dv-tools { margin: 0 10px 8px; }
+  .dt-mochi span { display: none; } .dt-mochi { padding: 0 9px; }
+}
+/* the toolbar wraps onto a second row when the doc is beside the board, so nothing hides off the edge */
+.dv-tools { flex-wrap: wrap; row-gap: 4px; overflow: visible; }
+.dv-prose ul[data-type="taskList"] li > label { margin-top: .28em; }
+body.phone .docview { width: 100%; } body.phone .docview .dv-bar { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
+body.phone .stage.doc-open .dock { display: none; }   /* a doc takes the whole phone screen; Back returns to the board and its hub */
+/* the toolbar's Mochi: a round sparkle button that says "Mochi" when you hover, so the whole toolbar fits on one row */
+.dt-mochi.dt-round { position: relative; width: 32px; height: 32px; padding: 0; justify-content: center; margin-left: 4px; }
+.dt-mochi.dt-round svg { width: 17px; height: 17px; }
+.dt-mochi.dt-round::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); padding: 6px 10px; border-radius: 999px; background: var(--ink); color: #fff; font: 600 11px/1 var(--font);
+  white-space: nowrap; opacity: 0; transform: translateY(-3px); transition: opacity .15s, transform .15s; pointer-events: none; z-index: 5; }
+.dt-mochi.dt-round:hover::after, .dt-mochi.dt-round:focus-visible::after { opacity: 1; transform: none; }
+.dt-mochi.dt-round.open::after { opacity: 0; }
+/* a little tighter, so it all fits beside the board */
+.dv-tools .dt-sep { margin: 0 3px; }
+.dt-style .dt-lbl { width: 70px; } .dt-font .dt-lbl { width: 92px; }
+body.dark .dt-mochi.dt-round::after { background: #ece8f0; color: #1c1920; }
+.dv-tools > [hidden] { display: none !important; }
+.dp-fold { flex-wrap: wrap; padding: 0 4px 2px; }
+.dv-tools { gap: 1px; padding: 5px; }
+.dv-tools .dt-b { min-width: 30px; }
+.dt-drop { padding: 0 7px; gap: 4px; }
+.dt-style .dt-lbl { width: 62px; } .dt-font .dt-lbl { width: 84px; }
+.dt-size .dt-b { min-width: 22px; } .dt-size input { width: 28px; }
+.dv-tools .dt-mochi.dt-round { margin-left: auto; }   /* Mochi always sits at the far right */
+/* the doc's Download button */
+.dv-dl { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 11px; border: 0; border-radius: 999px; background: #f6f1f7; font: 600 12.5px/1 var(--font); color: var(--ink); cursor: pointer; }
+.dv-dl svg { width: 16px; height: 16px; } .dv-dl:hover { background: var(--blush); }
+body.dark .dv-dl { background: rgba(255, 255, 255, .08); color: #ece8f0; }
+.pop-export { width: 250px; }
+.dp-pdf { justify-content: flex-start; gap: 12px; margin-top: 4px; padding: 10px; background: #f7f0f6; }
+.dp-pdf svg { width: 22px; height: 22px; flex: none; color: #e2649a; }
+.dp-pdf span { display: grid; gap: 3px; font-weight: 700; } .dp-pdf small { font: 500 11.5px/1.2 var(--font); color: var(--ink-soft); }
+.dp-pdf:hover { background: var(--blush); }
+body.dark .dp-pdf { background: rgba(255, 255, 255, .07); }
+.dp-word svg { color: #2f6fd6; }
+
+/* writing on a dark page (only the view: downloads stay light) */
+.docview.page-dark { --paper: #221e27; --paper-ink: #ece8f0; --paper-soft: #b3a9b8; --desk: #17141a; }
+.docview.page-dark .dv-sheet { box-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 50px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .05); }
+.page-dark .dv-title::placeholder { color: #6e6574; }
+.page-dark .dv-prose code { background: #322c38; }
+.page-dark .dv-prose pre { background: #15121a; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.page-dark .dv-prose th { background: #2c2731; } .page-dark .dv-prose th, .page-dark .dv-prose td { border-color: #3a3441; }
+.page-dark .dv-prose hr { background: #3a3441; }
+.page-dark .dv-prose a { color: #ff8fbf; text-decoration-color: rgba(255, 143, 191, .5); }
+.page-dark .dv-prose blockquote { border-left-color: #ff8fbf; }
+.page-dark .dv-prose mark { color: #1c1920 !important; }   /* a highlighter on a dark page keeps dark words, so it still reads */
+.page-dark .dv-prose p.is-editor-empty:first-child::before, .page-dark .dv-prose .is-empty::before { color: #6e6574; }
+/* dark text colors someone picked on purpose flip to light here, so they never vanish into the page */
+.page-dark .dv-prose [style*="color: rgb(43, 38, 48)"], .page-dark .dv-prose [style*="color: #2b2630"], .page-dark .dv-prose [style*="color: rgb(0, 0, 0)"], .page-dark .dv-prose [style*="color: #000"] { color: var(--paper-ink) !important; }
+.page-dark .dv-prose [style*="color: rgb(107, 99, 112)"], .page-dark .dv-prose [style*="color: #6b6370"] { color: var(--paper-soft) !important; }
+.page-dark .dv-prose ::selection { background: rgba(255, 143, 191, .35); }
+.dv-pagebtn { display: grid; place-items: center; } .dv-pagebtn svg { width: 17px; height: 17px; }
+.docview.page-dark .dv-pagebtn { background: #2b2630; color: #ffd76a; } body.dark .docview.page-dark .dv-pagebtn { background: rgba(255, 215, 106, .14); }
+.pop-page { width: 268px; }
+.dp-page { justify-content: flex-start; gap: 12px; } .dp-page span { display: grid; gap: 3px; } .dp-page small { font: 500 11.5px/1.2 var(--font); color: var(--ink-soft); }
+.pg-sw { flex: none; width: 26px; height: 32px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); }
+.pg-light { background: #fff; } .pg-dark { background: #221e27; } .pg-auto { background: linear-gradient(135deg, #fff 50%, #221e27 50%); }

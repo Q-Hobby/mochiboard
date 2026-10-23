@@ -3,7 +3,7 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
-## Next (saved, not released yet)
+## October 2026 · 1.3.0
 
 - Switches in Settings show the Mochiboard pointer instead of a text cursor.
 - Colors and the dot grid live under Settings → Board now.
@@ -11,6 +11,13 @@ Write them for people, not for code: one line, what changed and why it's nice.
 - The action bar's icons match the toolbar's, in size and color.
 - Mochi finds Claude Code wherever it's installed, notices right away when you set it up, and explains when it isn't signed in. "Set up" opens a step-by-step guide.
 - The window can shrink much smaller, and its edges show the Mac's resize arrows.
+- The left panels' shadows fade softly instead of stopping in a hard edge.
+- Docs are real documents now: styles (Title, Heading, Lead, Caption, Quote…), any font on your Mac, sizes, bold/italic/underline, colors and highlights from your board, alignment, lists, checklists, links, pictures, tables and line spacing.
+- Select words in a doc and ask Mochi to make them shorter, clearer, friendlier, or anything you type.
+- Cards dropped into a doc keep their shape: a checklist stays a checklist, a link stays a link.
+- Download any doc as a PDF or a Word file (.docx), on Letter or A4 pages. Word files keep headings, lists, tables, links and pictures, with DM Sans built in.
+- No more Mac beep when you delete things or use shortcuts on the board.
+- In dark mode, the "pull colors" button on pictures is easy to read.
 
 ## October 2026 · 1.2.1
 

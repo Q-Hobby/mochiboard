@@ -93,6 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             linkPreview(args["url"] as? String ?? "") { reply(true, $0) }
         case "ask":
             askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:], confirmed: args["confirmed"] as? Bool ?? false, mobbin: args["mobbin"] as? Bool ?? true, higgs: args["higgs"] as? Bool ?? true) { ok, text in reply(ok, text) }
+        case "rewrite":
+            rewriteText(args["text"] as? String ?? "", how: args["how"] as? String ?? "", title: args["title"] as? String ?? "", around: args["around"] as? String ?? "") { ok, text in reply(ok, text) }
         case "connections":
             connections { reply(true, $0) }
         case "fetchImage":
@@ -118,6 +120,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                     guard let img, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return finish(nil) }
                     finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
                 }
+            }
+        // save a file the page made (a Word doc): ask where, then write it
+        case "saveFile":
+            let name = (args["name"] as? String ?? "Document").replacingOccurrences(of: "/", with: "-"), ext = args["ext"] as? String ?? "docx"
+            guard let b64 = args["data"] as? String, let data = Data(base64Encoded: b64) else { reply(false, "Nothing to save"); break }
+            let panel = NSSavePanel(); panel.nameFieldStringValue = name + "." + ext
+            if let t = UTType(filenameExtension: ext) { panel.allowedContentTypes = [t] }
+            panel.beginSheetModal(for: window) { resp in
+                guard resp == .OK, let u = panel.url else { return reply(true, "") }
+                do { try data.write(to: u); reply(true, u.lastPathComponent) } catch { reply(false, error.localizedDescription) }
+            }
+        // a doc as a real, paged PDF: ask where to save it, then let macOS's print engine lay the pages out (proper page breaks, sharp selectable text)
+        case "docPDF":
+            let html = args["html"] as? String ?? "", name = (args["name"] as? String ?? "Document").replacingOccurrences(of: "/", with: "-")
+            let paper = (args["paper"] as? String) == "a4" ? NSSize(width: 595.28, height: 841.89) : NSSize(width: 612, height: 792)
+            let panel = NSSavePanel(); panel.nameFieldStringValue = name + ".pdf"; panel.allowedContentTypes = [.pdf]
+            panel.beginSheetModal(for: window) { [weak self] resp in
+                guard let self, resp == .OK, let u = panel.url else { return reply(true, "") }
+                DocPrinter(html: html, to: u, paper: paper, window: self.window) { ok, msg in reply(ok, msg) }
             }
         // Higgsfield, two steps: look up the price and balance (never generates), then generate (only called after the person taps yes)
         case "higgsQuote":
@@ -328,6 +349,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
+    // Mochi in a doc: rewrite just the selected words ("shorter", "friendlier", or anything typed) and hand back only the new words
+    func rewriteText(_ text: String, how: String, title: String, around: String, done: @escaping (Bool, String) -> Void) {
+        guard let claude = claudePath else { return done(false, "I need Claude Code to think. Set it up from mochiboard.app/connect.html, then try again.") }
+        let prompt = """
+        You are Mochi, a warm little helper inside a document editor. Rewrite the selected text from the person's document "\(title.isEmpty ? "Untitled" : title)".
+
+        What they want: \(how)
+
+        Selected text:
+        <<<
+        \(text)
+        >>>
+
+        A little of the text around it, only for context (do not rewrite this):
+        <<<
+        \(String(around.prefix(1500)))
+        >>>
+
+        Rules: keep their meaning, facts, names and numbers (never invent new facts). Keep their voice unless they asked to change it. Keep roughly the same shape (one paragraph stays one paragraph; a list stays a list, one item per line starting with "- "). \
+        Reply with ONLY the rewritten text: no quotes around it, no intro, no explanation, no markdown headings.
+        """
+        DispatchQueue.global(qos: .userInitiated).async {
+            let p = Process(), out = Pipe(), err = Pipe()
+            p.executableURL = URL(fileURLWithPath: claude)
+            p.arguments = ["-p", prompt, "--output-format", "json"]
+            p.currentDirectoryURL = support
+            var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath
+            p.environment = env; p.standardOutput = out; p.standardError = err; p.standardInput = FileHandle.nullDevice
+            do { try p.run() } catch { return done(false, error.localizedDescription) }
+            let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }; DispatchQueue.global().asyncAfter(deadline: .now() + 180, execute: killer)
+            let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit(); killer.cancel()
+            let text = self.claudeResult(data)
+            if ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["is_error"] as? Bool == true { return done(false, String(text.prefix(300))) }
+            if p.terminationStatus != 0 && text.isEmpty { return done(false, String((String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Claude Code didn't answer").prefix(300))) }
+            done(true, text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
+
     // MARK: Claude usage: Claude Code reports what each request used; Mochi keeps a small tally on this Mac (usage.json)
     var usageFile: URL { support.appendingPathComponent("usage.json") }
     let usageLock = NSLock()
@@ -478,6 +537,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         wm.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         NSApp.mainMenu = main; NSApp.windowsMenu = wm
     }
+}
+
+// Prints a doc's HTML into a PDF file on real pages. It renders in its own hidden web view (so the doc on screen is untouched),
+// waits for fonts and pictures, then runs a print operation that saves to the chosen file instead of a printer.
+final class DocPrinter: NSObject, WKNavigationDelegate {
+    static var live: [DocPrinter] = []
+    let view: WKWebView, url: URL, paper: NSSize, window: NSWindow, done: (Bool, String) -> Void
+    var tmp: URL?
+    @discardableResult init(html: String, to url: URL, paper: NSSize, window: NSWindow, done: @escaping (Bool, String) -> Void) {
+        let w = paper.width * 96 / 72   // CSS pixels across the page
+        view = WKWebView(frame: NSRect(x: -10000, y: 0, width: w, height: 1200))
+        self.url = url; self.paper = paper; self.window = window; self.done = done
+        super.init()
+        view.navigationDelegate = self; view.alphaValue = 0
+        window.contentView?.addSubview(view)   // printing needs the view in a window; it sits off screen and invisible
+        DocPrinter.live.append(self)
+        // the doc points at the app's own fonts ("__WEB__/fonts/…"); it loads from a file so it's allowed to read them
+        let web = Bundle.main.resourceURL!.appendingPathComponent("web", isDirectory: true)
+        let file = support.appendingPathComponent("print-\(UUID().uuidString).html")
+        try? html.replacingOccurrences(of: "__WEB__/", with: web.absoluteString).write(to: file, atomically: true, encoding: .utf8)
+        tmp = file
+        view.loadFileURL(file, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+    }
+    func webView(_ w: WKWebView, didFinish n: WKNavigation!) {
+        // give web fonts and pictures a moment to arrive, then print
+        w.evaluateJavaScript("document.fonts ? document.fonts.ready.then(() => 1) : 1") { _, _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self.printNow() }
+        }
+    }
+    func webView(_ w: WKWebView, didFail n: WKNavigation!, withError e: Error) { finish(false, e.localizedDescription) }
+    func printNow() {
+        let info = NSPrintInfo(dictionary: [NSPrintInfo.AttributeKey.jobSavingURL: url])
+        info.jobDisposition = .save; info.paperSize = paper
+        info.topMargin = 58; info.bottomMargin = 61; info.leftMargin = 61; info.rightMargin = 61   // about 0.8in top, 0.85in sides and bottom (WebKit's print ignores CSS page margins)
+        info.horizontalPagination = .fit; info.verticalPagination = .automatic
+        info.isHorizontallyCentered = false; info.isVerticallyCentered = false
+        let op = view.printOperation(with: info)
+        op.showsPrintPanel = false; op.showsProgressPanel = false
+        op.view?.frame = view.bounds
+        op.runModal(for: window, delegate: self, didRun: #selector(printed(_:success:contextInfo:)), contextInfo: nil)
+    }
+    @objc func printed(_ op: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) {
+        // printing reports back on a background thread; views may only be touched on the main one
+        DispatchQueue.main.async {
+            let saved = FileManager.default.fileExists(atPath: self.url.path)   // the file is the truth (the success flag can come back false even when it saved)
+            self.finish(saved, saved ? self.url.lastPathComponent : "The PDF didn't save")
+        }
+    }
+    func finish(_ ok: Bool, _ msg: String) { view.removeFromSuperview(); if let tmp { try? FileManager.default.removeItem(at: tmp) }; done(ok, msg); DocPrinter.live.removeAll { $0 === self } }
 }
 
 final class DragStrip: NSView {

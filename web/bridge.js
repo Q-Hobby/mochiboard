@@ -35,6 +35,14 @@
     async fonts() { return ['DM Sans', 'Caveat', 'Inter', 'Helvetica Neue', 'Arial', 'Georgia', 'Times New Roman', 'Courier New', 'SF Pro Display', 'Avenir Next', 'Futura', 'Menlo']; },
     async exportRect() { throw new Error('Exporting works in the Mac app'); },
     async transcribe() { throw new Error('Mochi writes out voice memos in the Mac app'); },
+    async rewrite() { throw new Error('Mochi rewrites text with Claude in the Mac app'); },
+    // in a browser: an ordinary download
+    async saveFile(data, name, ext) { const bin = atob(data), u8 = Uint8Array.from(bin, c => c.charCodeAt(0)); const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([u8], { type: ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/octet-stream' })); a.download = `${name}.${ext}`;
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); return `${name}.${ext}`; },
+    // in a browser: print the doc in a hidden frame, and the browser's own "Save as PDF" does the rest
+    async docPDF(html) { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0'; document.body.appendChild(f);
+      f.srcdoc = html.replace(/__WEB__\//g, location.href.replace(/[^/]*$/, '')); await new Promise(r => f.onload = r); await f.contentDocument.fonts?.ready; f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); return ''; },
     async reveal() { alert('Your boards live in this browser while you try Mochiboard here. In the Mac app this opens their folder.'); },
     async linkPreview(url) { let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {} return { title: host, desc: url, image: '' }; },
     // a pretend Mochi for the browser: she still tidies things up so the canvas can be tried without the app
@@ -55,7 +63,7 @@
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     usage: () => call('usage'), resetUsage: () => call('resetUsage'), version: () => call('version'),
-    linkPreview: url => call('linkPreview', { url }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
+    linkPreview: url => call('linkPreview', { url }), rewrite: (text, how, title, around) => call('rewrite', { text, how, title, around }), docPDF: (html, name, paper) => call('docPDF', { html, name, paper }), saveFile: (data, name, ext) => call('saveFile', { data, name, ext }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
     connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'), higgsQuote: o => call('higgsQuote', o || {}), updateCheck: () => call('updateCheck'), updateNow: () => call('updateNow'), higgsMake: o => call('higgsMake', o), drawFill: o => call('drawFill', o),
   } : Object.assign({ native: false }, browser);
 })();
