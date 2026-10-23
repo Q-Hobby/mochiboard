@@ -3,6 +3,13 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.3.1
+
+- Just the board: press ⌘\ (or the corners button by the zoom) to hide every panel. ⌘\ or Esc brings them back.
+- GIFs keep moving when you add them to a board, and see-through PNGs stay see-through.
+- Boards added from outside the app (like from Claude Code) show up right away, and Mochi tells you where to find them.
+- Right-click while you're holding something (a sticker, a note to place, a shape) to put it down, just like Esc.
+
 ## October 2026 · 1.3.0
 
 - Switches in Settings show the Mochiboard pointer instead of a text cursor.

@@ -278,6 +278,16 @@
     renderCrumbs(); if (homeAt) renderHome();
   }
 
+  // a board added from outside the app (Claude Code, a copied file): show it right away, and say where it went if it isn't in view
+  window.__boardsChanged = async () => {
+    const before = new Set(boardList.map(b => b.id)); await refreshBoards();
+    const here = where().p, fresh = boardList.filter(b => !before.has(b.id));
+    for (const b of fresh) { const f = folders.find(x => x.id === b.folder), p = f && projects.find(x => x.id === f.project);
+      if (p && here && p.id === here.id) say(`“${b.name}” just showed up in this project ✦`);
+      else say(`“${b.name}” just showed up. You'll find it in ${p ? `your “${p.name}” project` : f ? `the “${f.name}” folder` : 'All projects'}.`); }
+  };
+  addEventListener('focus', () => { if (board && !document.querySelector('[contenteditable="true"]')) window.__boardsChanged(); });   // and check again whenever you come back to the app
+
   // ---------- home: zoom out to see every project, then a project's folders, then a folder's boards ----------
   let homeAt = null;   // null = closed, { level: 'all' } | { level: 'project', id } | { level: 'folder', id }
   const where = () => { const f = folders.find(x => x.id === board?.folder), p = f && projects.find(x => x.id === f.project); return { f, p }; };
@@ -801,10 +811,16 @@
     return c;
   }
   // images come in as data URLs, scaled down so boards stay light
+  // GIFs (and animated WebPs) keep their own file so they still move; PNGs stay PNGs so see-through parts stay see-through
+  const MOVING = ['image/gif', 'image/webp', 'image/apng'], MOVING_MAX = 12e6;
   function imageFromFile(file) {
     return new Promise(res => { const fr = new FileReader(); fr.onload = () => { const im = new Image(); im.onload = () => {
+      if (MOVING.includes(file.type) && file.size <= MOVING_MAX) return res({ src: fr.result, w: im.width, h: im.height });
       const k = Math.min(1, 1400 / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
-      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); res({ src: cv.toDataURL('image/jpeg', .86), w: cv.width, h: cv.height }); }; im.src = fr.result; }; fr.readAsDataURL(file); });
+      cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+      if (MOVING.includes(file.type)) say('That one is too big to keep moving, so I kept a still of it.');
+      const png = file.type === 'image/png' || file.type === 'image/svg+xml', out = png ? cv.toDataURL('image/png') : '';
+      res({ src: png && out.length < 6e6 ? out : cv.toDataURL('image/jpeg', .86), w: cv.width, h: cv.height }); }; im.src = fr.result; }; fr.readAsDataURL(file); });
   }
   async function addImages(files, at, toTray) {
     let i = 0;
@@ -1073,10 +1089,23 @@
     if (focusSet) { fit(board.cards.filter(c => focusSet.has(c.id)), 160); say('Focus mode: just these. Press Esc when you want everything back.'); }
   }
 
-  // ---------- keys ----------
+  // ---------- just the board: every panel tucks away (⌘\, like Figma), and comes back with ⌘\ or Esc ----------
+  const CLEAN_EL = ['side', 'tray', 'dock', 'keys', 'design'].map(id => $(id)).concat([document.querySelector('.top')]).filter(Boolean);
+  function setClean(on) {
+    if (on === document.body.classList.contains('clean') || (on && document.body.classList.contains('phone'))) return;
+    const fade = (from, to) => CLEAN_EL.forEach(el => el.animate?.([{ opacity: from }, { opacity: to }], { duration: 220, easing: 'ease' }));
+    if (on) { closeColor(); mochiOpen(false); fade(1, 0); setTimeout(() => document.body.classList.add('clean'), 200); }
+    else { document.body.classList.remove('clean'); fade(0, 1); }
+  }
+  $('cleanBtn').onclick = () => setClean(true);
+  $('cleanBack').onclick = () => setClean(false);
+  ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('cleanBack').addEventListener(t, e => e.stopPropagation()));   // the board mustn't grab presses on the pill
+
   addEventListener('keydown', e => {
     const typing = e.target.closest('input, textarea, [contenteditable="true"]');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); capture(true); return; }
+    if ((e.metaKey || e.ctrlKey) && (e.key === '\\' || e.code === 'Backslash') && !homeAt && !docCard) { e.preventDefault(); setClean(!document.body.classList.contains('clean')); return; }
+    if (e.key === 'Escape' && document.body.classList.contains('clean') && !editing && !drawOn) { setClean(false); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea, [contenteditable="true"]') && !homeAt) { e.preventDefault(); travel(e.shiftKey ? 1 : -1); return; }   // inside text, ⌘Z undoes typing as usual
     if (e.key === 'Escape' && homeAt) { closeHome(); return; }
     if (e.key === 'Enter' && $('coach').classList.contains('on') && !editing && !document.activeElement?.closest?.('input, textarea, [contenteditable="true"]') && !$('capture').classList.contains('on')) { e.preventDefault(); $('coachNext').click(); return; }
@@ -1700,6 +1729,8 @@
   }
   const cardName = cs => (cs.length === 1 ? (cs[0].name || cs[0].text || cs[0].title || cs[0].label || ({ image: 'Image', stamp: 'Stamp', shape: 'Shape' }[cs[0].type]) || 'Card') : `${board.name} – ${cs.length} cards`).toString().slice(0, 60).trim() || 'Card';
   stage.addEventListener('contextmenu', e => {
+    // holding something (a sticker, a note to place, a shape) or a picker is open: a right-click just puts it down, like Esc
+    if (placing || ['stampWheel', 'stampPick', 'shapePick', 'tplPick'].some(id => $(id).classList.contains('on'))) { e.preventDefault(); stopPlacing(); return; }
     if (e.target.closest('.dock, .side, .tray, .top, .home, .docview, .cpop, .settings')) return;
     e.preventDefault(); const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card');   // the pointer may be captured, so look at what's really under it
     if (el) {

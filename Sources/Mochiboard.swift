@@ -19,6 +19,25 @@ func jsonSafe(_ v: Any) -> Any {
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var web: WKWebView!
+    // watch the boards folder: a board added from outside (Claude Code, a copied file) shows up without a restart
+    var boardsWatch: DispatchSourceFileSystemObject?, boardNames = Set<String>(), boardsTick: DispatchWorkItem?
+    func boardFiles() -> Set<String> { Set(((try? FileManager.default.contentsOfDirectory(atPath: boardsDir.path)) ?? []).filter { $0.hasSuffix(".json") }) }
+    func watchBoards() {
+        boardNames = boardFiles()
+        let fd = open(boardsDir.path, O_EVTONLY); guard fd >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+        src.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            self.boardsTick?.cancel()
+            let t = DispatchWorkItem { [weak self] in   // our own saves rewrite files too, so only speak up when boards come or go
+                guard let self = self else { return }
+                let now = self.boardFiles(); if now == self.boardNames { return }
+                self.boardNames = now; self.web.evaluateJavaScript("window.__boardsChanged && __boardsChanged()")
+            }
+            self.boardsTick = t; DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: t)
+        }
+        src.setCancelHandler { close(fd) }; src.resume(); boardsWatch = src
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         try? FileManager.default.createDirectory(at: boardsDir, withIntermediateDirectories: true)
@@ -44,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         web.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        watchBoards()
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
 
