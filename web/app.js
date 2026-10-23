@@ -463,12 +463,30 @@
     applyView();
   }
 
+  // ---------- crisp zoom: once you stop zooming, the board uses real CSS zoom so every word is laid out at the size you see ----------
+  // In WebKit, measuring something inside a CSS-zoomed box reports it divided by the zoom; this puts the zoom back,
+  // so every place that measures cards (selection, the resize corner, the selection bar, drop targets) keeps working unchanged.
+  const _rect = Element.prototype.getBoundingClientRect;
+  const zoomShrinks = (() => { const o = document.createElement('div'), i = document.createElement('div'); o.style.cssText = 'position:absolute;left:-9999px;top:0;zoom:2'; i.style.cssText = 'width:100px;height:10px'; o.appendChild(i); document.body.appendChild(o); const w = _rect.call(i).width; o.remove(); return w > 0 && w < 150; })();   // Chrome already reports the zoomed size
+  if (zoomShrinks) Element.prototype.getBoundingClientRect = function () {
+    const r = _rect.call(this), z = +world.style.zoom || 1;
+    if (z === 1 || this === world || !world.contains(this)) return r;
+    return new DOMRect(r.x * z, r.y * z, r.width * z, r.height * z);
+  };
+
   // ---------- view ----------
   let movingT = 0;
   function applyView() {
-    world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+    // while zooming or panning, a fast scale; once you stop, real zoom, so text and everything else is laid out again at the new size (crisp, even with
+    // Spotify players or videos on the board, which otherwise make Safari stretch an old picture of the board)
+    if (world.style.zoom && Math.abs(view.z - +world.style.zoom) < 1e-6) world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`;
+    else { world.style.zoom = ''; world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`; }
     if (typeof rhEl !== 'undefined') rhEl.style.setProperty('--iz', (1 / view.z).toFixed(4));   // the resize corner stays the same size on screen at any zoom (set on it alone: on the whole board, Safari restyled every card each zoom step)
-    stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => stage.classList.remove('moving'), 180);
+    stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => { stage.classList.remove('moving');
+      // real zoom only where it's needed: a Spotify player or video on the board makes Safari stretch an old picture of the board, so lay it out fresh there.
+      // Boards without them are already crisp with the fast scale, and skipping the re-layout keeps them snappier.
+      if (view.z > 1.02 && cardsEl.querySelector('iframe, video')) {   // only zoomed in: shrinking a picture never blurs it
+        world.style.zoom = view.z; world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`; } }, 450);   // a short pause in a pinch isn't the end of it, so wait a little before redrawing everything sharp
     let s = 26 * view.z; while (s < 20) s *= 2; while (s > 40) s /= 2;   // dots keep their size; zooming out skips every other dot instead of crowding them
     grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
     if (grid.classList.contains('shaped')) { grid.style.webkitMaskSize = grid.style.maskSize = `${s}px ${s}px`; grid.style.webkitMaskPosition = grid.style.maskPosition = `${view.x}px ${view.y}px`; }
@@ -492,9 +510,12 @@
   }
   requestAnimationFrame(syncRH);   // starts after the rest of the app is set up
   const toWorld = (cx, cy) => { const r = stage.getBoundingClientRect(); return { x: (cx - r.left - view.x) / view.z, y: (cy - r.top - view.y) / view.z }; };
-  function zoomAt(cx, cy, z) {
+  // a trackpad sends several scroll/pinch steps per frame: do the math for each one, but draw only once per frame
+  let viewRaf = 0;
+  const viewSoon = () => { if (!viewRaf) viewRaf = requestAnimationFrame(() => { viewRaf = 0; applyView(); }); };
+  function zoomAt(cx, cy, z, soon) {
     const r = stage.getBoundingClientRect(), p = toWorld(cx, cy); view.z = clamp(z, .15, 3);
-    view.x = cx - r.left - p.x * view.z; view.y = cy - r.top - p.y * view.z; applyView();
+    view.x = cx - r.left - p.x * view.z; view.y = cy - r.top - p.y * view.z; soon ? viewSoon() : applyView();
   }
   function fit(cards, pad = 120, maxZ = 1.4) {
     if (!cards.length) return; const r = stage.getBoundingClientRect();
@@ -514,6 +535,8 @@
       case 'canvas': return `<div class="cv-head">${CIC.canvas}<span class="text">${esc(c.text)}</span></div><div class="cv-prev"><em>empty canvas</em></div>`;
       case 'shape': return shapeSVG(c) + `<div class="text">${esc(c.text || '')}</div>`;
       case 'stamp': return `<div class="st">${c.src ? `<img src="${esc(c.src)}" alt="">` : pxSrc(c.emoji || '⭐') ? `<img src="${pxSrc(c.emoji || '⭐')}" alt="">` : `<span>${esc(c.emoji || '⭐')}</span>`}</div>`;
+      case 'spotify': return `<div class="sp-head"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="11" fill="#1ed760"/><path d="M6.6 9.4c3.6-1.1 7.8-.8 11 1M7.2 12.6c3-.9 6.3-.6 9 .9M7.8 15.6c2.4-.6 4.9-.4 7 .8" stroke="#121212" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg><span>${esc(c.title || 'Spotify')}</span></div>`
+        + `<div class="sp-wrap">${c.image ? `<img class="sp-art" src="${esc(c.image)}" alt="">` : ''}<iframe class="sp-frame" data-src="${esc(spEmbed(c))}" src="${esc(spEmbed(c))}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" title="${esc(c.title || 'Spotify')}"></iframe><div class="sp-shield" title="Click to select, then play"></div></div>`;
       case 'video': {
         if (c.src) return `<div class="vd-stage"><video class="vd-v"></video><button class="vd-play" data-act="vd-play" aria-label="Play">${PLAY}</button></div><div class="vd-bar"><button class="vd-pp" data-act="vd-play" aria-label="Play or pause">${PLAY}</button><div class="vd-prog" data-act="vd-seek"><i></i></div><span class="vd-time">${fmtT(c.dur || 0)}</span><button class="vd-mute${c.muted ? ' off' : ''}" data-act="vd-mute" aria-label="Sound">${SPK}</button></div>`;
         if (c.saving) return `<div class="vd-stage"><div class="vd-msg"><b>Saving your video…</b><span>${Math.round((c.pct || 0) * 100)}%</span></div></div><div class="vd-bar"><span class="vd-title">${esc(c.title || 'Video')}</span></div>`;
@@ -563,6 +586,7 @@
     if (c.type === 'link' && !c.url) setTimeout(() => wireLinkInput(c), 0);
     if (c.type === 'coll') { const t = COLL[c.color] || COLL.pink; el.style.setProperty('--chead', t[0]); el.style.setProperty('--cframe', t[1]); el.classList.toggle('nohead', c.head === false); el.style.height = c.h + 'px'; }
     else if (parentOf(c.id)) el.classList.add('inside');
+    if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>`;
     if (c.type === 'video') setupVideo(c, el);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
@@ -702,7 +726,7 @@
     const t = {
       frame: c.name || 'Screen', coll: c.name || 'Collection', note: lyText(c.name) || lyText(c.text), text: lyText(c.text), title: lyText(c.text), todo: lyText(c.text) || lyText(c.items?.[0]?.t),
       image: c.tagText || 'Image', link: c.title || (c.url ? host(c.url) : 'Link'), doc: c.text || 'Doc', canvas: c.text || 'Canvas', swatch: c.label || (c.hex || '').toUpperCase(),
-      shape: SHAPE_N[c.shape || 'rect'], stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', video: 'Video', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
+      shape: SHAPE_N[c.shape || 'rect'], stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', video: c.title || 'Video', spotify: c.title || 'Spotify', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
     }[c.type];
     return t || ({ note: 'Note', text: 'Text', title: 'Title', todo: 'Checklist' })[c.type] || c.type;
   }
@@ -834,7 +858,27 @@
     const p = centerWorld(), c = card(type, extra); c.x = p.x - c.w / 2 + (Math.random() * 60 - 30); c.y = p.y - c.h / 2 + (Math.random() * 60 - 30);
     addCard(c); selectOnly([c.id]); if (['note', 'title', 'todo'].includes(type)) startEdit(c.id); return c;
   }
+  // ---------- Spotify: a song, album, playlist, podcast or artist link becomes Spotify's own player on the board ----------
+  const SP_KINDS = ['track', 'album', 'playlist', 'episode', 'show', 'artist'];
+  function spotifyOf(u) {
+    const m = String(u || '').trim().match(/^(?:https?:\/\/)?open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(track|album|playlist|episode|show|artist)\/([A-Za-z0-9]{10,40})/i)
+      || String(u || '').trim().match(/^spotify:(track|album|playlist|episode|show|artist):([A-Za-z0-9]{10,40})$/i);
+    return m && SP_KINDS.includes(m[1].toLowerCase()) ? { kind: m[1].toLowerCase(), sid: m[2] } : null;
+  }
+  const SP_HEAD = 28, spH = kind => (['track', 'episode'].includes(kind) ? 152 : 352) + SP_HEAD + 6;   // Spotify's player only shows its full layout at exactly 152 / 352 tall
+  const spEmbed = c => `https://open.spotify.com/embed/${c.kind}/${c.sid}?utm_source=mochiboard`;
+  async function spotifyFill(c, url) {
+    const s2 = spotifyOf(url); if (!s2) return false;
+    Object.assign(c, { type: 'spotify', url: `https://open.spotify.com/${s2.kind}/${s2.sid}`, kind: s2.kind, sid: s2.sid, w: 320, h: spH(s2.kind), title: c.title && !/^https?:/.test(c.title) ? c.title : 'Spotify', loading: false, draft: '' });
+    renderCard(c); save();
+    // Spotify's own public info (no account needed): the real name and cover art, kept on the card for offline, Layers and Mochi
+    try { const r = await fetch('https://open.spotify.com/oembed?url=' + encodeURIComponent(c.url)); if (r.ok) { const o = await r.json(); if (o.title) c.title = o.title; if (o.thumbnail_url) c.image = o.thumbnail_url; } } catch (e) {}
+    if (!c.title || c.title === 'Spotify') try { const p = await MB.linkPreview(c.url); if (p.title && !/^open\.spotify\.com$/i.test(p.title)) c.title = p.title.replace(/\s*[|·-]\s*Spotify\s*$/i, ''); if (!c.image && p.image) c.image = p.image; } catch (e) {}
+    c.desc = { track: 'Song', album: 'Album', playlist: 'Playlist', episode: 'Podcast episode', show: 'Podcast', artist: 'Artist' }[c.kind] + ' on Spotify'; renderCard(c); save();
+    return true;
+  }
   async function linkCard(url, at, toTray) {
+    if (spotifyOf(url)) { const c = card('spotify', { url, title: 'Spotify' }); if (toTray) { board.tray.unshift(c); renderTray(); } else { Object.assign(c, at || {}); addCard(c); } await spotifyFill(c, url); if (toTray) renderTray(); return c; }
     const c = card('link', { url, title: url, desc: '' });
     if (toTray) board.tray.unshift(c); else { Object.assign(c, at || {}); addCard(c); }
     try { const p = await MB.linkPreview(url); Object.assign(c, { title: p.title || url, desc: p.desc || url, image: p.image || '' }); toTray ? renderTray() : renderCard(c); save(); } catch (e) {}
@@ -847,11 +891,12 @@
   function imageFromFile(file) {
     return new Promise(res => { const fr = new FileReader(); fr.onload = () => { const im = new Image(); im.onload = () => {
       if (MOVING.includes(file.type) && file.size <= MOVING_MAX) return res({ src: fr.result, w: im.width, h: im.height });
-      const k = Math.min(1, 1400 / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+      const k = Math.min(1, 2800 / Math.max(im.width, im.height))   // full Retina size, so pictures stay sharp when you zoom in
+     , cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
       cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
       if (MOVING.includes(file.type)) say('That one is too big to keep moving, so I kept a still of it.');
       const png = file.type === 'image/png' || file.type === 'image/svg+xml', out = png ? cv.toDataURL('image/png') : '';
-      res({ src: png && out.length < 6e6 ? out : cv.toDataURL('image/jpeg', .86), w: cv.width, h: cv.height }); }; im.src = fr.result; }; fr.readAsDataURL(file); });
+      res({ src: png && out.length < 6e6 ? out : cv.toDataURL('image/jpeg', .9), w: cv.width, h: cv.height }); }; im.src = fr.result; }; fr.readAsDataURL(file); });
   }
   async function addImages(files, at, toTray) {
     files = [...files]; const vfs = files.filter(f => f.type.startsWith('video/')); files = files.filter(f => !f.type.startsWith('video/'));
@@ -1084,8 +1129,8 @@
   // trackpad: two fingers pan, pinch (or ⌘/ctrl + scroll) zooms
   stage.addEventListener('wheel', e => {
     if (e.target.closest('.tray, .m-bubble, .cpop, .home, .m-chat, .design, .side, .row-menu, .stamp-pick, .wheel-stamps, .docview, .settings, .shapepick, .tplpick')) return; e.preventDefault();
-    if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01));
-    else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
+    if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, view.z * Math.exp(-e.deltaY * .01), true);
+    else { view.x -= e.deltaX; view.y -= e.deltaY; viewSoon(); }
   }, { passive: false });
 
   // ---------- the tray: drag ideas out onto the board ----------
@@ -1304,7 +1349,7 @@
     const files = [...(e.clipboardData.files || [])]; const intoTray = $('capture').classList.contains('on');
     if (files.length) { e.preventDefault(); addImages(files, null, intoTray); capture(false); return; }
     const t = e.clipboardData.getData('text/plain').trim(); if (!t) return; e.preventDefault();
-    if (/^https?:\/\/\S+$/.test(t)) linkCard(t, centerWorld()); else addAtCenter('note', { text: t, color: 'butter' });
+    if (/^https?:\/\/\S+$/.test(t) || spotifyOf(t)) linkCard(t, centerWorld()); else addAtCenter('note', { text: t, color: 'butter' });
   });
   stage.addEventListener('dragover', e => e.preventDefault());
   stage.addEventListener('drop', e => { e.preventDefault(); const files = [...e.dataTransfer.files], w = toWorld(e.clientX, e.clientY);
@@ -1860,7 +1905,7 @@
   async function camOn(c) {
     if (cams.has(c.id)) return cams.get(c.id);
     let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
-    catch (e) { c.camErr = 'Mochiboard needs the camera. Turn it on in System Settings → Privacy & Security → Camera, then click Start recording again.'; c.camRest = false; renderCard(c); return null; }
+    catch (e) { c.camErr = `Mochiboard needs the camera. Turn it on in ${privacy('Camera')}, then click Start recording again.`; c.camRest = false; renderCard(c); return null; }
     const view = document.createElement('video'); view.className = 'vd-live'; view.muted = true; view.playsInline = true; view.autoplay = true; view.srcObject = stream;
     const cam = { stream, view, idle: 0 }; cams.set(c.id, cam); c.camErr = ''; c.camRest = false;
     // the camera rests after a minute of waiting (no recording), and switches off if the card goes away
@@ -1926,10 +1971,11 @@
     if (act === 'vd-file') { $('filePick').dataset.into = c.id; $('filePick').click(); }
   }
 
+  const privacy = what => MB.platform === 'windows' ? `Windows Settings → Privacy & security → ${what}` : `System Settings → Privacy & Security → ${what}`;
   async function readyToRecord() {
     if (micOK) { if (!warm) try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); } catch (e) {} return true; }
     try { warmMic(await navigator.mediaDevices.getUserMedia({ audio: true })); }
-    catch (e) { say("Mochiboard needs the microphone for voice memos. Turn it on in System Settings → Privacy & Security → Microphone, then try again ✦", 10000); return false; }
+    catch (e) { say(`Mochiboard needs the microphone for voice memos. Turn it on in ${privacy('Microphone')}, then try again ✦`, 10000); return false; }
     micOK = true;
     const sp = await MB.speechAuth().catch(() => 'off');
     if (sp === 'off') say("Recording works! To have me write memos out, turn on Speech Recognition for Mochiboard in System Settings → Privacy & Security.", 9000);
@@ -1938,7 +1984,7 @@
   async function record(c) {
     let stream = warm && warm.active ? warm : null; warm = null; clearTimeout(warmT);
     try { if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch (e) { say("I can't hear you yet. Let Mochiboard use the microphone (System Settings → Privacy & Security → Microphone), then try again.", 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
+    catch (e) { say(`I can't hear you yet. Let Mochiboard use the microphone (${privacy('Microphone')}), then try again.`, 9000); if (!c.src) { sel = new Set([c.id]); removeSelected(); } return; }
     const chunks = [], recorder = new MediaRecorder(stream), ac = new AudioContext(), an = ac.createAnalyser(); an.fftSize = 256; ac.createMediaStreamSource(stream).connect(an);
     const L = { recorder, stream, ac, start: Date.now(), paused: 0, pausedAt: 0 }; live.set(c.id, L);
     c.rec = true; c.ready = false; c.paused = false; c.starting = true; renderCard(c); selectOnly([c.id]);
@@ -2503,7 +2549,8 @@
       ev.stopPropagation();
       if (ev.key === 'Escape') { inp.blur(); if (!inp.value.trim() && !c.title) { sel = new Set([c.id]); removeSelected(); } return; }
       if (ev.key !== 'Enter' || !inp.value.trim()) return;
-      const u = inp.value.trim(), url = /^https?:/i.test(u) ? u : 'https://' + u;
+      const u = inp.value.trim(), url = /^https?:/i.test(u) || /^spotify:/i.test(u) ? u : 'https://' + u;
+      if (spotifyOf(url)) { await spotifyFill(c, url); selectOnly([c.id]); return; }
       c.loading = true; renderCard(c); selectOnly([c.id]);
       let p = {}; try { p = await MB.linkPreview(url); } catch (e2) {}
       Object.assign(c, { url, title: p.title || host(url), desc: p.desc || host(url), image: p.image || '', loading: false, draft: '' });
@@ -2883,13 +2930,14 @@ ${proseCSS()}
   }
 
   // ---------- dropping cards into a doc: they arrive as real content (a checklist stays a checklist) ----------
-  const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape', 'audio'];
+  const WORDY = ['note', 'todo', 'title', 'link', 'swatch', 'doc', 'shape', 'audio', 'spotify'];
   function cardWords(c) {
     if (c.type === 'note') return [c.name, c.text].filter(x => (x || '').trim()).join('\n');
     if (c.type === 'todo') return [(c.text || '').trim(), ...(c.items || []).map(i => (i.done ? '☑ ' : '☐ ') + i.t)].filter(Boolean).join('\n');
     if (c.type === 'link') return [c.title, c.url].filter(Boolean).join('\n');
     if (c.type === 'swatch') return `${c.label || ''} ${c.hex.toUpperCase()}`.trim();
     if (c.type === 'audio') return [c.title, c.text].filter(Boolean).join('\n');
+    if (c.type === 'spotify') return [c.title, c.desc].filter(Boolean).join(' · ');
     if (c.type === 'doc') return [c.text, c.body].filter(x => (x || '').trim()).join('\n');
     return c.text || '';
   }
@@ -3004,7 +3052,7 @@ ${proseCSS()}
     const key = cs.map(c => c.id + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.font + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src + c.group).join();
     if (bar.dataset.key === key) { syncDesign(); return; } bar.dataset.key = key; renderDesign();
     const one = cs.length === 1 ? cs[0] : null, btn = (a, icon, tip, on) => `<button class="sb-ic ${on ? 'on' : ''}" data-sb="${a}" title="${tip}">${ICON[icon]}</button>`;
-    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', video: 'Video', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
+    let h = `<span class="sb-label">${one ? ({ note: 'Note', todo: 'Checklist', title: 'Title', image: 'Image', link: 'Link', swatch: 'Color', coll: 'Collection', doc: 'Doc', canvas: 'Canvas', shape: 'Shape', stamp: 'Stamp', audio: 'Voice memo', video: 'Video', spotify: 'Spotify', ink: 'Drawing', frame: 'Screen', box: 'Box', text: 'Text', font: 'Font' }[one.type] || 'Card') : cs.length + ' selected'}</span>`;
     const fill = cs.filter(c => FILLABLE.includes(c.type));
     if (one?.type === 'coll') h += `<div class="sb-dots">${Object.keys(COLL).map(n => `<button data-cc="${n}" title="${n}" style="background:${COLL[n][0]}" class="${one.color === n ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>` + btn('head', 'head', one.head === false ? 'Show the header' : 'Hide the header', one.head !== false);
     else if (fill.length) h += `<div class="sb-dots">${COLOR_NAMES.map(n => `<button data-c="${n}" title="${n}" style="background:${COLORS[n]}" class="${fill.every(c => c.color === n) ? 'on' : ''}"></button>`).join('')}</div><span class="sb-sep"></span>`;
@@ -3016,6 +3064,7 @@ ${proseCSS()}
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
+    if (one?.type === 'spotify') h += btn('visit', 'open', 'Open in Spotify');
     if (one?.type === 'shape') h += `<div class="sb-dots">${Object.keys(SHAPE_FILL).map(n => `<button data-sf="${n}" title="${n}" style="background:var(--sh-${n})" class="${(one.fill || 'gray') === n ? 'on' : ''}"></button>`).join('')}<label class="sf-any ${SHAPE_FILL[one.fill || 'gray'] ? '' : 'on'}" title="Any color"${SHAPE_FILL[one.fill || 'gray'] ? '' : ` style="--any:${one.fill}"`}><input type="color" data-sfany value="${SHAPE_FILL[one.fill || 'gray'] ? '#ff9ec4' : one.fill}"></label></div><span class="sb-sep"></span>`;
     const sized = cs.filter(c => SIZED.includes(c.type));
     if (sized.length) { const cur = sized.every(c => (c.fs || 'm') === (sized[0].fs || 'm')) ? (sized[0].fs || 'm') : '';

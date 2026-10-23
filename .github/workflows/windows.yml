@@ -1,0 +1,37 @@
+# Builds the Windows installer (Mochiboard-Setup.exe) on GitHub's Windows machines.
+# Run it from the Actions tab (or `gh workflow run windows.yml --ref <branch>`); the installer is attached to the run as an artifact.
+# It never publishes a release on its own.
+name: Windows build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Use the version in VERSION
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$v`"" | Set-Content src-tauri/Cargo.toml
+          "MB_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build
+        run: npx --yes @tauri-apps/cli@2 build --bundles nsis
+      - name: Name the installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $exe.FullName out/Mochiboard-Setup.exe
+          Get-Item out/Mochiboard-Setup.exe | Select-Object Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mochiboard-Setup-${{ env.MB_VERSION }}-windows
+          path: out/Mochiboard-Setup.exe

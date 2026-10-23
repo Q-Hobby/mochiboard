@@ -43,6 +43,7 @@ func jsonSafe(_ v: Any) -> Any {
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var web: WKWebView!
+    var popups: [NSWindow] = []   // pop-up windows pages open (like Spotify's sign-in)
     // watch the boards folder: a board added from outside (Claude Code, a copied file) shows up without a restart
     var boardsWatch: DispatchSourceFileSystemObject?, boardNames = Set<String>(), boardsTick: DispatchWorkItem?
     func boardFiles() -> Set<String> { Set(((try? FileManager.default.contentsOfDirectory(atPath: boardsDir.path)) ?? []).filter { $0.hasSuffix(".json") }) }
@@ -733,6 +734,15 @@ extension AppDelegate {
             }
         }
     }
+    // pop-up windows a page asks for (like Spotify's sign-in): a real little window that shares cookies with the board, so signing in sticks
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        let w = CGFloat(truncating: windowFeatures.width ?? 520), h = CGFloat(truncating: windowFeatures.height ?? 720)
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: max(380, w), height: max(480, h)), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        let pv = WKWebView(frame: win.contentView!.bounds, configuration: configuration); pv.autoresizingMask = [.width, .height]; pv.uiDelegate = self
+        win.contentView = pv; win.title = action.request.url?.host ?? "Mochiboard"; win.isReleasedWhenClosed = false; win.center(); win.makeKeyAndOrderFront(nil)
+        popups.append(win); return pv
+    }
+    func webViewDidClose(_ webView: WKWebView) { popups.removeAll { w in if w.contentView === webView { w.close(); return true }; return false } }
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = parameters.allowsMultipleSelection; panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]

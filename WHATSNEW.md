@@ -3,6 +3,12 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## Next (saved, not released yet)
+
+- Text stays sharp at any zoom, even on boards with Spotify players or videos: once you stop zooming, everything is drawn fresh at the size you see. New pictures keep their full Retina detail too.
+- Smoother zooming and panning: a pinch with little pauses no longer stutters, and the board waits until you're really done before redrawing everything sharp.
+- Spotify on your board: paste a link to a song, album, playlist, podcast or artist and it becomes Spotify's own player. Click it once, then press play.
+
 ## October 2026 · 1.4.1
 
 - Phone-shaped video recordings stay centered on every camera.

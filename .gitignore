@@ -1,2 +1,6 @@
 build/
 .DS_Store
+
+# the Windows/Linux app build (Tauri)
+src-tauri/target/
+src-tauri/gen/

@@ -1,0 +1,30 @@
+[package]
+name = "mochiboard"
+version = "1.4.1"
+description = "A planning board with a tiny helper"
+authors = ["Jessa Wolfe"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "time", "fs", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json", "stream"] }
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+dirs = "5"
+regex = "1"
+fontdb = "0.22"
+chrono = "0.4"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

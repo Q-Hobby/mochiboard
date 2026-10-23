@@ -41,7 +41,7 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 6px; border-radius: 6px; backgr
 .stage { position: fixed; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; cursor: default; }
 .stage.panning, .stage.space { cursor: grab; } .stage.panning { cursor: grabbing; }
 .grid { position: absolute; inset: 0; background-image: radial-gradient(var(--dot) 1.4px, transparent 1.8px); background-size: 26px 26px; pointer-events: none; }
-.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }   /* will-change only while moving (below): left on, the board stays a picture drawn at its old size and zoomed-in text goes blurry */
 .wires { position: absolute; left: -5000px; top: -5000px; width: 10000px; height: 10000px; overflow: visible; pointer-events: none; }
 .wires path { fill: none; stroke: var(--ink-soft); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .wires path.dash { stroke-dasharray: 6 7; }
@@ -1726,3 +1726,16 @@ body.dark .tb-edit { background: #28252e; color: #f3eef6; } body.dark .tbe-row:h
 .vd-shape i { display: block; border: 1.5px solid currentColor; border-radius: 2px; } .vd-shape i.w { width: 12px; height: 8px; } .vd-shape i.t { width: 7px; height: 11px; }
 .card.video .vd-start { font-size: 12px !important; }
 .vd-start { white-space: nowrap; } .vd-file { display: grid; place-items: center; white-space: nowrap; }
+
+/* Spotify cards: a slim grab bar, then Spotify's own player. Not selected = a clear shield, so dragging never presses play */
+.card.spotify .body { display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: inherit; background: #fff; }
+.sp-head { flex: none; height: 28px; display: flex; align-items: center; gap: 7px; padding: 0 11px; font: 600 12px/1 var(--font); color: var(--ink-soft); cursor: grab; }
+.sp-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-wrap { position: relative; flex: 1; min-height: 0; margin: 0 6px 6px; border-radius: 12px; overflow: hidden; background: #e9e4ea; }
+.sp-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.1); }
+.sp-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 12px; background: transparent; }
+.sp-shield { position: absolute; inset: 0; cursor: pointer; }
+.card.spotify.sel .sp-shield { display: none; }
+.stage.panning .sp-frame, .stage.placing .sp-frame, body.exporting .sp-frame { pointer-events: none; }
+body.exporting .sp-frame { visibility: hidden; }
+body.dark .card.spotify .body { background: #28252e; }
