@@ -22,6 +22,14 @@ dirs = "5"
 regex = "1"
 fontdb = "0.22"
 chrono = "0.4"
+whisper-rs = { version = "0.16", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+
+[features]
+default = ["whisper"]
+whisper = ["dep:whisper-rs"]   # writing out voice memos (whisper.cpp); off only for quick type-checks from a Mac
 
 [profile.release]
 opt-level = "s"

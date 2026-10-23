@@ -93,4 +93,17 @@
   } : Object.assign({ native: false, platform }, browser);
   // Windows prints a doc to PDF through its own "Microsoft Print to PDF" (the Mac app lays pages out itself)
   if (tauri) window.MB.docPDF = browser.docPDF;
+  // Windows/Linux voice memos: turn the recording into 16 kHz mono sound (what Whisper listens to) right here, then hand it over
+  async function pcm16k(dataURL) {
+    const buf = await (await fetch(dataURL)).arrayBuffer(), ac = new AudioContext(), dec = await ac.decodeAudioData(buf); ac.close();
+    const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(dec.duration * 16000)), 16000), src = off.createBufferSource();
+    src.buffer = dec; src.connect(off.destination); src.start(); const f = (await off.startRendering()).getChannelData(0);
+    const u8 = new Uint8Array(f.buffer, f.byteOffset, f.byteLength); let bin = '';
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  if (tauri) Object.assign(window.MB, {
+    transcribe: async audio => call('transcribe', { pcm: await pcm16k(audio) }),
+    whisperStatus: () => call('whisperStatus'), whisperGet: () => call('whisperGet'),
+  });
 })();

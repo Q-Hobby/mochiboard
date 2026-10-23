@@ -565,7 +565,7 @@
       case 'audio': return c.ready && !c.rec && !c.src ? `<div class="au-top"><span class="au-mic">${MIC}</span><span class="text">${esc(c.title || 'Voice memo')}</span></div><button class="au-start" data-act="au-start"><span class="au-rec"></span>Start recording</button><button class="au-dev" data-act="au-dev">${MIC}<span>${esc(devName(warm?.getAudioTracks?.()[0], 'Microphone'))}</span><i>▾</i></button>`
         : c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
-          + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : ''}</div>`;
+          + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : c.needTx ? '<button data-act="au-tx">✦ Write it out</button>' : ''}</div>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'box': return `<div class="bx"></div>${c.img && !c.src ? `<div class="bx-ph"><span class="mi">image</span><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
@@ -1476,9 +1476,10 @@
         [...cams.keys()].forEach(cid => { const c = byId(cid); camOff(cid); if (c) camOn(c); }); };
     }
   }
+  $('whGo').onclick = () => setupWhisper();
   $('devAllow').onclick = async () => { try { const st = await openMedia(true); st.getTracks().forEach(t => t.stop()); } catch (e) { try { const st = await openMedia(false); st.getTracks().forEach(t => t.stop()); } catch (e2) {} } fillDevices(); };
   navigator.mediaDevices?.addEventListener?.('devicechange', () => { if ($('settings').classList.contains('on')) fillDevices(); });
-  $('gearBtn').onclick = e => { e.stopPropagation(); fillDevices(); if (placing) stopPlacing(); if (sel.size) selectOnly([]); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
+  $('gearBtn').onclick = e => { e.stopPropagation(); fillDevices(); paintWhisper(); if (placing) stopPlacing(); if (sel.size) selectOnly([]); checkUpdate(); showUsage(); $('boardCount').textContent = `${boardList.length} board${boardList.length === 1 ? '' : 's'}, kept on this Mac. They never leave your computer.`; showConnections(true); $('settings').classList.add('on'); };
   const closeSettings = () => $('settings').classList.remove('on');
   // settings tabs: one topic at a time, so it isn't one long scroll
   function setTab(t) { $('setTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); $('settings').querySelectorAll('.set-body section[data-tab]').forEach(sec => sec.classList.toggle('tab-off', sec.dataset.tab !== t)); $('settings').querySelector('.set-body').scrollTop = 0; if (t === 'helpers') showUsage(); }
@@ -2078,11 +2079,41 @@
       requestAnimationFrame(draw);
     })();
   }
-  async function transcribe(c) {
+  async function transcribe(c, asked) {
+    if (MB.whisperStatus) { c.txNote = 'Mochi is writing it out…'; renderCard(c); }
     try { const text = await MB.transcribe(c.src); c.text = (text || '').trim(); c.txNote = c.text ? '' : "I couldn't make out any words in that one."; }
-    catch (e) { c.txNote = e.message; }
+    catch (e) {
+      if (e.message === 'NEED_WHISPER') { c.txNote = 'Not written out yet.'; c.needTx = true; renderCard(c); save(); offerWhisper(asked); return; }
+      c.txNote = e.message; }
+    c.needTx = false;
     renderCard(c); save();
     if (c.text) say('I wrote out your voice memo ✦ Want me to turn it into notes?', 6000, [{ label: 'Turn into notes', run: () => audioAct(c, 'au-notes') }, { label: 'Not now', ghost: true, run: () => {} }]);
+  }
+  // Windows/Linux: Whisper writes memos out on this computer. The first memo asks once; after that it just happens.
+  let whisperBusy = false;
+  function offerWhisper(force) {
+    let asked = false; try { asked = !!localStorage.getItem('mochiboard:whisperAsked'); } catch (e) {}
+    if (asked && !force) return; try { localStorage.setItem('mochiboard:whisperAsked', '1'); } catch (e) {}
+    say("Want me to write out your voice memos? I learn once (a 140 MB download), then it all happens right here on your computer, privately ✦", 0,
+      [{ label: 'Yes, set it up', run: setupWhisper }, { label: 'Not now', ghost: true, run: () => say('No problem! Your memos still record and play. Tap “Write it out” on one anytime, or turn it on in Settings → Helpers.', 7000) }]);
+  }
+  async function setupWhisper() {
+    if (whisperBusy || !MB.whisperGet) return; whisperBusy = true;
+    try { await MB.whisperGet(); } catch (e) {}
+    for (;;) {
+      await new Promise(r => setTimeout(r, 600)); let st = {}; try { st = await MB.whisperStatus(); } catch (e) { break; }
+      paintWhisper(st);
+      if (st.ready) { whisperBusy = false; say("All set! I’ll write out your voice memos from now on ✦", 5000); board.cards.filter(c => c.type === 'audio' && c.src && !c.text).forEach(c => transcribe(c)); return; }
+      if (st.error) { whisperBusy = false; say(st.error, 8000, [{ label: 'Try again', run: setupWhisper }]); return; }
+      if (st.downloading) say(`Learning to listen… ${Math.round((st.progress || 0) * 100)}%`, 0);
+    }
+    whisperBusy = false;
+  }
+  async function paintWhisper(st) {
+    const row = $('whRow'); if (!row || !MB.whisperStatus) return; row.hidden = false;
+    if (!st) try { st = await MB.whisperStatus(); } catch (e) { st = {}; }
+    $('whState').textContent = st.ready ? 'Ready. Memos are written out on this computer.' : st.downloading ? `Downloading… ${Math.round((st.progress || 0) * 100)}%` : 'Off. A one-time 140 MB download, then it works offline.';
+    $('whGo').hidden = !!st.ready || !!st.downloading;
   }
   function audioAct(c, act, e) {
     const L = live.get(c.id), el = cardsEl.querySelector(`[data-id="${c.id}"]`);
@@ -2091,6 +2122,7 @@
     if (act === 'au-pause' && L && L.recorder.state === 'inactive') return;
     if (act === 'au-pause' && L) { if (c.paused) { L.recorder.resume(); L.paused += Date.now() - L.pausedAt; } else { L.recorder.pause(); L.pausedAt = Date.now(); } c.paused = !c.paused; renderCard(c); }
     if (act === 'au-start') { readyToRecord().then(ok => { if (ok) record(c); }); return; }
+    if (act === 'au-tx') { transcribe(c, true); return; }
     if (act === 'au-dev') return devicePick(e, [['audioinput', 'Microphone', 'micId']], async () => { if (warm) { warm.getTracks().forEach(t => t.stop()); warm = null; } await readyToRecord(); renderCard(c); });
     if (act === 'au-replace') { players.get(c.id)?.pause(); players.delete(c.id); record(c); }
     if (act === 'au-notes') ask(`This is a voice memo I recorded (card ${c.id}). Turn it into short notes on the board, placed just to the right of that card, grouped if there are a few ideas:\n"${c.text}"`);
@@ -3380,7 +3412,7 @@ ${proseCSS()}
   $('ubYes').onclick = () => { showUpdate.answered = true; settings.autoUpdate = true; applySettings(); showUpdate(); prepareUpdate(); $('ubText').textContent = 'Lovely ✦ I’ll update when you quit Mochiboard, or'; fitUpBar(); };
   $('ubNo').onclick = () => { showUpdate.answered = true; settings.autoUpdate = false; applySettings(); showUpdate(); };
   $('ubX').onclick = () => { try { localStorage.setItem('mochiboard:upbarHidden', $('upBar').dataset.key || ''); } catch (e) {} $('upBar').hidden = true; };
-  $('ubNotes').onclick = () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('setUpdate').scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); };
+  $('ubNotes').onclick = () => { $('gearBtn').click(); setTab('about'); setTimeout(() => $('setUpdate').scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); };
   $('ubGo').onclick = async () => {
     $('ubGo').disabled = true; $('ubGo').textContent = 'Updating…'; $('upBar').classList.add('busy'); $('ubText').textContent = 'Getting the new version. Mochiboard will reopen in a moment';
     try { await MB.updateNow(); } catch (e) { $('ubText').textContent = e.message; $('ubGo').textContent = 'Update now'; $('ubGo').disabled = false; $('upBar').classList.remove('busy'); }

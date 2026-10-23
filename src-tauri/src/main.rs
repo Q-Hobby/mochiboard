@@ -3,6 +3,10 @@
 // The page talks to it through one command, `mb`, with the same {op, args} messages the Mac app's Swift side answers.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod prompts;
+#[cfg(feature = "whisper")]
+mod whisper;
+#[cfg(not(feature = "whisper"))]
+mod whisper { use serde_json::{json, Value}; pub fn status() -> Value { json!({ "ready": false }) } pub fn download() {} pub fn transcribe(_: &[f32]) -> Result<String, String> { Err("NEED_WHISPER".into()) } }
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::{json, Map, Value};
@@ -75,7 +79,14 @@ async fn mb(app: tauri::AppHandle, op: String, args: Value) -> Result<Value, Str
         // this computer
         "fonts" => Ok(json!(fonts())),
         "speechAuth" => Ok(json!("ok")),
-        "transcribe" => Err("Writing out voice memos is coming to Windows soon. Your recording is saved and plays right here ✦".into()),
+        // voice memos → words with Whisper, on this computer (the page hands over 16 kHz mono audio)
+        "whisperStatus" => Ok(whisper::status()),
+        "whisperGet" => { whisper::download(); Ok(json!(true)) }
+        "transcribe" => {
+            let pcm = B64.decode(s(a, "pcm")).map_err(|_| "couldn't read that recording")?;
+            let samples: Vec<f32> = pcm.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+            tokio::task::spawn_blocking(move || whisper::transcribe(&samples)).await.map_err(|e| e.to_string())?.map(Value::String)
+        }
         "export" => Err("Saving a picture of the board is coming to Windows soon ✦".into()),
         "saveFile" => {
             let name = s(a, "name").replace(['/', '\\'], "-"); let ext = or(s(a, "ext"), "docx").to_string();
@@ -306,6 +317,26 @@ fn media_response(req: http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
     r.body(buf).unwrap()
 }
 
+// Windows: let the board use the camera and microphone (for videos and voice memos), like the Mac app does.
+// Only those two; Windows' own privacy switches still decide whether the app may use them at all.
+#[cfg(windows)]
+fn allow_media(w: &tauri::WebviewWindow) {
+    let _ = w.with_webview(|wv| unsafe {
+        use webview2_com::{Microsoft::Web::WebView2::Win32::*, PermissionRequestedEventHandler};
+        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let handler = PermissionRequestedEventHandler::create(Box::new(|_, args| {
+            if let Some(args) = args {
+                let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                args.PermissionKind(&mut kind)?;
+                if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA { args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?; }
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let _ = core.add_PermissionRequested(&handler, &mut token);
+    });
+}
+
 fn main() {
     let _ = std::fs::create_dir_all(boards_dir()); let _ = std::fs::create_dir_all(media_dir());
     std::thread::spawn(sweep_media);
@@ -315,6 +346,7 @@ fn main() {
         .register_asynchronous_uri_scheme_protocol("mbmedia", |_ctx, req, responder| { std::thread::spawn(move || responder.respond(media_response(req))); })
         .invoke_handler(tauri::generate_handler![mb])
         .setup(|app| {
+            #[cfg(windows)] if let Some(w) = app.get_webview_window("main") { allow_media(&w); }
             if let Ok(js) = std::env::var("MB_SELFTEST").map(|p| std::fs::read_to_string(p).unwrap_or_default()) {
                 let w = app.get_webview_window("main").unwrap();
                 std::thread::spawn(move || { std::thread::sleep(Duration::from_secs(5)); let _ = w.eval(&js); });

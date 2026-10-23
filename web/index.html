@@ -258,14 +258,6 @@
     <div class="set-head"><h2>Settings</h2><button class="dv-btn" id="setClose" title="Close">×</button></div>
     <div class="seg set-tabs" id="setTabs"><button data-tab="general" class="on">General</button><button data-tab="mochi">Mochi</button><button data-tab="helpers">Helpers</button><button data-tab="board">Board</button><button data-tab="about">About</button></div>
     <div class="set-body">
-      <section class="set-update native-only" id="setUpdate" data-tab="general"><div class="su-top"><div class="su-icon"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 3.5v3.2h-3.2"/></svg></div><div class="su-text"><b id="suTitle">Updates</b><small id="suSub">Checking for a new version…</small></div><button class="set-btn hot" id="suGo" hidden>Update now</button><button class="set-btn" id="suCheck">Check now</button></div><ul class="su-notes" id="suNotes" hidden></ul></section>
-      <section data-tab="general"><div class="set-row"><div><b>Toolbar</b><small>Choose which tools sit at the bottom, and in what order</small></div><button class="set-btn" id="tbCustomize">Customize…</button></div></section>
-      <section class="set-devices" data-tab="general"><h3>Camera &amp; microphone</h3>
-        <div class="set-row"><div><b>Camera</b><small>For video cards</small></div><select class="dev-sel" id="devCam" aria-label="Camera"></select></div>
-        <div class="set-row"><div><b>Microphone</b><small>For voice memos and videos</small></div><select class="dev-sel" id="devMic" aria-label="Microphone"></select></div>
-        <button class="set-btn" id="devAllow" hidden>Show my devices</button></section>
-      <section class="set-auto native-only" data-tab="general"><label class="set-row"><div><b>Update automatically</b><small>New versions install quietly when you quit Mochiboard. Your boards never change.</small></div><input type="checkbox" class="tgl" data-set="autoUpdate"></label></section>
-      <section class="set-start" data-tab="general"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section data-tab="general"><h3>Look</h3>
         <div class="set-row"><div><b>Theme</b><small>Light, dark, or whatever your Mac is using</small></div><div class="seg" data-seg="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button><button data-v="system">Match my Mac</button></div></div>
       </section>
@@ -294,6 +286,8 @@
           <div class="set-btns"><button class="set-btn hot" id="usLimits">See my plan limits ↗</button><button class="set-btn" id="usReset">Reset</button></div>
         </div>
       </section>
+      <section data-tab="helpers" id="whRow" hidden><h3>Voice memo writing</h3>
+        <div class="set-row"><div><b>Whisper</b><small id="whState">Off.</small></div><button class="set-btn hot" id="whGo">Set it up</button></div></section>
       <section data-tab="helpers"><h3>Mochi's helpers</h3>
         <div class="conns" id="conns"></div>
         <label class="set-row native-only"><div><b>Let Mochi use Mobbin</b><small>Real app screenshots for inspiration (free with your Mobbin account)</small></div><input type="checkbox" class="tgl" data-set="mobbin"></label>
@@ -320,6 +314,14 @@
         <div class="set-row native-only"><div><b>Saved on this Mac</b><small id="boardCount">Your boards never leave your computer</small></div><button class="set-btn" id="revealBoards">Show in Finder</button></div>
       </section>
       <section class="set-about" data-tab="about"><canvas id="aboutGoo" width="40" height="36"></canvas><div class="sa-text"><b>Mochiboard</b><small>A planning canvas for designers, with Mochi as your helper. Free and open source (MIT).</small></div></section>
+      <section class="set-update native-only" id="setUpdate" data-tab="about"><div class="su-top"><div class="su-icon"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10a6 6 0 1 1-1.8-4.3"/><path d="M16 3.5v3.2h-3.2"/></svg></div><div class="su-text"><b id="suTitle">Updates</b><small id="suSub">Checking for a new version…</small></div><button class="set-btn hot" id="suGo" hidden>Update now</button><button class="set-btn" id="suCheck">Check now</button></div><ul class="su-notes" id="suNotes" hidden></ul></section>
+      <section data-tab="general"><div class="set-row"><div><b>Toolbar</b><small>Choose which tools sit at the bottom, and in what order</small></div><button class="set-btn" id="tbCustomize">Customize…</button></div></section>
+      <section class="set-devices" data-tab="general"><h3>Camera &amp; microphone</h3>
+        <div class="set-row"><div><b>Camera</b><small>For video cards</small></div><select class="dev-sel" id="devCam" aria-label="Camera"></select></div>
+        <div class="set-row"><div><b>Microphone</b><small>For voice memos and videos</small></div><select class="dev-sel" id="devMic" aria-label="Microphone"></select></div>
+        <button class="set-btn" id="devAllow" hidden>Show my devices</button></section>
+      <section class="set-auto native-only" data-tab="about"><label class="set-row"><div><b>Update automatically</b><small>New versions install quietly when you quit Mochiboard. Your boards never change.</small></div><input type="checkbox" class="tgl" data-set="autoUpdate"></label></section>
+      <section class="set-start" data-tab="about"><canvas id="setGoo" width="40" height="36"></canvas><div><b>New here, or need a refresher?</b><small>Mochi shows you around in about a minute</small></div><div class="set-btns"><button class="set-btn hot" id="redoTour">Take the tour ✦</button><button class="set-btn" id="redoSetup">Redo setup</button></div></section>
       <section class="set-maker" data-tab="about"><div class="sm-sig">made with love by</div><div class="sm-name">Jessa Wolfe</div><small>Product designer. I built Mochiboard for the way my brain plans things, and I hope it fits yours too.</small>
         <div class="sm-links"><button class="set-btn hot" data-url="https://jessa.art">jessa.art ↗</button><button class="set-btn" data-url="https://github.com/jessawolfe-ux/mochiboard">Mochiboard on GitHub ↗</button></div></section>
     </div>
