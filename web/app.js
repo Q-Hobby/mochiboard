@@ -514,8 +514,9 @@
     stage.classList.toggle('far', view.z < .55); stage.classList.add('moving'); clearTimeout(movingT); movingT = setTimeout(() => { stage.classList.remove('moving');
       // real zoom only where it's needed: a Spotify player or video on the board makes Safari stretch an old picture of the board, so lay it out fresh there.
       // Boards without them are already crisp with the fast scale, and skipping the re-layout keeps them snappier.
+      cardsEl.querySelectorAll('.card.tsk-on').forEach(el => { const c = byId(el.dataset.id); if (c) textStrokeSVG(c, el); });   // dashed / dotted letters re-measured at the new zoom
       if (view.z > 1.02) {   // only zoomed in: shrinking a picture never blurs it
-        world.style.zoom = view.z; world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`; } }, 450);   // a short pause in a pinch isn't the end of it, so wait a little before redrawing everything sharp
+        world.style.zoom = view.z; world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`; requestAnimationFrame(() => cardsEl.querySelectorAll('.card.tsk-on').forEach(el => { const c = byId(el.dataset.id); if (c) textStrokeSVG(c, el); })); } }, 450);   // a short pause in a pinch isn't the end of it, so wait a little before redrawing everything sharp
     let s = 26 * view.z; while (s < 20) s *= 2; while (s > 40) s /= 2;   // dots keep their size; zooming out skips every other dot instead of crowding them
     grid.style.backgroundSize = `${s}px ${s}px`; grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
     if (grid.classList.contains('shaped')) { grid.style.webkitMaskSize = grid.style.maskSize = `${s}px ${s}px`; grid.style.webkitMaskPosition = grid.style.maskPosition = `${view.x}px ${view.y}px`; }
@@ -524,16 +525,45 @@
   // ---------- the resize corner lives on its own layer above every card (like Figma), so a neighbor that overlaps can never hide it ----------
   const rh = document.createElement('div'); var rhEl = rh; rh.id = 'rh'; rh.setAttribute('aria-label', 'Resize'); world.appendChild(rh);
   let rhFor = null;
+  const realBox = k => { const el = k.type === 'title' ? cardsEl.querySelector(`[data-id="${k.id}"]`) : null; return { w: el?.offsetWidth || k.w, h: el?.offsetHeight || k.h }; };   // titles size themselves to their words
+  const mrot = document.createElement('div'); mrot.id = 'mrot'; mrot.title = 'Drag to turn them together (Shift: 15° steps)'; world.appendChild(mrot);
+  const ROT_FIXED = ['section', 'frame', 'coll', 'ink'];   // these stay upright (they only move around the turn)
+  // the turn dot is a handle attached to what you selected: on top when it's straight, and it turns with it (and stays there after) like a real handle
+  let mrotKeep = null;   // a group you turned: { key, anchor } (the dot stays on the piece that was on top)
+  const selKey = cs => cs.map(k => k.id).sort().join();
+  const midOf = cs => { const ms = cs.map(k => { const b = realBox(k); return [k.x + b.w / 2, k.y + b.h / 2]; }); return { x: ms.reduce((n, m) => n + m[0], 0) / ms.length, y: ms.reduce((n, m) => n + m[1], 0) / ms.length }; };
+  const tiltOf = k => (k.rot || 0) + (document.body.classList.contains('neat') || ROT_FIXED.includes(k.type) || (k.type === 'stamp' && !k.tilted) ? 0 : (k.r || 0));
+  // which piece carries the dot: one thing is itself; for several, the one on top (and it keeps the dot after you turn them)
+  function anchorOf(cs) { if (cs.length === 1) return cs[0]; const kept = mrotKeep && mrotKeep.key === selKey(cs) && cs.find(k => k.id === mrotKeep.anchor); if (kept) return kept;
+    return cs.reduce((best, k) => { const b = realBox(k), y = k.y + b.h / 2 - b.h / 2 * Math.cos(tiltOf(k) * Math.PI / 180); return !best || y < best.y ? { k, y } : best; }, null).k; }
+  function placeDot(x, y, ang) { mrot.style.left = x + 'px'; mrot.style.top = y + 'px'; mrot.style.rotate = (ang || 0) + 'deg'; mrot.style.setProperty('--iz', (1 / view.z).toFixed(4)); }
+  function syncMrot() { const ids = board ? [...sel] : []; const cs = ids.map(byId).filter(k => k && !k.locked);
+    const turnable = cs.length > 1 || (cs.length === 1 && !ROT_FIXED.includes(cs[0].type) && cs[0].type !== 'section');
+    const on = turnable && !drawOn && !editing && !cropping && !(drag && ['move', 'gresize', 'resize'].includes(drag.mode)) && !vec;
+    mrot.classList.toggle('on', !!on); if (!on) return;
+    if (drag && drag.mode === 'mrotate' && drag.dot0) { const t = (drag.cur || 0) * Math.PI / 180, dx = drag.dot0.x - drag.cx, dy = drag.dot0.y - drag.cy;   // held by the cursor, going round with the turn
+      return placeDot(drag.cx + dx * Math.cos(t) - dy * Math.sin(t), drag.cy + dx * Math.sin(t) + dy * Math.cos(t), drag.ang0 + (drag.cur || 0)); }
+    const k = anchorOf(cs), b = realBox(k), d = tiltOf(k), t = d * Math.PI / 180;   // the top piece's own top middle, turned with it
+    placeDot(k.x + b.w / 2 + (b.h / 2) * Math.sin(t), k.y + b.h / 2 - (b.h / 2) * Math.cos(t), d);
+  }
   function syncRH() {
+    syncMrot();
     const ids = board ? [...sel] : [], c = ids.length === 1 ? byId(ids[0]) : null;
     const ok = c && !['ink'].includes(c.type) && editing !== c.id && !drawOn && !(drag && drag.mode === 'move') && !cropping;
     // a whole group selected (a button, an input…): one corner for the group
     const g = !c && ids.length > 1 && byId(ids[0])?.group, grp = g && ids.every(i => byId(i)?.group === g) && !drawOn && !(drag && drag.mode === 'move');
     if (grp) { const cs = ids.map(byId); rhFor = 'g:' + g; rh.classList.add('on'); rh.style.left = Math.max(...cs.map(k => k.x + k.w)) + 'px'; rh.style.top = Math.max(...cs.map(k => k.y + (k.type === 'title' ? (cardsEl.querySelector(`[data-id="${k.id}"]`)?.offsetHeight || k.h) : k.h))) + 'px'; requestAnimationFrame(syncRH); return; }
+    const multi = !c && !grp && ids.length > 1 && !drawOn && !(drag && drag.mode === 'move') && !cropping && !editing;
+    if (multi) { const cs = ids.map(byId).filter(k => k && !k.locked && k.type !== 'ink'); if (cs.length > 1) { const R = realBox; rhFor = 'm'; rh.classList.add('on');
+      const rs_ = cs.map(k => cardsEl.querySelector(`[data-id="${k.id}"]`)?.getBoundingClientRect()).filter(r => r && r.width);   // the real bottom-right of what you see (turned things included)
+      const pt = rs_.length ? toWorld(Math.max(...rs_.map(r => r.right)), Math.max(...rs_.map(r => r.bottom))) : { x: Math.max(...cs.map(k => k.x + R(k).w)), y: Math.max(...cs.map(k => k.y + R(k).h)) };
+      rh.style.left = pt.x + 'px'; rh.style.top = pt.y + 'px'; requestAnimationFrame(syncRH); return; } }
     rhFor = ok ? c.id : null; rh.classList.toggle('on', !!ok);
     if (ok) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); const h = c.type === 'title' && el ? el.offsetHeight : c.h;
+      // a title's real width (its saved width lags a moment after the text, size or font changes, which left the corner floating off to the side)
+      const w = c.type === 'title' && el && el.offsetWidth ? el.offsetWidth : c.w; if (c.type === 'title' && !c.fixedW && Math.abs(w - c.w) > 1) c.w = w;
       // follow the card's own turn (tilt, or a wireframe's rotation) so the corner sits exactly on it
-      const deg = (c.rot || 0) + (document.body.classList.contains('neat') ? 0 : (c.r || 0)), a = deg * Math.PI / 180, cx = c.x + c.w / 2, cy = c.y + h / 2, dx = c.w / 2, dy = h / 2;
+      const deg = (c.rot || 0) + (document.body.classList.contains('neat') ? 0 : (c.r || 0)), a = deg * Math.PI / 180, cx = c.x + w / 2, cy = c.y + h / 2, dx = w / 2, dy = h / 2;
       rh.style.left = (cx + dx * Math.cos(a) - dy * Math.sin(a)) + 'px'; rh.style.top = (cy + dx * Math.sin(a) + dy * Math.cos(a)) + 'px'; }
     requestAnimationFrame(syncRH);
   }
@@ -611,17 +641,25 @@
   // with the real text underneath kept for editing. While you edit, the real text shows normally
   function textStrokeSVG(c, el) {
     el.querySelector(':scope > .tsk')?.remove(); el.classList.remove('tsk-on');
+    return;   // paused: dashed/dotted letters couldn't stay lined up in Safari; text outlines are solid for now
     if (!['title', 'text'].includes(c.type) || !(c.stroke && c.sw > 0) || skStyle(c) === 'solid') return;
     const t = el.querySelector(c.type === 'title' ? '.text' : '.tx'); if (!t || !t.textContent.trim()) return;
-    const tilt = el.style.getPropertyValue('--tilt'); el.style.setProperty('--tilt', '0deg');   // measure it straight
-    const er = el.getBoundingClientRect(), k = er.width / (el.offsetWidth || 1) || 1, cs = getComputedStyle(t), lines = [];
-    const walker = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); let node; const rg = document.createRange();
-    while ((node = walker.nextNode())) for (let i = 0; i < node.length; i++) { rg.setStart(node, i); rg.setEnd(node, i + 1); const r = rg.getClientRects()[0]; if (!r) continue;
-      const top = Math.round((r.top - er.top) / k), L = lines.find(l => Math.abs(l.top - top) < 3) || (lines.push({ top, x: (r.left - er.left) / k, s: '' }), lines[lines.length - 1]); L.s += node.data[i]; if ((r.left - er.left) / k < L.x && node.data[i].trim()) L.x = (r.left - er.left) / k; }
-    if (tilt) el.style.setProperty('--tilt', tilt); else el.style.removeProperty('--tilt');
+    // measured on the real text itself (its real line breaks and letter spots), held straight for a moment, and converted by the board zoom, which is always known exactly
+    el.classList.add('tsk-measure'); void el.offsetWidth;
+    const z = view.z || 1, er = el.getBoundingClientRect(), lines = [], rg = document.createRange(), walker = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); let node;
+    while ((node = walker.nextNode())) for (let i = 0; i < node.length; i++) { if (!node.data[i].trim()) continue; rg.setStart(node, i); rg.setEnd(node, i + 1); const r = rg.getClientRects()[0]; if (!r) continue;
+      const top = (r.top - er.top) / z, x = (r.left - er.left) / z, L = lines.find(l => Math.abs(l.top - top) < r.height / z * .5) || (lines.push({ top, ch: [] }), lines[lines.length - 1]);
+      let ch = node.data[i]; if (c.tcase === 'upper') ch = ch.toUpperCase(); else if (c.tcase === 'lower') ch = ch.toLowerCase(); else if (c.tcase === 'title' && (i === 0 || /\s/.test(node.data[i - 1]))) ch = ch.toUpperCase();
+      L.ch.push({ c: ch, x }); }
+    el.classList.remove('tsk-measure');
+    // the font itself, read unzoomed (Safari reports zoomed sizes inside a zoomed board), from a plain copy of the text's style
+    const host = textStrokeSVG.host || (textStrokeSVG.host = document.body.appendChild(Object.assign(document.createElement('div'), { className: 'tsk-host' })));
+    const cl = el.cloneNode(true); cl.querySelector(':scope > .tsk')?.remove(); host.appendChild(cl);
+    const g = getComputedStyle(cl.querySelector(c.type === 'title' ? '.text' : '.tx')), cs = { color: g.color, fontFamily: g.fontFamily, fontSize: g.fontSize, fontWeight: g.fontWeight, fontStyle: g.fontStyle }; cl.remove();
     const st = skStyle(c), fillC = (c.type === 'title' ? c.tc : c.color) === 'none' ? 'none' : cs.color, w = c.sw;
+    const mc = (textStrokeSVG.cv ||= document.createElement('canvas').getContext('2d')); mc.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; const asc = mc.measureText('Hg').fontBoundingBoxAscent || parseFloat(cs.fontSize) * .8;
     const dash = st === 'dash' ? `${c.dl ?? 8} ${c.dg ?? 6}` : `0 ${(c.dg ?? 6) + w * 2}`, ff = cs.fontFamily.replace(/"/g, "'");
-    el.insertAdjacentHTML('beforeend', `<svg class="tsk" aria-hidden="true">${lines.filter(l => l.s.trim()).map(l => `<text x="${l.x.toFixed(1)}" y="${l.top}" dominant-baseline="text-before-edge" style="font-family:${ff};font-size:${cs.fontSize};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};letter-spacing:${cs.letterSpacing}" fill="${fillC}" stroke="${c.stroke}" stroke-width="${w * 2}" stroke-dasharray="${dash}" stroke-linecap="${st === 'dot' ? 'round' : 'butt'}" stroke-linejoin="round" paint-order="stroke fill">${esc(l.s.replace(/^\s+/, ''))}</text>`).join('')}</svg>`);
+    el.insertAdjacentHTML('beforeend', `<svg class="tsk" aria-hidden="true">${lines.filter(l => l.ch.length).map(l => `<text x="${l.ch.map(q => q.x.toFixed(1)).join(' ')}" y="${(l.top + asc).toFixed(1)}" style="font-family:${ff};font-size:${cs.fontSize};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};letter-spacing:0;font-kerning:none" fill="${fillC}" stroke="${c.stroke}" stroke-width="${w * 2}" stroke-dasharray="${dash}" stroke-linecap="${st === 'dot' ? 'round' : 'butt'}" stroke-linejoin="round" paint-order="stroke fill">${esc(l.ch.map(q => q.c).join(''))}</text>`).join('')}</svg>`);
     el.classList.add('tsk-on');
   }
   const tskSoon = (c, el) => requestAnimationFrame(() => { if (el.isConnected) textStrokeSVG(c, el); });
@@ -648,6 +686,7 @@
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' });
     el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el);
     if (c.type === 'title' || c.type === 'text') el.classList.toggle('no-fill', (c.type === 'title' ? c.tc : c.color) === 'none'); if (SIZED_T.includes(c.type)) { el.style.setProperty('--ta', c.align || 'left');
+      el.style.setProperty('--tt', { upper: 'uppercase', lower: 'lowercase', title: 'capitalize' }[c.tcase] || 'none');   // Case: how the words show (what you typed stays as typed)
       if (c.lh != null) el.style.setProperty('--lh', c.lh); else el.style.removeProperty('--lh'); el.classList.toggle('has-lh', c.lh != null);
       if (c.ls != null) el.style.setProperty('--ls', c.ls / 100 + 'em'); else el.style.removeProperty('--ls'); el.classList.toggle('has-ls', c.ls != null); }
     if (c.type === 'title') requestAnimationFrame(() => { if (!el.isConnected) return; if (!c.fixedW && el.offsetWidth) c.w = el.offsetWidth; if (el.offsetHeight) c.h = el.offsetHeight; });
@@ -920,7 +959,8 @@
     // on the outline: sample each segment
     const n = c.pts.length, segs = c.closed ? n : n - 1;
     for (let i = 0; i < segs; i++) { const a = c.pts[i], b = c.pts[(i + 1) % n];
-      for (let t = 0; t <= 1.0001; t += .025) { const u = 1 - t, ax = a.ox ?? a.x, ay = a.oy ?? a.y, bx = b.ix ?? b.x, by = b.iy ?? b.y;
+      const len = Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot((a.ox ?? a.x) - a.x, (a.oy ?? a.y) - a.y) + Math.hypot((b.ix ?? b.x) - b.x, (b.iy ?? b.y) - b.y), dt = Math.min(.025, 2 / (view.z * Math.max(1, len)));   // checks close enough together that a click on a long edge never slips between them
+      for (let t = 0; t <= 1.0001; t += dt) { const u = 1 - t, ax = a.ox ?? a.x, ay = a.oy ?? a.y, bx = b.ix ?? b.x, by = b.iy ?? b.y;
         const x = u * u * u * a.x + 3 * u * u * t * ax + 3 * u * t * t * bx + t * t * t * b.x, y = u * u * u * a.y + 3 * u * u * t * ay + 3 * u * t * t * by + t * t * t * b.y;
         if (near(x, y, 7)) return { kind: 'seg', i, x, y }; } }
     return null; }
@@ -1283,7 +1323,10 @@
 
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
+  function clearStuckDrag() { cardsEl.querySelectorAll('.card.dragging').forEach(el => { el.classList.remove('dragging'); el.style.transform = ''; el.style.willChange = ''; }); stage.classList.remove('dragging-cards', 'cloning', 'panning'); }
+  stage.addEventListener('pointercancel', () => { if (drag?.mode === 'move') { drag.start?.forEach(s => { const el = s.el || cardsEl.querySelector(`[data-id="${s.c.id}"]`); if (el) { el.style.left = s.c.x + 'px'; el.style.top = s.c.y + 'px'; } }); } drag = null; clearStuckDrag(); placeSelbar(); });
   stage.addEventListener('pointerdown', e => {
+    if (!drag) clearStuckDrag();
     if (e.target.closest('.tools, .tray, .mochi, .top, .capture, .side, .keys, .cpop, .home, .linkbox, .selbar, .dock, .docview, .shapepick, .tplpick')) return;
     const el = e.target.closest('.card'), w = toWorld(e.clientX, e.clientY);
     if (e.button === 2) return;   // right-click opens the menu, it doesn't drag
@@ -1292,6 +1335,16 @@
     if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
     if (e.target.id === 'rh' && rhFor && rhFor.startsWith('g:') && e.button === 0) { const cs = board.cards.filter(c => c.group === rhFor.slice(2)), bx = Math.min(...cs.map(c => c.x)), by = Math.min(...cs.map(c => c.y));
       drag = { mode: 'gresize', sx: w.x, sy: w.y, bx, by, bw: Math.max(...cs.map(c => c.x + c.w)) - bx, bh: Math.max(...cs.map(c => c.y + c.h)) - by, items: cs.map(c => ({ c, x: c.x, y: c.y, w: c.w, h: c.h })) }; stage.setPointerCapture(e.pointerId); return; }
+    if (e.target.id === 'mrot' && e.button === 0) { const cs = selCards().filter(c => !c.locked); if (cs.length >= 1) { remember(); const R = realBox;
+      const x0 = Math.min(...cs.map(c => c.x)), x1 = Math.max(...cs.map(c => c.x + R(c).w)), y0 = Math.min(...cs.map(c => c.y)), y1 = Math.max(...cs.map(c => c.y + R(c).h));
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      const single = cs.length === 1, anchor = anchorOf(cs), ang0 = tiltOf(anchor);
+      drag = { mode: 'mrotate', cx, cy, ang0, single, anchor: anchor.id, a0: Math.atan2(w.y - cy, w.x - cx), dot0: { x: parseFloat(mrot.style.left), y: parseFloat(mrot.style.top) }, items: cs.map(c => { const r = R(c); return { c, mx: c.x + r.w / 2, my: c.y + r.h / 2, w: r.w, h: r.h, r0: WF.includes(c.type) ? (c.rot || 0) : (c.r || 0), wf: WF.includes(c.type) }; }) };
+      drag.items.forEach(it => cardsEl.querySelector(`[data-id="${it.c.id}"]`)?.classList.add('tilting'));   // no easing while turning, so nothing trails behind
+      stage.setPointerCapture(e.pointerId); return; } }
+    if (e.target.id === 'rh' && rhFor === 'm' && e.button === 0) { const cs = selCards().filter(c => !c.locked && c.type !== 'ink'); if (cs.length > 1) { remember();
+      const items = cs.map(c => { const r = realBox(c); return { c, x: c.x, y: c.y, w: r.w, h: r.h, fs0: fsMul(c), size0: c.size, sw0: c.sw }; }), bx = Math.min(...items.map(i => i.x)), by = Math.min(...items.map(i => i.y));
+      drag = { mode: 'gresize', multi: true, sx: w.x, sy: w.y, bx, by, bw: Math.max(...items.map(i => i.x + i.w)) - bx, bh: Math.max(...items.map(i => i.y + i.h)) - by, items }; stage.setPointerCapture(e.pointerId); return; } }
     if (e.target.id === 'rh' && rhFor && e.button === 0) { const c = byId(rhFor); if (c) { drag = { mode: 'resize', id: c.id, sx: w.x, sy: w.y, w0: c.w, h0: c.h, fs0: fsMul(c) }; stage.setPointerCapture(e.pointerId); return; } }
     if (cropping && e.target.closest('.crop-ui')) { e.preventDefault(); cropDown(e); return; }
     if (placing?.type === 'box' && e.button === 0) { e.preventDefault(); stopPlacing(); drag = { mode: 'drawbox', sx: w.x, sy: w.y }; stage.setPointerCapture(e.pointerId); return; }
@@ -1371,12 +1424,27 @@
       el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); return;
     }
     if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h; el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); }
-    if (drag.mode === 'gresize') { const d = drag, nw = Math.max(24, d.bw + w.x - d.sx), nh = Math.max(14, d.bh + w.y - d.sy), kx = nw / d.bw, ky = nh / d.bh;
+    if (drag.mode === 'gresize' && drag.multi && e.shiftKey) { const d = drag, kx = (d.bw + w.x - d.sx) / d.bw, ky = (d.bh + w.y - d.sy) / d.bh, k = Math.max(.15, Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky);
+      d.items.forEach(it => { const c = it.c; c.x = d.bx + (it.x - d.bx) * k; c.y = d.by + (it.y - d.by) * k; c.w = Math.max(8, it.w * k); c.h = Math.max(8, it.h * k);
+        if (SIZED.includes(c.type)) { const m = +(it.fs0 * k).toFixed(4), hit = Object.keys(FS).find(z => Math.abs(FS[z] - m) < .001); if (hit === 'm') delete c.fs; else c.fs = hit || m; }
+        if (c.type === 'text' && it.size0) c.size = Math.max(4, Math.round(it.size0 * k * 10) / 10);
+        if (c.type === 'title' && c.fixedW) c.w = Math.max(8, it.w * k);
+        const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' }); el.style.setProperty('--fs', fsMul(c)); if (c.type === 'text') { const tx = el.querySelector('.tx'); if (tx) tx.style.fontSize = (c.size || 18) + 'px'; } } });
+      renderWires(); }
+    else if (drag.mode === 'gresize') { const d = drag, nw = Math.max(24, d.bw + w.x - d.sx), nh = Math.max(14, d.bh + w.y - d.sy), kx = nw / d.bw, ky = nh / d.bh;
       d.items.forEach(it => { const c = it.c, txt = c.type === 'text';   // text keeps its height and stays centered where it was, so a label sits in the middle of its button
         c.x = d.bx + (it.x - d.bx) * kx; c.w = Math.max(8, it.w * kx); c.h = txt ? it.h : Math.max(8, it.h * ky); c.y = txt ? d.by + (it.y + it.h / 2 - d.by) * ky - it.h / 2 : d.by + (it.y - d.by) * ky;
         const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' }); });
       renderWires(); }
     if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'mrotate') { const d = drag; let a = (Math.atan2(w.y - d.cy, w.x - d.cx) - d.a0) * 180 / Math.PI; a = ((a + 540) % 360) - 180;
+      a = e.shiftKey ? Math.round(a / 15) * 15 : (Math.abs(a - Math.round(a / 15) * 15) < 2 ? Math.round(a / 15) * 15 : a); d.cur = a; const t = a * Math.PI / 180, co = Math.cos(t), si = Math.sin(t);
+      d.items.forEach(it => { const c = it.c, dx = it.mx - d.cx, dy = it.my - d.cy, nx = d.cx + dx * co - dy * si, ny = d.cy + dx * si + dy * co;   // each piece's middle goes around the turn
+        c.x = nx - it.w / 2; c.y = ny - it.h / 2; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
+        if (ROT_FIXED.includes(c.type)) return;
+        if (it.wf) { c.rot = +(it.r0 + a).toFixed(2); el?.style.setProperty('--rot', c.rot + 'deg'); }
+        else { c.r = +(it.r0 + a).toFixed(2); if (c.type === 'stamp') c.tilted = true; el?.style.setProperty('--tilt', c.r + 'deg'); } });
+      renderWires(); const rb = $('rotBadge'); rb.textContent = Math.round(a) + '°'; rb.style.left = e.clientX + 18 + 'px'; rb.style.top = e.clientY - 34 + 'px'; rb.classList.add('on'); }
     if (drag.mode === 'rotate') { let a = Math.atan2(w.y - drag.cy, w.x - drag.cx) * 180 / Math.PI + 90; a = ((a % 360) + 360) % 360; if (a > 180) a -= 360;
       const near = Math.round(a / 15) * 15; if (Math.abs(a - near) < 4) a = near;   // eases onto 15° steps
       if (drag.tilt) { drag.c.r = Math.round(a); drag.c.tilted = true; cardsEl.querySelector(`[data-id="${drag.c.id}"]`)?.style.setProperty('--tilt', drag.c.r + 'deg'); }
@@ -1432,8 +1500,10 @@
       }
     }
     if (d.mode === 'resize') save();
-    if (d.mode === 'gresize') { d.items.forEach(it => renderCard(it.c)); selectOnly(d.items.map(it => it.c.id)); save(); }
+    if (d.mode === 'gresize') { d.items.forEach(it => { renderCard(it.c); if (it.c.type === 'note' || it.c.type === 'todo') it.c.userH = it.c.h; }); selectOnly(d.items.map(it => it.c.id)); save(); }
     if (d.mode === 'bend') save();
+    if (d.mode === 'mrotate' && !d.single) mrotKeep = { key: selKey(d.items.map(it => it.c)), anchor: d.anchor };   // the dot stays on the piece that was on top
+    if (d.mode === 'mrotate') { $('rotBadge').classList.remove('on'); d.items.forEach(it => { renderCard(it.c); cardsEl.querySelector(`[data-id="${it.c.id}"]`)?.classList.remove('tilting'); }); selectOnly(d.items.map(it => it.c.id)); save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'rotate') { $('rotBadge').classList.remove('on'); cardsEl.querySelector(`[data-id="${d.c.id}"]`)?.classList.remove('tilting'); save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'drawbox') { d.rect?.remove(); const w = toWorld(e.clientX, e.clientY); let x = Math.min(d.sx, w.x), y = Math.min(d.sy, w.y), bw = Math.abs(w.x - d.sx), bh = Math.abs(w.y - d.sy);
       if (bw < 6 && bh < 6) { bw = 160; bh = 100; }   // a click makes a standard box
@@ -2805,12 +2875,12 @@
     cs.forEach(c => { const mx = c.x + c.w / 2, my = c.y + c.h / 2, f = [...board.cards].reverse().find(f => f.type === 'frame' && f.id !== c.id && mx > f.x && mx < f.x + f.w && my > f.y && my < f.y + f.h);
       if (f) c.onFrame = f.id; else delete c.onFrame; });
   }
-  // snapping: edges and middles line up with other wireframe things (and their screen), with pink guides
+  // snapping: edges and center lines line up with the things around them (any kind), with pink guides
   function snapWF(start, dx, dy) {
-    const moving = new Set(start.map(s => s.c.id)), mine = start.filter(s => WF.includes(s.c.type)); $('guides').innerHTML = '';
+    const moving = new Set(start.map(s => s.c.id)), mine = start.filter(s => s.c.type !== 'ink').map(s => ({ ...s, c: { ...s.c, ...realBox(s.c) } })); $('guides').innerHTML = '';
     if (!mine.length || space) return { dx, dy };
     const x0 = Math.min(...mine.map(s => s.x)) + dx, y0 = Math.min(...mine.map(s => s.y)) + dy, x1 = Math.max(...mine.map(s => s.x + s.c.w)) + dx, y1 = Math.max(...mine.map(s => s.y + s.c.h)) + dy;
-    const others = board.cards.filter(c => WF.includes(c.type) && !moving.has(c.id)), T = 6 / view.z;
+    const near = 1600 / view.z, others = board.cards.filter(c => !moving.has(c.id) && c.type !== 'ink' && !c.hidden && Math.abs(c.x - x0) < near && Math.abs(c.y - y0) < near && !parentOf(c.id)).map(c => ({ ...c, ...realBox(c) })), T = 6 / view.z;
     let bx = null, by = null;
     const mx = [x0, (x0 + x1) / 2, x1], my = [y0, (y0 + y1) / 2, y1];
     others.forEach(o => { const ox = [o.x, o.x + o.w / 2, o.x + o.w], oy = [o.y, o.y + o.h / 2, o.y + o.h];
@@ -3848,9 +3918,11 @@ ${proseCSS()}
       bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0, 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0, 'Straight line')
         + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
-    const show = cs.length && !homeAt && !stage.querySelector('.card.dragging') && !($('cpop').classList.contains('on') && $('cpop').classList.contains('tint') && !$('cpop').classList.contains('from-bar'));   // a wheel opened from this bar keeps the bar   // a color card's own bar shows right away, next to its wheel
+    // hidden only while a drag is really happening, or a wheel that isn't from this bar is really on screen (left-over state never hides the bar)
+    const wheelUp = $('cpop').classList.contains('on') && $('cpop').classList.contains('tint') && !$('cpop').classList.contains('from-bar') && $('cpop').offsetParent && $('settings').classList.contains('on');
+    const show = cs.length && !homeAt && !(drag && drag.mode === 'move' && drag.moved) && !wheelUp;   // a wheel opened from this bar keeps the bar   // a color card's own bar shows right away, next to its wheel
     dock.classList.toggle('ctx', !!show); bar.classList.toggle('on', !!show); if (!show) { closeSbPops(); bar.dataset.ids = ''; if (bar.dataset.key !== '') { bar.dataset.key = ''; renderDesign(); } return; }
-    const key = Math.round(innerWidth / 30) + cs.map(c => c.id + c.tc + (c.type === 'text' ? c.color : '') + c.fill + c.squig + c.align + c.lh + c.ls + c.stroke + c.sw + c.sdash + c.dl + c.dg + c.radius + c.fill + Math.round(c.r || 0) + !!c.tilted + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.font + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src + c.group).join();
+    const key = Math.round(innerWidth / 30) + cs.map(c => c.id + c.tcase + c.tc + (c.type === 'text' ? c.color : '') + c.fill + c.squig + c.align + c.lh + c.ls + c.stroke + c.sw + c.sdash + c.dl + c.dg + c.radius + c.fill + Math.round(c.r || 0) + !!c.tilted + c.color + c.head + c.tagText + c.hideName + c.hideHex + c.fill + c.url + c.fs + c.font + c.bold + c.italic + c.under + c.strike + !!c.cropEdit + !!c.src + c.group).join();
     // never rebuild under an open dropdown for the SAME things (it would yank the slider out from under you); a new selection always gets a fresh bar
     const ids = cs.map(c => c.id).join(); if (bar.dataset.ids !== ids) { closeSbPops(); bar.dataset.ids = ids; }
     if (bar.dataset.key === key || bar.querySelector('.sb-popw.open')) { syncDesign(); return; } bar.dataset.key = key; renderDesign();   // never rebuild under an open dropdown (it would yank the slider out from under you)
@@ -3893,7 +3965,7 @@ ${proseCSS()}
       const stb = ([k, l, t]) => `<button data-ts="${k}" title="${t}" class="${sized.every(c => isOn(c, k)) ? 'on' : ''}">${l}</button>`;
       h += G(1, `<span class="sb-sep"></span><div class="sb-sizes sb-style">${ST.map(stb).join('')}</div>`);   // B I U S stay together
       const al = sized.every(c => (c.align || 'left') === (sized[0].align || 'left')) ? (sized[0].align || 'left') : '';
-      h += G(cs.length > 1 ? 3 : 1, `<div class="sb-sizes sb-style sb-align">${[['left','Align left'],['center','Center'],['right','Align right']].map(([k, t]) => `<button data-al="${k}" title="${t}" class="${al === k ? 'on' : ''}"><svg viewBox="0 0 24 24">${ALIGN_IC[k]}</svg></button>`).join('')}</div>`);
+      h += G(1, `<div class="sb-sizes sb-style sb-align">${[['left','Align left'],['center','Center'],['right','Align right']].map(([k, t]) => `<button data-al="${k}" title="${t}" class="${al === k ? 'on' : ''}"><svg viewBox="0 0 24 24">${ALIGN_IC[k]}</svg></button>`).join('')}</div>`);
       const fnt = sized.every(c => (c.font || '') === (sized[0].font || '')) ? (sized[0].font || '') : null;
       h += G(5, `<span class="sb-sep"></span><button class="sb-txt sb-font" data-sbfont="1" title="Font"><span style="${fnt ? `font-family:'${esc(fnt)}', var(--font)` : ''}">${fnt === null ? 'Mixed fonts' : esc(fnt || 'Default font')}</span><svg class="sb-caret" viewBox="0 0 12 12" width="10" height="10"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`);
       const SZ = { s: 'Small', m: 'Medium', l: 'Large', xl: 'Extra large' };
@@ -3902,7 +3974,7 @@ ${proseCSS()}
       const row = (k, label, v, min, max, step, unit) => `<div class="sbc-top"><span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${pct(v, min, max)}" data-sp="${k}"><input type="number" min="${min}" max="${max}" step="${step}" value="${v}" data-spn="${k}" aria-label="${label}"><b class="sb-unit">${unit}</b></div>`;
       const chips = (k, list) => `<div class="sbc-chips sb-spchips">${list.map(([t, v]) => `<button data-spq="${k}:${v}">${t}</button>`).join('')}</div>`;
       h += G(6, pop('spacing', `<svg class="sb-l24" viewBox="0 0 24 24">${SPACING_IC}</svg>${CARET}`,
-        `<div class="sb-corners sb-spacing">${row('lh', 'Line height', lh, .8, 3, .05, '×')}${chips('lh', [['Tight', 1.1], ['Normal', 'normal'], ['Airy', 1.8]])}<i class="sb-sprule"></i>${row('ls', 'Letters', ls, -10, 30, .5, '%')}${chips('ls', [['Tight', -3], ['Normal', 'normal'], ['Wide', 8]])}</div>`, 'Line height and letter spacing')); }
+        `<div class="sb-corners sb-spacing">${row('lh', 'Line height', lh, .8, 3, .05, '×')}${chips('lh', [['Tight', 1.1], ['Normal', 'normal'], ['Airy', 1.8]])}<i class="sb-sprule"></i>${row('ls', 'Letters', ls, -10, 30, .5, '%')}${chips('ls', [['Tight', -3], ['Normal', 'normal'], ['Wide', 8]])}<i class="sb-sprule"></i><div class="sbc-top"><span>Case</span></div><div class="sbc-chips sb-cases">${[['', 'Aa', 'As typed'], ['upper', 'AB', 'UPPERCASE'], ['lower', 'ab', 'lowercase'], ['title', 'Ab', 'Title Case']].map(([k, g, t]) => `<button data-tcase="${k}" title="${t}" class="${(f.tcase || '') === k ? 'on' : ''}"><b>${g}</b><small>${t}</small></button>`).join('')}</div></div>`, 'Line height and letter spacing')); }
     // box (and screen) fill: wireframe grays, your pastels, and any color
     const fillable = cs.filter(c => c.type === 'box' && !c.src || c.type === 'frame' || c.type === 'path' && c.closed);
     if (fillable.length === cs.length && fillable.length) { const BF = ['#ffffff', '#f4f4f5', '#e4e4e7', '#a1a1aa', '#27272a', '#ffe0ec', '#fff5c8', '#dcf5e7', '#dcedff', '#eadfff', '#ffe9d6', '#ff9ec4'];
@@ -3914,7 +3986,7 @@ ${proseCSS()}
       h += G(2, pop('tfill', `<i class="sb-cur sb-tcur${cur === 'none' ? ' sb-none' : ''}" style="--c:${cur && cur !== 'none' ? cur : 'var(--ink)'}">A</i>${CARET}`,
         `<div class="sb-dots sb-fills"><button data-tf="none" title="No fill" class="sb-nofill ${cur === 'none' ? 'on' : ''}"></button>${TF.map(v => `<button data-tf="${v}" title="${v}" style="background:${v}" class="${cur.toLowerCase() === v ? 'on' : ''}"></button>`).join('')}<button class="sb-anycolor" data-tfwheel="1" title="Any color"></button></div>`, 'Text color')); }
     const stk = cs.filter(c => canStroke(c));
-    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || '#27272a', w = f.sw || 0, textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => c.type === 'icon');
+    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || '#27272a', w = f.sw || 0, textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => ['icon', 'title', 'text'].includes(c.type));   // dashed/dotted is for shapes, boxes and screens
       const SK = ['#000000', '#ffffff', '#71717a', '#a1a1aa', '#ff5a6e', '#ff9ec4', '#f7b955', '#5fc795', '#4f9dff', '#9b7bff', ...(board.palette || []).map(p => p.hex), ...board.cards.filter(c => c.type === 'swatch' && c.hex).map(c => c.hex)].slice(0, 18);
       h += G(2, pop('stroke', `<i class="sb-cur sb-skcur${w ? '' : ' none'}" style="--c:${col}"></i>${CARET}`,
         `<div class="sb-corners sb-stroke"><div class="sbc-top"><span>Stroke</span><input type="range" min="0" max="${max}" step="0.5" value="${w}" style="--p:${Math.min(100, w / max * 100)}%" data-skw><input type="number" min="0" max="${max}" step="0.5" value="${w}" data-skn aria-label="Stroke width"><b class="sb-unit">px</b></div>
@@ -3930,11 +4002,11 @@ ${proseCSS()}
     const seen = one && (one.type === 'stamp' && !one.tilted ? 0 : Math.round(one.r || 0));
     if (one && TILTS(one)) h += G(3, `<span class="sb-sep"></span><button class="sb-tilt" data-sb="tiltpop" title="Tilt"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg><span class="sb-deg">${seen}°</span></button>`);   // Reset lives in the tilt box
     const oneGroup = cs.length > 1 && cs.every(c => c.group && c.group === cs[0].group);
-    if (cs.length > 1) h += `<span class="sb-sep"></span><button class="sb-txt sb-glass" data-sb="section" title="Create section · ⌥⌘G">Create section</button>`;
+    if (cs.length > 1) h += G(9, `<span class="sb-sep"></span><button class="sb-txt sb-glass" data-sb="section" title="Create section · ⌥⌘G">Create section</button>`);   // these tuck into ··· before the text controls do
     if (one?.type === 'section') h += `<button class="sb-txt" data-sb="rensection" title="Rename">Rename</button>`;
     if (one?.type === 'section') h += `<button class="sb-txt" data-sb="unsection" title="Remove section">Remove section</button><span class="sb-sep"></span>`;
     if (one?.type === 'section') h += G(2, colorPop(COLORS[one.color] || '#fff', COLOR_NAMES.map(n => `<button data-sc="${n}" title="${n}" style="background:${COLORS[n]}" class="${(one.color || 'white') === n ? 'on' : ''}"></button>`).join('')));
-    if (cs.length > 1) h += `<span class="sb-sep"></span><button class="sb-txt" data-sb="${oneGroup ? 'ungroup' : 'group'}" title="${oneGroup ? 'Ungroup · ⇧⌘G' : 'Group · ⌘G'}">${oneGroup ? 'Ungroup' : 'Group'}</button>`;
+    if (cs.length > 1) h += G(8, `<span class="sb-sep"></span><button class="sb-txt" data-sb="${oneGroup ? 'ungroup' : 'group'}" title="${oneGroup ? 'Ungroup · ⇧⌘G' : 'Group · ⌘G'}">${oneGroup ? 'Ungroup' : 'Group'}</button>`);
     h += `<span class="sb-sep sb-moresep"></span>` + pop('more', '<svg viewBox="0 0 24 24" class="sb-l24"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>', `<div class="sb-morebody">${more}</div>`, 'More');
     h += `<span class="sb-sep"></span>` + btn('mochi', 'mochi', 'Ask Mochi') + btn('del', 'del', 'Delete');
     bar.innerHTML = h; foldSelbar(bar); snapSoon();
@@ -4090,6 +4162,9 @@ ${proseCSS()}
     const k = r.dataset.sp || r.dataset.spn, row = r.parentElement, rg = row.querySelector('[data-sp]'), nb = row.querySelector('[data-spn]');
     if (r === rg) nb.value = rg.value; else rg.value = nb.value; rg.style.setProperty('--p', Math.max(0, Math.min(100, (rg.value - rg.min) / (rg.max - rg.min) * 100)) + '%');
     setSpacing(k, r.value); });
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-tcase]'); if (!b) return; e.stopImmediatePropagation(); remember();
+    selCards().filter(c => SIZED.includes(c.type)).forEach(c => { if (b.dataset.tcase) c.tcase = b.dataset.tcase; else delete c.tcase; renderCard(c); fitText(c); });
+    $('selbar').querySelectorAll('[data-tcase]').forEach(x => x.classList.toggle('on', x === b)); selectOnly(selCards().map(c => c.id)); renderWires(); save(); }, true);
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-spq]'); if (!b) return; e.stopImmediatePropagation(); remember(); const [k, v] = b.dataset.spq.split(':'); setSpacing(k, v);
     const f = selCards().find(c => SIZED.includes(c.type)), cur = k === 'lh' ? lhOf(f) : lsOf(f), row = $('selbar').querySelector(`[data-sp="${k}"]`).parentElement;
     row.querySelector('[data-sp]').value = row.querySelector('[data-spn]').value = cur; const rg = row.querySelector('[data-sp]'); rg.style.setProperty('--p', Math.max(0, Math.min(100, (cur - rg.min) / (rg.max - rg.min) * 100)) + '%'); }, true);
@@ -4107,12 +4182,14 @@ ${proseCSS()}
   // line selected things up with each other, or space them evenly (titles use their real drawn height)
   function arrange(how) {
     const cs = selCards().filter(c => !c.locked); if (cs.length < 2) return; remember();
-    const H = c => c.type === 'title' ? (cardsEl.querySelector(`[data-id="${c.id}"]`)?.offsetHeight || c.h) : c.h;
-    const x0 = Math.min(...cs.map(c => c.x)), x1 = Math.max(...cs.map(c => c.x + c.w)), y0 = Math.min(...cs.map(c => c.y)), y1 = Math.max(...cs.map(c => c.y + H(c)));
+    // real sizes right now (a title's saved width catches up a moment after it changes, which made the first click land off-center)
+    const elOf = c => cardsEl.querySelector(`[data-id="${c.id}"]`), W = c => c.type === 'title' ? (elOf(c)?.offsetWidth || c.w) : c.w, H = c => c.type === 'title' ? (elOf(c)?.offsetHeight || c.h) : c.h;
+    cs.forEach(c => { if (c.type === 'title') { c.w = W(c); c.h = H(c); } });
+    const x0 = Math.min(...cs.map(c => c.x)), x1 = Math.max(...cs.map(c => c.x + W(c))), y0 = Math.min(...cs.map(c => c.y)), y1 = Math.max(...cs.map(c => c.y + H(c)));
     const moved = new Map(cs.map(c => [c.id, [c.x, c.y]]));
-    if (how === 'left') cs.forEach(c => c.x = x0); if (how === 'right') cs.forEach(c => c.x = x1 - c.w); if (how === 'hcenter') cs.forEach(c => c.x = (x0 + x1) / 2 - c.w / 2);
+    if (how === 'left') cs.forEach(c => c.x = x0); if (how === 'right') cs.forEach(c => c.x = x1 - W(c)); if (how === 'hcenter') cs.forEach(c => c.x = (x0 + x1) / 2 - W(c) / 2);
     if (how === 'top') cs.forEach(c => c.y = y0); if (how === 'bottom') cs.forEach(c => c.y = y1 - H(c)); if (how === 'vcenter') cs.forEach(c => c.y = (y0 + y1) / 2 - H(c) / 2);
-    if (how === 'dh') { const o = [...cs].sort((a, b) => a.x - b.x), gap = (x1 - x0 - o.reduce((n, c) => n + c.w, 0)) / (o.length - 1); let x = x0; o.forEach(c => { c.x = x; x += c.w + gap; }); }
+    if (how === 'dh') { const o = [...cs].sort((a, b) => a.x - b.x), gap = (x1 - x0 - o.reduce((n, c) => n + W(c), 0)) / (o.length - 1); let x = x0; o.forEach(c => { c.x = x; x += W(c) + gap; }); }
     if (how === 'dv') { const o = [...cs].sort((a, b) => a.y - b.y), gap = (y1 - y0 - o.reduce((n, c) => n + H(c), 0)) / (o.length - 1); let y = y0; o.forEach(c => { c.y = y; y += H(c) + gap; }); }
     // a section brings what's inside it along
     cs.filter(c => c.type === 'section').forEach(sec => { const [ox, oy] = moved.get(sec.id), dx = sec.x - ox, dy = sec.y - oy; if (!dx && !dy) return;
