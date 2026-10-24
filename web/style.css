@@ -884,7 +884,7 @@ body.dark .home-back:hover, body.dark .linkbox button { background: #ece8f0; col
 .card.wf .knob { opacity: 0; }
 .card.wf:hover .knob { opacity: 1; }
 .card.wf .tag { display: none; }
-.card.frame { z-index: 0 !important; }
+/* screens stack like any card (bring one to the front and it covers loose notes); their pieces always sit above them */
 .card.frame .fr-name { position: absolute; left: 2px; bottom: calc(100% + 6px); font: 600 12px/1 var(--font); color: var(--ink-soft); white-space: nowrap; outline: none; cursor: text; }
 .card.frame .fr-body { position: absolute; inset: 0; border-radius: var(--fr-r, 0); background: var(--fr-fill, #fff); box-shadow: 0 0 0 1px rgba(0, 0, 0, .08), 0 14px 40px rgba(73, 72, 72, .12); }
 .card.box .bx { position: absolute; inset: 0; }

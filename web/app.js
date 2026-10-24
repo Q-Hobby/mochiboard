@@ -711,7 +711,11 @@
     if (c.type === 'image') el.style.setProperty('--img-r', (c.radius ?? 12) + 'px');
     return el;
   }
-  function renderAll() { wireLayers(); layersSoon(); applyColors(); cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
+  // a card on a screen always sits above its screen in the stack (older boards could have them the other way round, which didn't show while screens were pinned to the back)
+  function keepOnScreens() { const at = new Map(board.cards.map((c, i) => [c.id, i])); if (!board.cards.some(c => c.onFrame && at.has(c.onFrame) && at.get(c.id) < at.get(c.onFrame))) return;
+    const kids = new Map(); board.cards.forEach(c => { if (c.onFrame && at.has(c.onFrame) && at.get(c.id) < at.get(c.onFrame)) { if (!kids.has(c.onFrame)) kids.set(c.onFrame, []); kids.get(c.onFrame).push(c); } });
+    const moving = new Set([...kids.values()].flat()), out = []; board.cards.forEach(c => { if (moving.has(c)) return; out.push(c); (kids.get(c.id) || []).forEach(k => out.push(k)); }); board.cards = out; }
+  function renderAll() { keepOnScreens(); wireLayers(); layersSoon(); applyColors(); cardsEl.innerHTML = ''; board.cards.filter(c => c.type === 'coll').forEach(c => renderCard(c)); board.cards.filter(c => c.type !== 'coll').forEach(c => renderCard(c)); layoutAll(); renderWires(); renderTray(); applyView(); }
 
   // ---------- round 2 pieces: icons, shapes, link hosts ----------
   const CI = d => `<svg class="cic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -2874,7 +2878,10 @@
   const onFrame = f => board.cards.filter(c => c.id !== f.id && c.type !== 'frame' && c.onFrame === f.id);
   function fileIntoFrame(cs) {
     cs.forEach(c => { const mx = c.x + c.w / 2, my = c.y + c.h / 2, f = [...board.cards].reverse().find(f => f.type === 'frame' && f.id !== c.id && mx > f.x && mx < f.x + f.w && my > f.y && my < f.y + f.h);
-      if (f) c.onFrame = f.id; else delete c.onFrame; });
+      if (f) c.onFrame = f.id; else delete c.onFrame;
+      // landing on a screen that's above it: lift it onto the screen so it doesn't vanish underneath
+      if (f && board.cards.indexOf(c) < board.cards.indexOf(f)) { board.cards.splice(board.cards.indexOf(c), 1); board.cards.splice(board.cards.indexOf(f) + 1, 0, c);
+        const el = cardsEl.querySelector(`[data-id="${c.id}"]`), fe = cardsEl.querySelector(`[data-id="${f.id}"]`); if (el && fe) fe.after(el); } });
   }
   // snapping: edges and center lines line up with the things around them (any kind), with pink guides
   function snapWF(start, dx, dy) {
@@ -2905,8 +2912,8 @@
   // groups move as one, a frame brings everything on it along, and a card on a frame never goes behind its frame
   function restack(where) {
     const cs = selCards(); if (!cs.length || !board) return;
-    // screens and sections always sit behind cards, so they stack among themselves; their cards keep their own places (Layers still nests them)
-    const box = c => c.type === 'frame' || c.type === 'section', boxes = cs.every(box), peer = c => !boxes || box(c);
+    // sections always sit behind cards, so they stack among themselves; a screen stacks like a card and brings its pieces along
+    const box = c => c.type === 'section', boxes = cs.every(box), peer = c => !boxes || box(c);
     // a whole group you selected moves as one (all its pieces are selected); a piece picked out of a group moves on its own
     const ids = new Set(); cs.forEach(c => { ids.add(c.id); if (c.type === 'frame' && !boxes) onFrame(c).forEach(k => ids.add(k.id)); });
     const all = board.cards, moving = all.filter(c => ids.has(c.id)), rest = all.filter(c => !ids.has(c.id)), idx = all.map((c, i) => ids.has(c.id) ? i : -1).filter(i => i >= 0);
