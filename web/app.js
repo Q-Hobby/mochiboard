@@ -2516,7 +2516,7 @@
     // things are selected and you right-click empty board: the menu is still about what you selected (click empty board first to get the board's own menu)
     if (!el && sel.size) el = cardsEl.querySelector(`[data-id="${[...sel][0]}"]`);
     if (el) {
-      if (!sel.has(el.dataset.id)) selectOnly([el.dataset.id]); const cs = selCards();
+      if (!sel.has(el.dataset.id)) selectOnly(groupOf(el.dataset.id)); const cs = selCards();   // like a click: a grouped piece means its group, unless you picked the piece
       boardMenu(e, [
         ...(cs.length > 1 && !cs.every(c => c.group && c.group === cs[0].group) ? [{ label: 'Group  ⌘G', run: () => { remember(); groupSel(true); } }] : []),
         ...(cs.some(c => c.group) ? [{ label: 'Ungroup  ⇧⌘G', run: () => { remember(); groupSel(false); } }] : []),
@@ -2907,7 +2907,8 @@
     const cs = selCards(); if (!cs.length || !board) return;
     // screens and sections always sit behind cards, so they stack among themselves; their cards keep their own places (Layers still nests them)
     const box = c => c.type === 'frame' || c.type === 'section', boxes = cs.every(box), peer = c => !boxes || box(c);
-    const ids = new Set(); cs.forEach(c => { groupOf(c.id).forEach(i => ids.add(i)); if (c.type === 'frame' && !boxes) onFrame(c).forEach(k => ids.add(k.id)); });
+    // a whole group you selected moves as one (all its pieces are selected); a piece picked out of a group moves on its own
+    const ids = new Set(); cs.forEach(c => { ids.add(c.id); if (c.type === 'frame' && !boxes) onFrame(c).forEach(k => ids.add(k.id)); });
     const all = board.cards, moving = all.filter(c => ids.has(c.id)), rest = all.filter(c => !ids.has(c.id)), idx = all.map((c, i) => ids.has(c.id) ? i : -1).filter(i => i >= 0);
     const seen = c => !ids.has(c.id) && !c.hidden && peer(c);
     let at;
