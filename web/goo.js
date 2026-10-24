@@ -69,24 +69,30 @@ window.Goo = (canvas, opts = {}) => {
   }
   function piece(sp, ox, oy, px) {
     const [, dx, dy, rows] = sp;
-    rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.' && PAL[ch]) { g.fillStyle = PAL[ch]; g.fillRect(ox + (dx + x) * px, oy + (dy + y) * px, px, px); } }));
+    rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.' && PAL[ch]) { g.fillStyle = mute(PAL[ch]); g.fillRect(ox + (dx + x) * px, oy + (dy + y) * px, px, px); } }));
   }
+  // Calmest: her colors softened toward a gentle gray (kept light so she still reads as her color)
+  const mutedCache = new Map();
+  const mute = hex => { if (!window.mochiMuted || !/^#[0-9a-f]{6}$/i.test(hex)) return hex; if (mutedCache.has(hex)) return mutedCache.get(hex);
+    const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, gg = n >> 8 & 255, b = n & 255, y = .3 * r + .59 * gg + .11 * b, k = .7;   // 70% of the way to her own brightness in gray
+    const out = '#' + [r, gg, b].map(v => Math.round(v + (y + (238 - y) * .25 - v) * k).toString(16).padStart(2, '0')).join(''); mutedCache.set(hex, out); return out; };
   function frame(now) {
     const t = now / 1000; g.clearRect(0, 0, W, H);
     const f = kinds.length ? (opts.wearing || window.mochiWearing)() : {}, L = layout(f), px = L.px;   // opts.wearing: her own outfit (the website's dress-up stage), instead of the app-wide one
     if (t > nextLook) { lookTo = [-1, 0, 0, 1][Math.floor(Math.random() * 4)]; nextLook = t + 1.5 + Math.random() * 2.5; }
     look += (lookTo - look) * .2;
-    const hp = t - hopT, lift = hp < .45 ? Math.sin(hp / .45 * Math.PI) * 3 : 0;
-    const wig = thinking ? Math.sin(t * 14) * .6 : 0, breathe = Math.sin(t * 2.4) * .04;
+    const calm = window.mochiCalm, hp = t - hopT, lift = !calm && hp < .45 ? Math.sin(hp / .45 * Math.PI) * 3 : 0;   // calm: she sits still (she still blinks)
+    const wig = thinking && !calm ? Math.sin(t * 14) * .6 : 0, breathe = calm ? 0 : Math.sin(t * 2.4) * .04;
+    if (calm) look = 0;
     const ox = L.ox + wig * px * .5, oy = L.oy - Math.round(lift) * px;
     g.save(); g.translate(W / 2, H); g.scale(1 - breathe * .5, 1 + breathe); g.translate(-W / 2, -H);
     const wears = k => kinds.includes(k) && f[k] && WARD[k]?.[f[k]];
     if (wears('held') && f.held === 'balloon') piece(WARD.held.balloon, ox, oy, px);   // the string goes behind her
-    BODY.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { g.fillStyle = col[ch]; g.fillRect(ox + x * px, oy + y * px, px, px); } }));
+    BODY.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { g.fillStyle = mute(col[ch]); g.fillRect(ox + x * px, oy + y * px, px, px); } }));
     const blink = (t % 3.3) > 3.15, ex = wears('face') ? 0 : Math.round(look);   // glasses on: she looks straight ahead
-    g.fillStyle = '#081f3d';
+    g.fillStyle = mute('#081f3d');
     [3, 9].forEach(c => g.fillRect(ox + (c + ex) * px, oy + (blink ? 5.5 : 5) * px, px, blink ? px * .4 : px * 2));
-    if (!(wears('face') && f.face === 'cheeks')) { g.fillStyle = '#ff8fc2'; [2, 10].forEach(c => g.fillRect(ox + c * px, oy + 7 * px, px, px)); }
+    if (!(wears('face') && f.face === 'cheeks')) { g.fillStyle = mute('#ff8fc2'); [2, 10].forEach(c => g.fillRect(ox + c * px, oy + 7 * px, px, px)); }
     ['neck', 'face', 'hat'].forEach(k => { if (wears(k)) piece(WARD[k][f[k]], ox, oy, px); });
     if (wears('held') && f.held !== 'balloon') piece(WARD.held[f.held], ox, oy, px);
     g.restore();

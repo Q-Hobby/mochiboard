@@ -307,11 +307,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     func connections(done: @escaping ([String: Any]) -> Void) {
         guard let claude = claudePath else { return done(["claude": false, "mobbin": false, "higgsfield": false]) }
         DispatchQueue.global().async {
-            let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: claude); p.arguments = ["mcp", "list"]
-            p.currentDirectoryURL = support; p.standardOutput = out; p.standardError = Pipe(); p.standardInput = FileHandle.nullDevice
-            try? p.run(); let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
-            let lines = (String(data: d, encoding: .utf8) ?? "").lowercased().split(separator: "\n")
+            // Claude checks every connection live, and one can blip for a moment, so a helper that's in the list but not "connected" gets one more look
+            func look() -> [Substring] {
+                let p = Process(), out = Pipe(); p.executableURL = URL(fileURLWithPath: claude); p.arguments = ["mcp", "list"]
+                p.currentDirectoryURL = support; p.standardOutput = out; p.standardError = FileHandle.nullDevice; p.standardInput = FileHandle.nullDevice
+                try? p.run(); let d = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+                return (String(data: d, encoding: .utf8) ?? "").lowercased().split(separator: "\n")
+            }
+            var lines = look()
             let ok = { (name: String) in lines.contains { $0.contains(name) && $0.contains("connected") && !$0.contains("needs") } }
+            let listed = { (name: String) in lines.contains { $0.contains(name) && !$0.contains("needs") } }
+            if (listed("mobbin") && !ok("mobbin")) || (listed("higgsfield") && !ok("higgsfield")) { Thread.sleep(forTimeInterval: 1.5); lines = look() }
             done(["claude": true, "mobbin": ok("mobbin"), "higgsfield": ok("higgsfield")])
         }
     }
@@ -396,7 +402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             // only the helpers the person has switched on in Settings
             var tools = mobbin ? ["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"] : []
             // the generator is only switched on after the person taps "yes" in the app: spending credits needs their say-so
-            if confirmed && higgs { tools += ["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"] }
+            if confirmed && higgs { tools += ["mcp__claude_ai_higgsfield__generate_image", "mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore", "mcp__claude_ai_higgsfield__show_generation_by_ids"] }   // Claude usually reaches for generate_image (one picture); without it, the yes led nowhere
             p.arguments = ["-p", prompt, "--output-format", "json"] + (tools.isEmpty ? [] : ["--allowedTools", tools.joined(separator: ",")])
             p.currentDirectoryURL = support
             var env = ProcessInfo.processInfo.environment; env["PATH"] = (env["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:" + NSString(string: "~/.local/bin").expandingTildeInPath

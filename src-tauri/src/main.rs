@@ -214,7 +214,7 @@ async fn ask(a: &Value) -> Result<String, String> {
         .replace("{HIGGS_RULE}", if confirmed { prompts::HIGGS_YES } else { prompts::HIGGS_NO });
     // only the helpers the person has switched on; the image generator only after they tap yes
     let mut tools: Vec<&str> = if mobbin { vec!["mcp__claude_ai_Mobbin__search_screens", "mcp__claude_ai_Mobbin__search_flows", "mcp__claude_ai_Mobbin__search_sections"] } else { vec![] };
-    if confirmed && higgs { tools.extend(["mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore"]); }
+    if confirmed && higgs { tools.extend(["mcp__claude_ai_higgsfield__generate_image", "mcp__claude_ai_higgsfield__generate_image_batch", "mcp__claude_ai_higgsfield__jobs_wait", "mcp__claude_ai_higgsfield__models_explore", "mcp__claude_ai_higgsfield__show_generation_by_ids"]); }   // Claude usually reaches for generate_image (one picture)
     run_claude(&prompt, &tools, 300).await
 }
 // Claude Code's JSON answer: note what it used (usage.json, same as the Mac app), hand back just the words
