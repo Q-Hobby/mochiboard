@@ -3,6 +3,12 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.7.3
+
+- Bring to front and send to back work on everything now. Hovering a card no longer pops it to the top, so the order you set is the order you see.
+- Screens stack like any card: bring one to the front and it covers loose notes, and its own pieces always ride on top of it.
+- Pick a piece out of a group and it moves forward or back on its own; select the whole group and it moves as one.
+
 ## October 2026 · 1.7.2
 
 - Aligning respects groups: select a whole group and it lines up as one piece, keeping its own layout. Pick pieces out of a group and they line up on their own.
