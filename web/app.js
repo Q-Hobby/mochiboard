@@ -607,7 +607,27 @@
   const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && c.shape === 'line');
   // boxes and screens: the line is drawn (an SVG rect) so it can be solid, dashed or dotted with your own dash length and gap, like Figma
   const skStyle = c => c.sdash === true ? 'dash' : c.sdash || 'solid';
+  // dashed or dotted letters: the browser can only outline text solid, so the words are redrawn as an SVG on top (line by line, same font),
+  // with the real text underneath kept for editing. While you edit, the real text shows normally
+  function textStrokeSVG(c, el) {
+    el.querySelector(':scope > .tsk')?.remove(); el.classList.remove('tsk-on');
+    if (!['title', 'text'].includes(c.type) || !(c.stroke && c.sw > 0) || skStyle(c) === 'solid') return;
+    const t = el.querySelector(c.type === 'title' ? '.text' : '.tx'); if (!t || !t.textContent.trim()) return;
+    const tilt = el.style.getPropertyValue('--tilt'); el.style.setProperty('--tilt', '0deg');   // measure it straight
+    const er = el.getBoundingClientRect(), k = er.width / (el.offsetWidth || 1) || 1, cs = getComputedStyle(t), lines = [];
+    const walker = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); let node; const rg = document.createRange();
+    while ((node = walker.nextNode())) for (let i = 0; i < node.length; i++) { rg.setStart(node, i); rg.setEnd(node, i + 1); const r = rg.getClientRects()[0]; if (!r) continue;
+      const top = Math.round((r.top - er.top) / k), L = lines.find(l => Math.abs(l.top - top) < 3) || (lines.push({ top, x: (r.left - er.left) / k, s: '' }), lines[lines.length - 1]); L.s += node.data[i]; if ((r.left - er.left) / k < L.x && node.data[i].trim()) L.x = (r.left - er.left) / k; }
+    if (tilt) el.style.setProperty('--tilt', tilt); else el.style.removeProperty('--tilt');
+    const st = skStyle(c), fillC = (c.type === 'title' ? c.tc : c.color) === 'none' ? 'none' : cs.color, w = c.sw;
+    const dash = st === 'dash' ? `${c.dl ?? 8} ${c.dg ?? 6}` : `0 ${(c.dg ?? 6) + w * 2}`, ff = cs.fontFamily.replace(/"/g, "'");
+    el.insertAdjacentHTML('beforeend', `<svg class="tsk" aria-hidden="true">${lines.filter(l => l.s.trim()).map(l => `<text x="${l.x.toFixed(1)}" y="${l.top}" dominant-baseline="text-before-edge" style="font-family:${ff};font-size:${cs.fontSize};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};letter-spacing:${cs.letterSpacing}" fill="${fillC}" stroke="${c.stroke}" stroke-width="${w * 2}" stroke-dasharray="${dash}" stroke-linecap="${st === 'dot' ? 'round' : 'butt'}" stroke-linejoin="round" paint-order="stroke fill">${esc(l.s.replace(/^\s+/, ''))}</text>`).join('')}</svg>`);
+    el.classList.add('tsk-on');
+  }
+  const tskSoon = (c, el) => requestAnimationFrame(() => { if (el.isConnected) textStrokeSVG(c, el); });
+  const tskRO = new ResizeObserver(es => es.forEach(e => { const el = e.target, c = byId(el.dataset.id); if (c && !el.classList.contains('editing')) textStrokeSVG(c, el); }));
   function applyStroke(c, el) {
+    if (['title', 'text'].includes(c.type)) { if (c.stroke && c.sw > 0 && skStyle(c) !== 'solid') { tskSoon(c, el); tskRO.observe(el); } else { el.querySelector(':scope > .tsk')?.remove(); el.classList.remove('tsk-on'); tskRO.unobserve(el); } }
     if (c.type === 'title') { const t = el.querySelector('.text'); if (t) t.style.color = c.tc && c.tc !== 'none' ? c.tc : ''; }   // a title's own text color (applied after its text is drawn)
     if (!canStroke(c)) return; const on = !!(c.stroke && c.sw > 0);
     el.classList.toggle('has-stroke', on);
@@ -1258,7 +1278,8 @@
       save(); };
     t.onblur = () => endEdit();
   }
-  function endEdit() { if (!editing) return; const el = cardsEl.querySelector(`[data-id="${editing}"]`); if (el) { el.classList.remove('editing'); el.querySelectorAll('[contenteditable]').forEach(n => n.contentEditable = 'false'); } editing = null; }
+  function endEdit() { if (!editing) return; { const c0 = byId(editing), e0 = cardsEl.querySelector(`[data-id="${editing}"]`); if (c0 && e0 && ['title', 'text'].includes(c0.type)) setTimeout(() => textStrokeSVG(c0, e0), 0); }
+    const el = cardsEl.querySelector(`[data-id="${editing}"]`); if (el) { el.classList.remove('editing'); el.querySelectorAll('[contenteditable]').forEach(n => n.contentEditable = 'false'); } editing = null; }
 
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
@@ -3893,12 +3914,12 @@ ${proseCSS()}
       h += G(2, pop('tfill', `<i class="sb-cur sb-tcur${cur === 'none' ? ' sb-none' : ''}" style="--c:${cur && cur !== 'none' ? cur : 'var(--ink)'}">A</i>${CARET}`,
         `<div class="sb-dots sb-fills"><button data-tf="none" title="No fill" class="sb-nofill ${cur === 'none' ? 'on' : ''}"></button>${TF.map(v => `<button data-tf="${v}" title="${v}" style="background:${v}" class="${cur.toLowerCase() === v ? 'on' : ''}"></button>`).join('')}<button class="sb-anycolor" data-tfwheel="1" title="Any color"></button></div>`, 'Text color')); }
     const stk = cs.filter(c => canStroke(c));
-    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || '#27272a', w = f.sw || 0, textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24;
+    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || '#27272a', w = f.sw || 0, textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => c.type === 'icon');
       const SK = ['#000000', '#ffffff', '#71717a', '#a1a1aa', '#ff5a6e', '#ff9ec4', '#f7b955', '#5fc795', '#4f9dff', '#9b7bff', ...(board.palette || []).map(p => p.hex), ...board.cards.filter(c => c.type === 'swatch' && c.hex).map(c => c.hex)].slice(0, 18);
       h += G(2, pop('stroke', `<i class="sb-cur sb-skcur${w ? '' : ' none'}" style="--c:${col}"></i>${CARET}`,
         `<div class="sb-corners sb-stroke"><div class="sbc-top"><span>Stroke</span><input type="range" min="0" max="${max}" step="0.5" value="${w}" style="--p:${Math.min(100, w / max * 100)}%" data-skw><input type="number" min="0" max="${max}" step="0.5" value="${w}" data-skn aria-label="Stroke width"><b class="sb-unit">px</b></div>
           <div class="sb-dots sb-fills">${[...new Set(SK.map(v => v.toLowerCase()))].map(v => `<button data-skc="${v}" title="${v}" style="background:${v}" class="${w && col.toLowerCase() === v ? 'on' : ''}"></button>`).join('')}<button class="sb-anycolor" data-skwheel="1" title="Any color"></button></div>
-          ${textOnly ? '' : (() => { const st = skStyle(f), sl = (k, label, v, max) => `<div class="sbc-top sb-skrow"><span>${label}</span><input type="range" min="1" max="${max}" step="1" value="${v}" style="--p:${(v - 1) / (max - 1) * 100}%" data-skr="${k}"><input type="number" min="1" max="${max}" value="${v}" data-skrn="${k}" aria-label="${label}"><b class="sb-unit">px</b></div>`;
+          ${noDash ? '' : (() => { const st = skStyle(f), sl = (k, label, v, max) => `<div class="sbc-top sb-skrow"><span>${label}</span><input type="range" min="1" max="${max}" step="1" value="${v}" style="--p:${(v - 1) / (max - 1) * 100}%" data-skr="${k}"><input type="number" min="1" max="${max}" value="${v}" data-skrn="${k}" aria-label="${label}"><b class="sb-unit">px</b></div>`;
             return `<div class="sbc-chips sb-skstyles">${[['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted'], ['none', 'None']].map(([k, t]) => `<button data-skd="${k}" class="${(k === 'none' ? !w : w && st === k) ? 'on' : ''}"><span class="sks sks-${k}"></span>${t}</button>`).join('')}</div>`
               + `<div class="sb-skdash${w && st !== 'solid' ? '' : ' off'}" data-skst="${st}">${sl('dl', 'Dash', f.dl ?? 8, 40)}${sl('dg', 'Gap', f.dg ?? 6, 40)}</div>`; })()}</div>`, 'Stroke')); }
     const rnd = cs.filter(c => (['frame', 'box', 'image'].includes(c.type) || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
