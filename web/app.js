@@ -4186,12 +4186,19 @@ ${proseCSS()}
     // real sizes right now (a title's saved width catches up a moment after it changes, which made the first click land off-center)
     const elOf = c => cardsEl.querySelector(`[data-id="${c.id}"]`), W = c => c.type === 'title' ? (elOf(c)?.offsetWidth || c.w) : c.w, H = c => c.type === 'title' ? (elOf(c)?.offsetHeight || c.h) : c.h;
     cs.forEach(c => { if (c.type === 'title') { c.w = W(c); c.h = H(c); } });
-    const x0 = Math.min(...cs.map(c => c.x)), x1 = Math.max(...cs.map(c => c.x + W(c))), y0 = Math.min(...cs.map(c => c.y)), y1 = Math.max(...cs.map(c => c.y + H(c)));
+    // units: a whole group you selected moves as one block (its pieces keep their layout); pieces picked out of a group line up on their own
+    const ids = new Set(cs.map(c => c.id)), units = new Map();
+    cs.forEach(c => { const whole = c.group && board.cards.filter(k => k.group === c.group).every(k => ids.has(k.id)), key = whole ? 'g:' + c.group : c.id;
+      if (!units.has(key)) units.set(key, []); units.get(key).push(c); });
+    const U = [...units.values()].map(m => { const x = Math.min(...m.map(c => c.x)), y = Math.min(...m.map(c => c.y)); return { m, x, y, w: Math.max(...m.map(c => c.x + W(c))) - x, h: Math.max(...m.map(c => c.y + H(c))) - y, nx: x, ny: y }; });
+    if (U.length < 2) return;
+    const x0 = Math.min(...U.map(u => u.x)), x1 = Math.max(...U.map(u => u.x + u.w)), y0 = Math.min(...U.map(u => u.y)), y1 = Math.max(...U.map(u => u.y + u.h));
     const moved = new Map(cs.map(c => [c.id, [c.x, c.y]]));
-    if (how === 'left') cs.forEach(c => c.x = x0); if (how === 'right') cs.forEach(c => c.x = x1 - W(c)); if (how === 'hcenter') cs.forEach(c => c.x = (x0 + x1) / 2 - W(c) / 2);
-    if (how === 'top') cs.forEach(c => c.y = y0); if (how === 'bottom') cs.forEach(c => c.y = y1 - H(c)); if (how === 'vcenter') cs.forEach(c => c.y = (y0 + y1) / 2 - H(c) / 2);
-    if (how === 'dh') { const o = [...cs].sort((a, b) => a.x - b.x), gap = (x1 - x0 - o.reduce((n, c) => n + W(c), 0)) / (o.length - 1); let x = x0; o.forEach(c => { c.x = x; x += W(c) + gap; }); }
-    if (how === 'dv') { const o = [...cs].sort((a, b) => a.y - b.y), gap = (y1 - y0 - o.reduce((n, c) => n + H(c), 0)) / (o.length - 1); let y = y0; o.forEach(c => { c.y = y; y += H(c) + gap; }); }
+    if (how === 'left') U.forEach(u => u.nx = x0); if (how === 'right') U.forEach(u => u.nx = x1 - u.w); if (how === 'hcenter') U.forEach(u => u.nx = (x0 + x1) / 2 - u.w / 2);
+    if (how === 'top') U.forEach(u => u.ny = y0); if (how === 'bottom') U.forEach(u => u.ny = y1 - u.h); if (how === 'vcenter') U.forEach(u => u.ny = (y0 + y1) / 2 - u.h / 2);
+    if (how === 'dh') { const o = [...U].sort((a, b) => a.x - b.x), gap = (x1 - x0 - o.reduce((n, u) => n + u.w, 0)) / (o.length - 1); let x = x0; o.forEach(u => { u.nx = x; x += u.w + gap; }); }
+    if (how === 'dv') { const o = [...U].sort((a, b) => a.y - b.y), gap = (y1 - y0 - o.reduce((n, u) => n + u.h, 0)) / (o.length - 1); let y = y0; o.forEach(u => { u.ny = y; y += u.h + gap; }); }
+    U.forEach(u => { const dx = u.nx - u.x, dy = u.ny - u.y; u.m.forEach(c => { c.x += dx; c.y += dy; }); });
     // a section brings what's inside it along
     cs.filter(c => c.type === 'section').forEach(sec => { const [ox, oy] = moved.get(sec.id), dx = sec.x - ox, dy = sec.y - oy; if (!dx && !dy) return;
       board.cards.filter(k => !moved.has(k.id) && k.x + k.w / 2 > ox && k.x + k.w / 2 < ox + sec.w && k.y + k.h / 2 > oy && k.y + k.h / 2 < oy + sec.h).forEach(k => { k.x += dx; k.y += dy; renderCard(k); }); });

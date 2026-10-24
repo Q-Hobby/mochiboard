@@ -3,6 +3,10 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.7.2
+
+- Aligning respects groups: select a whole group and it lines up as one piece, keeping its own layout. Pick pieces out of a group and they line up on their own.
+
 ## October 2026 · 1.7.1
 
 - Updates find you even if Mochiboard stays open all day: it checks every hour and whenever you come back to it, then shows the banner (and with auto-update on, gets the update ready right away).
