@@ -2905,11 +2905,13 @@
   // groups move as one, a frame brings everything on it along, and a card on a frame never goes behind its frame
   function restack(where) {
     const cs = selCards(); if (!cs.length || !board) return;
-    const ids = new Set(); cs.forEach(c => { groupOf(c.id).forEach(i => ids.add(i)); if (c.type === 'frame') onFrame(c).forEach(k => ids.add(k.id)); });
+    // screens and sections always sit behind cards, so they stack among themselves; their cards keep their own places (Layers still nests them)
+    const box = c => c.type === 'frame' || c.type === 'section', boxes = cs.every(box), peer = c => !boxes || box(c);
+    const ids = new Set(); cs.forEach(c => { groupOf(c.id).forEach(i => ids.add(i)); if (c.type === 'frame' && !boxes) onFrame(c).forEach(k => ids.add(k.id)); });
     const all = board.cards, moving = all.filter(c => ids.has(c.id)), rest = all.filter(c => !ids.has(c.id)), idx = all.map((c, i) => ids.has(c.id) ? i : -1).filter(i => i >= 0);
-    const seen = c => !ids.has(c.id) && !c.hidden;
+    const seen = c => !ids.has(c.id) && !c.hidden && peer(c);
     let at;
-    if (where === 'front') at = rest.length;
+    if (where === 'front') at = boxes ? rest.reduce((n, c, i) => box(c) ? i + 1 : n, 0) : rest.length;
     else if (where === 'back') at = 0;
     else if (where === 'forward') { const i = all.findIndex((c, k) => k > Math.max(...idx) && seen(c)); if (i < 0) return; at = rest.indexOf(all[i]) + 1; }
     else { let i = -1; for (let k = Math.min(...idx) - 1; k >= 0; k--) if (seen(all[k])) { i = k; break; } if (i < 0) return; at = rest.indexOf(all[i]); }
@@ -4737,5 +4739,5 @@ ${proseCSS()}
     setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
-  window.__mb = { music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
+  window.__mb = { selectOnly, restack, music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
 })();

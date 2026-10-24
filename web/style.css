@@ -61,7 +61,7 @@ kbd { font: 500 11px/1 var(--font); padding: 3px 6px; border-radius: 6px; backgr
 .card .frame { position: absolute; inset: 0; border-radius: 18px; background: var(--fill, #fff); filter: url(#wob); box-shadow: 0 10px 30px rgba(120, 80, 120, .10), 0 1px 3px rgba(0, 0, 0, .04); }
 .card .body { position: relative; height: 100%; padding: 16px 18px; overflow: hidden; border-radius: 18px; }
 .card { z-index: 2; }
-.card:hover { z-index: 3; }
+/* hovering never changes the stacking: a card under the mouse popping to the top made send to back look broken */
 .card.dragging { rotate: 0deg; z-index: 50; }
 .card.dragging .frame { box-shadow: 0 24px 50px rgba(120, 80, 120, .22); }
 .card.sel::after { content: ""; position: absolute; inset: -9px; border: 2.5px solid var(--select); border-radius: 24px; pointer-events: none;
