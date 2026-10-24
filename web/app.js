@@ -4384,7 +4384,7 @@ ${proseCSS()}
   async function checkUpdate(force) {
     if (!MB.native) return;
     let last = 0; try { last = +localStorage.getItem('mochiboard:updChecked') || 0; } catch (e) {}
-    if (!force && Date.now() - last < 20 * 3600 * 1000 && updInfo) return showUpdate();
+    if (!force && Date.now() - last < 15 * 60 * 1000 && updInfo) return showUpdate();   // at most every 15 minutes (it used to wait 20 hours, so an app left open never noticed)
     $('suSub').textContent = 'Checking for a new version…';
     try { updInfo = await MB.updateCheck(); localStorage.setItem('mochiboard:updChecked', Date.now()); } catch (e) { updInfo = { error: true }; }
     showUpdate(true);
@@ -4418,6 +4418,8 @@ ${proseCSS()}
     fitUpBar();
   }
   $('suCheck').onclick = () => checkUpdate(true);
+  setInterval(() => checkUpdate(), 60 * 60 * 1000);   // still open: look again every hour
+  addEventListener('focus', () => checkUpdate());   // and whenever you come back to the window (no more than every 15 minutes)
   ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('upBar').addEventListener(t, e => e.stopPropagation()));
   // the bar sits at the top centre; if it would touch the board's name, it slides down just below it
   function fitUpBar() { const b = $('upBar'); if (b.hidden) return; b.classList.remove('low'); b.style.left = '';
@@ -4728,5 +4730,5 @@ ${proseCSS()}
     setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
-  window.__mb = { music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll };   // handy for testing
+  window.__mb = { music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
 })();
