@@ -748,7 +748,7 @@
       line: (c.squig || 'straight') === 'straight' ? `<line x1="0" y1="50" x2="100" y2="50" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
         : `<path d="${squigPath(c)}" fill="none" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" stroke-linejoin="${(c.round ?? 60) < 15 && c.squig === 'zigzag' ? 'miter' : 'round'}" vector-effect="non-scaling-stroke"/>`,
     }[c.shape || 'rect'];
-    return `<svg class="sh" viewBox="0 0 100 100" preserveAspectRatio="none">${body}</svg>`;
+    return `<svg class="sh${(c.shape || 'rect') === 'line' ? ' is-line' : ''}" viewBox="0 0 100 100" preserveAspectRatio="none">${body}</svg>`;
   }
 
   // ---------- collections: a named header over a frame; cards inside stack in columns and the frame grows to fit ----------
@@ -2024,6 +2024,7 @@
     $('usNote').textContent = (u.week.cost >= .01 ? `About $${u.week.cost.toFixed(2)} this week if you paid per request (on a Pro or Max plan you don't). ` : '') + "Just Mochi's share, counted on this Mac. Your plan's limits cover everything you do with Claude.";
   }
   $('usLimits').onclick = () => MB.openURL('https://claude.ai/settings/usage');
+  $('sendFeedback').onclick = () => MB.openURL('https://mochiboard.app/feedback.html');   // the feedback page on mochiboard.app (with the optional credit-me fields)
   $('usReset').onclick = async () => { await MB.resetUsage(); showUsage(); };
 
   $('setClose').onclick = closeSettings;
@@ -4559,6 +4560,14 @@ ${proseCSS()}
     ['<rect x="3" y="3" width="9" height="9" rx="1.6"/><rect x="8" y="8" width="9" height="9" rx="1.6"/>', 'Front and back', 'Right-click a card to bring it to the front or send it back. Layers follows.'],
     ['<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2l4.3 4.3M6.5 8.5h4"/>', 'Zoom menu', 'Click the zoom % for quick sizes, or press ⌘+, ⌘−, ⌘0 and ⇧1.'],
     ['<rect x="2.5" y="5.5" width="10" height="9" rx="2"/><path d="M12.5 9l5-2.5v7l-5-2.5"/>', 'Videos, flipped and written out', 'Flip your camera like a selfie, and turn what you said in a video into words.'],
+   ], '1.7.0': [
+    ['<path d="M11.7 17.3a.7.7 0 0 1-1 0l-1.1-1.1a.7.7 0 0 1 0-1l3.9-3.9a.7.7 0 0 1 1 0l1.1 1.1a.7.7 0 0 1 0 1z"/><path d="M13.3 10.7 12.3 5.9a.7.7 0 0 0-.5-.5L3.2 3a.7.7 0 0 0-.9.9l2.4 8.6a.7.7 0 0 0 .5.5l4.8 1"/><circle cx="8" cy="8" r="1.4"/>', 'The Pen', 'Draw any shape, then double-click to pull its points, round any corner, or curve it.'],
+    ['<rect x="3" y="3" width="14" height="14" rx="3" stroke-dasharray="2.5 2.5"/>', 'Strokes and no fill', 'Solid, dashed or dotted outlines, and a no-fill option that keeps an outline in its color.'],
+    ['<path d="M3 13c1.5-4 3-4 4.5 0s3 4 4.5 0 3-4 4.5 0"/>', 'Squiggly lines', 'Wavy, zigzag and loopy lines you can tighten, round and wobble.'],
+    ['<path d="M4 15 8 5l4 10M5.5 11.5h5M13 9h4M13 13h4"/>', 'Text, your way', 'Any size, line height, letter spacing, alignment, and UPPERCASE / lowercase / Title Case.'],
+    ['<path d="M3 4h14M3 10h9M3 16h14"/><path d="M15 8l2 2-2 2"/>', 'Line things up', 'Alignment guides for everything, align and space buttons, and rotate or scale many things at once.'],
+    ['<path d="M10 3c3.9 0 7 2.7 7 6 0 2.4-1.6 4.4-4 5.4V17l-3-2h0c-3.9 0-7-2.7-7-6s3.1-6 7-6z"/>', 'Name your Mochi, and let her rest', 'Give Mochi a name, and try Calm or Calmest when you want her quiet ♡ Calm modes were Nikunj Tyagi’s idea, thank you!'],
+    ['<rect x="2.5" y="12" width="15" height="5" rx="2.5"/><path d="M6 8V3M10 8V5M14 8V4"/>', 'Toolbar and panels', 'Pick your icon size in Settings → Toolbar, and drag any panel to the height you like.'],
   ] };
   // the button on each version's card: try the headline thing
   const NEWS_TRY = { '1.1.0': ['Try a template', () => $('tools').querySelector('[data-add="tpl"]').click()], '1.2.0': ['Make it yours', () => { $('gearBtn').click(); setTab('board'); setTimeout(() => $('settings').querySelector('.col-grid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }], '1.3.0': ['Write a doc', () => openDoc(addAtCenter('doc', { text: 'My first real doc' }))], '1.4.0': ['Record a video', () => startPlacing('video')], '1.5.0': ['Pick your camera', () => { $('gearBtn').click(); setTab('general'); setTimeout(() => $('settings').querySelector('.set-devices')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }] };

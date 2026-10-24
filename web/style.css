@@ -2364,3 +2364,6 @@ body.dark .mu-volpop { background: #2b2730; }
 .sb-cases button.on, .sb-cases button.on b { color: var(--ink) !important; } body.dark .sb-cases button.on, body.dark .sb-cases button.on b { color: #fff !important; }
 /* the selection bar (and anything that opens from it, like dropdowns inside ···) sits above Mochi's pill */
 .dock .selbar { position: relative; z-index: 6; } .dock .mochi { z-index: 2; } .dock .selbar .sb-popw.open { z-index: 10; }
+/* a perfectly flat line has no height, and Safari draws the wobble effect at that size: nothing. Straight lines skip the wobble */
+.card.shape svg.sh.is-line { filter: none; }   /* lines have their own Wobble slider; the board's wobble effect misdraws them in Safari's sharp zoom */
+.set-feedback { background: #f3efff; } .set-feedback .sf-ic { font-size: 24px; flex: none; } body.dark .set-feedback { background: rgba(155, 123, 255, .14); }

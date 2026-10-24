@@ -6,7 +6,7 @@
 
 ---
 
-Mochiboard is a free, open-source Mac app for the messy part before you open your design tools. Drop notes, pictures, links, checklists and colors on an endless board, arrange them however makes sense to *you*, and ask Mochi (a tiny pixel goo who thinks with Claude Code) to sort, plan, explore and build.
+Mochiboard is a free, open-source Mac and Windows app for the messy part before you open your design tools. Drop notes, pictures, links, checklists and colors on an endless board, arrange them however makes sense to *you*, and ask Mochi (a tiny pixel goo who thinks with Claude Code) to sort, plan, explore and build.
 
 **See it in action:** [jessa.art/mochiboard](https://jessa.art/#mochiboard.html)
 
@@ -88,4 +88,4 @@ Icons are [Material Icons](https://fonts.google.com/icons) (Apache 2.0). Fonts a
 
 ---
 
-<p align="center">Made with 🫧 by <a href="https://jessa.art">Jessa Wolfe</a>. MIT licensed.</p>
+<p align="center">Made with 🫧 by <a href="https://jessa.art">Jessa Wolfe</a>.<br>The code is open source (<a href="LICENSE">MIT</a>). The name, Mochi, the art and the music are <a href="TRADEMARKS.md">all rights reserved</a>.</p>

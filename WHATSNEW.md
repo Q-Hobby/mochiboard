@@ -3,6 +3,19 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.7.0
+
+- The Pen: draw any shape with points and curves. Double-click any shape to pull its points, round just the corners you pick, or make a corner smooth.
+- Strokes on boxes, screens and shapes: solid, dashed or dotted, with your own dash and gap. No fill leaves a clean outline in the color it had.
+- Squiggly lines: turn any line wavy, zigzag or loopy, then tighten it, round it, or give it a hand-drawn wobble.
+- Text, your way: type any size, set line height and letter spacing, align left, center or right, and switch between UPPERCASE, lowercase and Title Case. Titles wrap when you resize them, notes and checklists grow as you type, and Shift-drag scales text with its box.
+- Line things up: pink alignment guides for everything, buttons to align and space evenly, and rotate or scale several things at once.
+- Name your Mochi in Settings → Mochi, and try Calm (she sits still) or Calmest (softer colors too). Calm modes were Nikunj Tyagi's idea, thank you ♡
+- Settings → Toolbar: pick small, medium or large icons; anything that doesn't fit tucks into a ··· menu. Drag the bottom of your boards list, Layers, Wireframe or Unsorted to any height.
+- Mochi's music plays right from its little pill, and the colors under the color wheel come from your board.
+- Send feedback right from Settings → About.
+- Fixes: the text bar always shows up, aligning works on the first click, the resize corner stays on its box, text stays sharp when you zoom in, lines show up in Safari, menus never hide behind Mochi, and the Windows update banner is back.
+
 ## October 2026 · 1.6.1
 
 - Documents open on top of your widgets again, instead of underneath them.
