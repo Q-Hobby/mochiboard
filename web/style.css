@@ -2464,6 +2464,10 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .wires .w-snap { fill: #fff; stroke: var(--select); stroke-width: 2.5; }
 .wires .w-snap-halo { fill: var(--select); opacity: .18; }
 
+/* Settings: the Ideate tabs list has no icon column (grip · name · toggle) */
+#setDzList .tbe-row { grid-template-columns: 16px 1fr auto; }
+#setDzList .tbe-name { min-width: 0; }
+
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }
 .dz-flows > .label { margin: 0 2px 4px; } .dz-flows > .label small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-left: 4px; }
