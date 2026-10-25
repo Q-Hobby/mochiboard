@@ -3,6 +3,11 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.7.4
+
+- New boards start from Jessa’s poster: “You can literally do anything, if you dream it.” Every piece of it is movable; it’s a start, not a lesson. It’s in the Templates list as “Dream it” too.
+- The Mac app is now signed and notarized with Apple, so it opens on the first double-click, with no “could not verify” warning and no trip to System Settings. Nothing else changed.
+
 ## October 2026 · 1.7.3
 
 - Bring to front and send to back work on everything now. Hovering a card no longer pops it to the top, so the order you set is the order you see.
