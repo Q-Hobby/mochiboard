@@ -2448,10 +2448,10 @@ body.dark .lib-acts button.solid { background: var(--pink); color: #2b2630; }
 /* the placing preview of a shape wobbles like the real thing will, so it lands looking the same size */
 .ghost.kit, .ghost.shape { background: transparent; box-shadow: none; } .ghost.kit svg, .ghost.shape svg { filter: url(#wob); opacity: .85; }
 /* Mochiboard is in beta, and says so: a little slanted sticker under its name, left-aligned with the text. Jessa's in-progress build says "testing" instead */
-.brand > span { position: relative; } #side .box[data-box="boards"] > header { padding-bottom: 12px; }
-.brand > span::after { content: "beta"; position: absolute; left: 0; top: calc(100% - 5px); padding: 3px 8px 2px; border-radius: 999px; background: var(--pink); color: #fff; font: 800 9.5px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; rotate: -5deg; box-shadow: 0 3px 8px rgba(242, 122, 168, .35); pointer-events: none; }
+.brand > span { position: relative; } #side .box[data-box="boards"] > header { padding-bottom: 14px; }
+.brand > span::after { content: "beta"; position: absolute; left: 0; top: calc(100% + 1px); padding: 2px 7px 2px; border-radius: 999px; background: var(--pink); color: #fff; font: 800 9px/1 var(--font); letter-spacing: .1em; text-transform: uppercase; pointer-events: none; }
 .sa-text > b::after { content: "beta"; margin-left: 7px; padding: 3px 7px 2px; border-radius: 999px; background: var(--blush); color: var(--pink-deep); font: 800 9.5px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; vertical-align: middle; }
-html.beta .brand > span::after, html.beta .sa-text > b::after { content: "testing"; background: var(--lilac-deep, #b89bff); color: #fff; box-shadow: 0 3px 8px rgba(184, 155, 255, .35); }
+html.beta .brand > span::after, html.beta .sa-text > b::after { content: "testing"; background: var(--lilac-deep, #b89bff); color: #fff; }
 /* swimlanes: sections with squarer corners */
 .card.section.lane, .card.section.lane .sec-glass { border-radius: 18px; }
 /* words on a line */

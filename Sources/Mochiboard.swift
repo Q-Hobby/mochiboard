@@ -7,8 +7,8 @@ import Vision
 import CoreImage
 @preconcurrency import WebKit
 
-let isBeta = (Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta")   // Mochiboard Beta: Jessa's in-progress build, with its own boards folder
-let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/" + (isBeta ? "Mochiboard Beta" : "Mochiboard"))
+let isBeta = [".beta", ".testing"].contains { (Bundle.main.bundleIdentifier ?? "").hasSuffix($0) }   // the in-progress build, with its own boards folder
+let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/" + (isBeta ? "Mochiboard Testing" : "Mochiboard"))
 let boardsDir = support.appendingPathComponent("boards")
 let mediaDir = support.appendingPathComponent("media", isDirectory: true)   // videos live here as their own files; boards just point at them
 final class MediaScheme: NSObject, WKURLSchemeHandler {
@@ -82,14 +82,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         web.navigationDelegate = self; web.uiDelegate = self
         web.setValue(false, forKey: "drawsBackground")
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = isBeta ? "Mochiboard Beta" : "Mochiboard"
+        window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = isBeta ? "Mochiboard Testing" : "Mochiboard"
         window.backgroundColor = NSColor(red: 0.984, green: 0.973, blue: 0.988, alpha: 1)
         window.minSize = NSSize(width: 380, height: 520)   // narrow enough to sit beside other apps; below 700 wide it switches to the phone layout
         let host = NSView(); window.contentView = host
         web.frame = host.bounds; web.autoresizingMask = [.width, .height]; host.addSubview(web)
         // a strip at the top of the sidebar to drag the window by (the page fills the whole window, title bar included)
         let strip = DragStrip(frame: NSRect(x: 76, y: host.bounds.height - 40, width: 156, height: 40)); strip.autoresizingMask = [.minYMargin]; host.addSubview(strip)
-        window.center(); window.setFrameAutosaveName(isBeta ? "Mochiboard Beta" : "Mochiboard")
+        window.center(); window.setFrameAutosaveName(isBeta ? "Mochiboard Testing" : "Mochiboard")
         let page = Bundle.main.resourceURL!.appendingPathComponent("web/index.html")
         web.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
         window.makeKeyAndOrderFront(nil)
