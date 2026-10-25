@@ -2445,6 +2445,8 @@ body.dark .lib-acts button.solid { background: var(--pink); color: #2b2630; }
 /* the browser try-out banner */
 .webbar .ub-text { margin-right: 10px; }
 @media (max-width: 760px) { .webbar { left: 12px; right: 12px; translate: none; white-space: normal; border-radius: 20px; padding: 10px 8px 10px 14px; flex-wrap: wrap; row-gap: 8px; } .webbar .ub-text { line-height: 1.35; } }
+/* the placing preview of a shape wobbles like the real thing will, so it lands looking the same size */
+.ghost.kit, .ghost.shape { background: transparent; box-shadow: none; } .ghost.kit svg, .ghost.shape svg { filter: url(#wob); opacity: .85; }
 /* swimlanes: sections with squarer corners */
 .card.section.lane, .card.section.lane .sec-glass { border-radius: 18px; }
 /* words on a line */
