@@ -527,18 +527,18 @@
   let rhFor = null;
   const realBox = k => { const el = k.type === 'title' ? cardsEl.querySelector(`[data-id="${k.id}"]`) : null; return { w: el?.offsetWidth || k.w, h: el?.offsetHeight || k.h }; };   // titles size themselves to their words
   const mrot = document.createElement('div'); mrot.id = 'mrot'; mrot.title = 'Drag to turn them together (Shift: 15° steps)'; world.appendChild(mrot);
-  const ROT_FIXED = ['section', 'frame', 'coll', 'ink'];   // these stay upright (they only move around the turn)
+  const ROT_FIXED = ['frame', 'coll', 'ink'];   // these stay upright (they only move around the turn); a section turns, once someone turns it
   // the turn dot is a handle attached to what you selected: on top when it's straight, and it turns with it (and stays there after) like a real handle
   let mrotKeep = null;   // a group you turned: { key, anchor } (the dot stays on the piece that was on top)
   const selKey = cs => cs.map(k => k.id).sort().join();
   const midOf = cs => { const ms = cs.map(k => { const b = realBox(k); return [k.x + b.w / 2, k.y + b.h / 2]; }); return { x: ms.reduce((n, m) => n + m[0], 0) / ms.length, y: ms.reduce((n, m) => n + m[1], 0) / ms.length }; };
-  const tiltOf = k => (k.rot || 0) + (document.body.classList.contains('neat') || ROT_FIXED.includes(k.type) || (k.type === 'stamp' && !k.tilted) ? 0 : (k.r || 0));
+  const tiltOf = k => (k.rot || 0) + (document.body.classList.contains('neat') || ROT_FIXED.includes(k.type) || (k.type === 'stamp' && !k.tilted) || (k.type === 'section' && !k.turned) ? 0 : (k.r || 0));
   // which piece carries the dot: one thing is itself; for several, the one on top (and it keeps the dot after you turn them)
   function anchorOf(cs) { if (cs.length === 1) return cs[0]; const kept = mrotKeep && mrotKeep.key === selKey(cs) && cs.find(k => k.id === mrotKeep.anchor); if (kept) return kept;
     return cs.reduce((best, k) => { const b = realBox(k), y = k.y + b.h / 2 - b.h / 2 * Math.cos(tiltOf(k) * Math.PI / 180); return !best || y < best.y ? { k, y } : best; }, null).k; }
   function placeDot(x, y, ang) { mrot.style.left = x + 'px'; mrot.style.top = y + 'px'; mrot.style.rotate = (ang || 0) + 'deg'; mrot.style.setProperty('--iz', (1 / view.z).toFixed(4)); }
   function syncMrot() { const ids = board ? [...sel] : []; const cs = ids.map(byId).filter(k => k && !k.locked);
-    const turnable = cs.length > 1 || (cs.length === 1 && !ROT_FIXED.includes(cs[0].type) && cs[0].type !== 'section');
+    const turnable = cs.length > 1 || (cs.length === 1 && !ROT_FIXED.includes(cs[0].type));
     const on = turnable && !drawOn && !editing && !cropping && !(drag && ['move', 'gresize', 'resize'].includes(drag.mode)) && !vec;
     mrot.classList.toggle('on', !!on); if (!on) return;
     if (drag && drag.mode === 'mrotate' && drag.dot0) { const t = (drag.cur || 0) * Math.PI / 180, dx = drag.dot0.x - drag.cx, dy = drag.dot0.y - drag.cy;   // held by the cursor, going round with the turn
@@ -690,7 +690,7 @@
       if (c.lh != null) el.style.setProperty('--lh', c.lh); else el.style.removeProperty('--lh'); el.classList.toggle('has-lh', c.lh != null);
       if (c.ls != null) el.style.setProperty('--ls', c.ls / 100 + 'em'); else el.style.removeProperty('--ls'); el.classList.toggle('has-ls', c.ls != null); }
     if (c.type === 'title') requestAnimationFrame(() => { if (!el.isConnected) return; if (!c.fixedW && el.offsetWidth) c.w = el.offsetWidth; if (el.offsetHeight) c.h = el.offsetHeight; });
-    el.style.setProperty('--tilt', (c.type === 'stamp' && !c.tilted ? 0 : c.r) + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff'); el.classList.add('c-' + (COLORS[c.color] && c.color !== 'white' ? c.color : 'white'));
+    el.style.setProperty('--tilt', ((c.type === 'stamp' && !c.tilted) || (c.type === 'section' && !c.turned) ? 0 : c.r) + 'deg'); el.style.setProperty('--fill', COLORS[c.color] || '#fff'); el.classList.add('c-' + (COLORS[c.color] && c.color !== 'white' ? c.color : 'white'));
     if (c.type === 'swatch') el.style.setProperty('--hex', c.hex);
     el.style.setProperty('--fs', fsMul(c));
     el.classList.toggle('has-font', !!c.font && SIZED.includes(c.type)); if (c.font && SIZED.includes(c.type)) { el.style.setProperty('--cf', `"${String(c.font).replace(/"/g, '')}"`); useFont(c.font); } else el.style.removeProperty('--cf');
@@ -1356,11 +1356,13 @@
     if (drawOn && e.button === 0 && !space) { e.preventDefault(); drawDown(e); return; }
     if (e.target.id === 'rh' && rhFor && rhFor.startsWith('g:') && e.button === 0) { const cs = board.cards.filter(c => c.group === rhFor.slice(2)), bx = Math.min(...cs.map(c => c.x)), by = Math.min(...cs.map(c => c.y));
       drag = { mode: 'gresize', sx: w.x, sy: w.y, bx, by, bw: Math.max(...cs.map(c => c.x + c.w)) - bx, bh: Math.max(...cs.map(c => c.y + c.h)) - by, items: cs.map(c => ({ c, x: c.x, y: c.y, w: c.w, h: c.h })) }; stage.setPointerCapture(e.pointerId); return; }
-    if (e.target.id === 'mrot' && e.button === 0) { const cs = selCards().filter(c => !c.locked); if (cs.length >= 1) { remember(); const R = realBox;
+    if (e.target.id === 'mrot' && e.button === 0) { const cs0 = selCards().filter(c => !c.locked), R = realBox;
+      const inside = cs0.filter(c => c.type === 'section').flatMap(s => board.cards.filter(k => k !== s && !cs0.includes(k) && !k.locked && !k.hidden && k.type !== 'section' && k.x + R(k).w / 2 > s.x && k.x + R(k).w / 2 < s.x + s.w && k.y + R(k).h / 2 > s.y && k.y + R(k).h / 2 < s.y + s.h));
+      const cs = [...cs0, ...inside]; if (cs.length >= 1) { remember();
       const x0 = Math.min(...cs.map(c => c.x)), x1 = Math.max(...cs.map(c => c.x + R(c).w)), y0 = Math.min(...cs.map(c => c.y)), y1 = Math.max(...cs.map(c => c.y + R(c).h));
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-      const single = cs.length === 1, anchor = anchorOf(cs), ang0 = tiltOf(anchor);
-      drag = { mode: 'mrotate', cx, cy, ang0, single, anchor: anchor.id, a0: Math.atan2(w.y - cy, w.x - cx), dot0: { x: parseFloat(mrot.style.left), y: parseFloat(mrot.style.top) }, items: cs.map(c => { const r = R(c); return { c, mx: c.x + r.w / 2, my: c.y + r.h / 2, w: r.w, h: r.h, r0: WF.includes(c.type) ? (c.rot || 0) : (c.r || 0), wf: WF.includes(c.type) }; }) };
+      const single = cs.length === 1, anchor = anchorOf(cs0), ang0 = tiltOf(anchor);
+      drag = { mode: 'mrotate', cx, cy, ang0, single, anchor: anchor.id, selIds: cs0.map(c => c.id), a0: Math.atan2(w.y - cy, w.x - cx), dot0: { x: parseFloat(mrot.style.left), y: parseFloat(mrot.style.top) }, items: cs.map(c => { const r = R(c); return { c, mx: c.x + r.w / 2, my: c.y + r.h / 2, w: r.w, h: r.h, r0: WF.includes(c.type) ? (c.rot || 0) : (c.type === 'section' && !c.turned ? 0 : (c.r || 0)), wf: WF.includes(c.type) }; }) };   // an untouched section starts from upright, whatever stray tilt it carried
       drag.items.forEach(it => cardsEl.querySelector(`[data-id="${it.c.id}"]`)?.classList.add('tilting'));   // no easing while turning, so nothing trails behind
       stage.setPointerCapture(e.pointerId); return; } }
     if (e.target.id === 'rh' && rhFor === 'm' && e.button === 0) { const cs = selCards().filter(c => !c.locked && c.type !== 'ink'); if (cs.length > 1) { remember();
@@ -1467,7 +1469,7 @@
         c.x = nx - it.w / 2; c.y = ny - it.h / 2; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
         if (ROT_FIXED.includes(c.type)) return;
         if (it.wf) { c.rot = +(it.r0 + a).toFixed(2); el?.style.setProperty('--rot', c.rot + 'deg'); }
-        else { c.r = +(it.r0 + a).toFixed(2); if (c.type === 'stamp') c.tilted = true; el?.style.setProperty('--tilt', c.r + 'deg'); } });
+        else { c.r = +(it.r0 + a).toFixed(2); if (c.type === 'stamp') c.tilted = true; if (c.type === 'section') c.turned = true; el?.style.setProperty('--tilt', c.r + 'deg'); } });
       renderWires(); const rb = $('rotBadge'); rb.textContent = Math.round(a) + '°'; rb.style.left = e.clientX + 18 + 'px'; rb.style.top = e.clientY - 34 + 'px'; rb.classList.add('on'); }
     if (drag.mode === 'rotate') { let a = Math.atan2(w.y - drag.cy, w.x - drag.cx) * 180 / Math.PI + 90; a = ((a % 360) + 360) % 360; if (a > 180) a -= 360;
       const near = Math.round(a / 15) * 15; if (Math.abs(a - near) < 4) a = near;   // eases onto 15° steps
@@ -1531,7 +1533,7 @@
     if (d.mode === 'gresize') { d.items.forEach(it => { renderCard(it.c); if (it.c.type === 'note' || it.c.type === 'todo') it.c.userH = it.c.h; }); selectOnly(d.items.map(it => it.c.id)); save(); }
     if (d.mode === 'bend') save();
     if (d.mode === 'mrotate' && !d.single) mrotKeep = { key: selKey(d.items.map(it => it.c)), anchor: d.anchor };   // the dot stays on the piece that was on top
-    if (d.mode === 'mrotate') { $('rotBadge').classList.remove('on'); d.items.forEach(it => { renderCard(it.c); cardsEl.querySelector(`[data-id="${it.c.id}"]`)?.classList.remove('tilting'); }); selectOnly(d.items.map(it => it.c.id)); save(); $('selbar').dataset.key = ''; }
+    if (d.mode === 'mrotate') { $('rotBadge').classList.remove('on'); d.items.forEach(it => { renderCard(it.c); cardsEl.querySelector(`[data-id="${it.c.id}"]`)?.classList.remove('tilting'); }); selectOnly(d.selIds || d.items.map(it => it.c.id)); save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'rotate') { $('rotBadge').classList.remove('on'); cardsEl.querySelector(`[data-id="${d.c.id}"]`)?.classList.remove('tilting'); save(); $('selbar').dataset.key = ''; }
     if (d.mode === 'drawbox') { d.rect?.remove(); const w = toWorld(e.clientX, e.clientY); let x = Math.min(d.sx, w.x), y = Math.min(d.sy, w.y), bw = Math.abs(w.x - d.sx), bh = Math.abs(w.y - d.sy);
       if (bw < 6 && bh < 6) { bw = 160; bh = 100; }   // a click makes a standard box

@@ -1960,7 +1960,7 @@ body.dark .vd-bar .vd-txb:hover, body.dark .vd-bar .vd-mute:hover { background: 
 body:has(.stage.doc-open) #sideR { z-index: 0; }
 
 /* ---------- glass sections: a soft frosted bubble around a bunch of things ---------- */
-.card.section { z-index: 0 !important; border-radius: 40px; --tilt: 0deg !important; }
+.card.section { z-index: 0 !important; border-radius: 40px; }   /* a section's tilt comes from turning it (renderCard keeps untouched ones upright) */
 .card.section .sec-glass { position: absolute; inset: 0; border-radius: 40px; pointer-events: auto;
   background: linear-gradient(150deg, color-mix(in srgb, var(--fill) 46%, transparent), color-mix(in srgb, var(--fill) 16%, rgba(210, 195, 255, .12)));
   backdrop-filter: blur(3px) saturate(1.2); -webkit-backdrop-filter: blur(3px) saturate(1.2);
