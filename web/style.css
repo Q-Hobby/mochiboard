@@ -2388,8 +2388,8 @@ body.dark .dz-tabs button.on, body.dark .kit-grid button.on, body.dark .kit-grid
 /* diagram shapes: a dot on each side, over the lines, the same size at any zoom */
 #kports { position: absolute; left: 0; top: 0; z-index: 2147479999; display: none; pointer-events: none; }
 #kports.on { display: block; }
-.kport { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px var(--select), 0 3px 8px rgba(13, 153, 255, .25); transform: scale(var(--iz, 1)); cursor: crosshair; pointer-events: auto; display: grid; place-items: center; transition: background .12s; }
-.kport::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }   /* a 40px hit area around a 20px dot */
+.kport { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px var(--select), 0 3px 8px rgba(13, 153, 255, .25); transform: scale(var(--iz, 1)); cursor: crosshair; pointer-events: auto; display: grid; place-items: center; transition: background .12s; }
+.kport::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; }   /* a 50px hit area around a 22px dot */
 .kport::after { content: "+"; margin-top: -1px; font: 700 14px/1 var(--font); color: var(--select); }
 .kport:hover { background: var(--select); }
 .kport:hover::after { color: #fff; }
