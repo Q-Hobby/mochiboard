@@ -1868,7 +1868,7 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true, imgFrame: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true, imgFrame: true, wLearn: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   // ---------- widgets snap into the left and right sidebars. Drag one by its title: little drop boxes show where it can go ----------
   // the Boards panel is pinned at the top left (it's home to your boards and Settings), everything else can move
@@ -1926,7 +1926,7 @@
     addEventListener('pointermove', go); addEventListener('pointerup', stop);
   }, true);   // listen first: some widgets (Wireframe) keep their clicks to themselves
   const WIDGETS = [['wLayers', () => document.querySelector('.box[data-box="layers"]')], ['wColors', () => document.querySelector('.box[data-box="colors"]')],
-    ['wDressup', () => document.querySelector('.box[data-box="dressup"]')], ['wMusic', () => document.querySelector('.box[data-box="music"]')], ['wDesign', () => $('design')], ['wTray', () => $('tray')]];
+    ['wLearn', () => document.querySelector('.box[data-box="learn"]')], ['wDressup', () => document.querySelector('.box[data-box="dressup"]')], ['wMusic', () => document.querySelector('.box[data-box="music"]')], ['wDesign', () => $('design')], ['wTray', () => $('tray')]];
   function applySettings() {
     if ($('dzTabs')) renderDzTabs();
     queueMicrotask(() => applyColors()); queueMicrotask(() => applyGridShape()); queueMicrotask(() => applyToolbar());
@@ -3324,19 +3324,9 @@
     $('design').querySelectorAll('[data-kp]').forEach(x => x.classList.toggle('on', x === b)); startPlacing('kit', { kit: b.dataset.kit, piece: b.dataset.kp });
     if (placing?.type !== 'kit') b.classList.remove('on'); });
 
-  // ---------- Learn: a plain-English UX dictionary and the principle sets, from learn.js. A term drops onto the board as a note; a set as a checklist ----------
-  const LDB = window.LEARN || { terms: [], sets: [] }, FW_NAMES = { journey: 'Journey map', empathy: 'Empathy map', affinity: 'Affinity map', matrix: 'Impact / effort', hmw: 'How might we', rtb: 'Rose, thorn, bud', opportunity: 'Opportunity map' };
+  // ---------- Learn: a widget with two links (Dictionary, Principles) that open the library, a roomy window with groups on the left, entries in the middle, the picked one on the right ----------
+  const LDB = window.LEARN || { groups: [], terms: [], sets: [] }, FW_NAMES = { journey: 'Journey map', empathy: 'Empathy map', affinity: 'Affinity map', matrix: 'Impact / effort', hmw: 'How might we', rtb: 'Rose, thorn, bud', opportunity: 'Opportunity map' };
   const seeName = s => DZ_TABS[s] ? DZ_TABS[s] + ' tab' : FW_NAMES[s] ? FW_NAMES[s] + ' template' : '';
-  function renderLearn(q = '') {
-    const el = $('kit-learn'); if (!el) return; const n = q.trim().toLowerCase();
-    const terms = n ? LDB.terms.filter(t => (t.t + ' ' + t.d + ' ' + (t.why || '')).toLowerCase().includes(n)) : LDB.terms;
-    const sets = n ? LDB.sets.filter(s => (s.name + ' ' + s.by + ' ' + s.items.map(i => i[0] + ' ' + i[1]).join(' ')).toLowerCase().includes(n)) : LDB.sets;
-    el.innerHTML = `<div class="learn-search"><input id="learnQ" placeholder="Search a term… lean UX, persona, Fitts" spellcheck="false" autocomplete="off" value="${esc(q)}"></div>
-      ${sets.length ? `<div class="label dz-sub">Principles</div><div class="learn-sets">${sets.map((s, i) => `<button data-lset="${LDB.sets.indexOf(s)}" title="${esc(s.line)} · ${esc(s.by)}"><b>${esc(s.name)}</b><small>${s.items.length} · ${esc(s.by.split(',')[0])}</small></button>`).join('')}</div>` : ''}
-      ${terms.length ? `<div class="label dz-sub">Dictionary <span class="learn-n">${terms.length}</span></div><div class="learn-terms">${terms.map(t => `<button data-lterm="${esc(t.t)}" title="Click to add it to the board"><b>${esc(t.t)}</b><span>${esc(t.d)}</span>${t.see && seeName(t.see) ? `<i data-lsee="${t.see}">${esc(seeName(t.see))} →</i>` : ''}</button>`).join('')}</div>` : (n ? '<div class="dz-hint">Nothing by that name yet. Ask Mochi and she’ll do her best ✦</div>' : '')}
-      ${n ? '' : '<div class="dz-hint">Click a term to drop it on the board as a note, or a principle set to get a checklist you can tick off against a design. Mochi can answer “what’s a persona?” from here too.</div>'}`;
-    const inp = $('learnQ'); if (inp) { inp.oninput = () => { const v = inp.value, at = inp.selectionStart; renderLearn(v); const i2 = $('learnQ'); i2.focus(); i2.setSelectionRange(at, at); }; ['pointerdown', 'keydown'].forEach(t => inp.addEventListener(t, e => e.stopPropagation())); }
-  }
   const learnTerm = name => LDB.terms.find(t => t.t.toLowerCase() === String(name).toLowerCase());
   function dropTerm(t, at) {
     const p = at || centerWorld(); remember(); const c = card('note', { x: Math.round(p.x - 130), y: Math.round(p.y - 80), w: 260, h: 150, name: t.t, text: t.d + (t.why ? '\n\n' + t.why : ''), color: 'butter' });
@@ -3346,11 +3336,45 @@
     const p = at || centerWorld(); remember(); const c = card('todo', { x: Math.round(p.x - 140), y: Math.round(p.y - 120), w: 300, h: 60 + s.items.length * 30, text: s.name, items: s.items.map(([t, d]) => ({ t: d ? t + ' — ' + d : t, done: false })), color: 'white', r: 0 });
     addCard(c); selectOnly([c.id]); chirp(`${s.name} ✦ ${s.by}`, 3000); return c;
   }
-  $('design').addEventListener('click', e => {
-    const see = e.target.closest('[data-lsee]'); if (see) { e.stopPropagation(); const k = see.dataset.lsee; if (DZ_TABS[k]) { settings.dzTab = k; renderDzTabs(); applySettings(); } else placeFramework(k); return; }
-    const tb = e.target.closest('[data-lterm]'); if (tb) { const t = learnTerm(tb.dataset.lterm); if (t) dropTerm(t); return; }
-    const sb = e.target.closest('[data-lset]'); if (sb) { const s = LDB.sets[+sb.dataset.lset]; if (s) dropSet(s); }
+  const LIB = { part: 'dictionary', group: null, q: '', pick: null };
+  function openLibrary(part = 'dictionary', pick = null) {
+    LIB.part = part; LIB.q = ''; LIB.pick = pick; if (part === 'dictionary' && !LIB.group) LIB.group = LDB.groups[0];
+    $('library').classList.add('on'); renderLibrary(); setTimeout(() => $('libQ')?.focus(), 60);
+  }
+  const closeLibrary = () => $('library').classList.remove('on');
+  function renderLibrary() {
+    const dict = LIB.part === 'dictionary', q = LIB.q.trim().toLowerCase();
+    $('libTitle').textContent = dict ? 'Dictionary' : 'Principles';
+    $('libNav').innerHTML = `<button data-lpart="dictionary" class="lib-part ${dict ? 'on' : ''}">Dictionary <small>${LDB.terms.length}</small></button>` + (dict ? LDB.groups.map(g => `<button data-lgroup="${esc(g)}" class="${!q && LIB.group === g ? 'on' : ''}">${esc(g)} <small>${LDB.terms.filter(t => t.g === g).length}</small></button>`).join('') : '')
+      + `<button data-lpart="principles" class="lib-part ${dict ? '' : 'on'}">Principles <small>${LDB.sets.length}</small></button>`;
+    let list = '';
+    if (dict) { const terms = q ? LDB.terms.filter(t => (t.t + ' ' + t.d + ' ' + (t.why || '')).toLowerCase().includes(q)) : LDB.terms.filter(t => t.g === LIB.group);
+      list = `<div class="lib-h">${q ? `${terms.length} for “${esc(LIB.q.trim())}”` : esc(LIB.group)}</div>` + (terms.length ? terms.map(t => `<button class="lib-item ${LIB.pick === t.t ? 'on' : ''}" data-lterm="${esc(t.t)}"><b>${esc(t.t)}</b><span>${esc(t.d)}</span></button>`).join('') : '<div class="dz-hint">Nothing by that name yet. Ask Mochi and she’ll do her best ✦</div>'); }
+    else { const sets = q ? LDB.sets.filter(s => (s.name + ' ' + s.by + ' ' + s.items.map(i => i.join(' ')).join(' ')).toLowerCase().includes(q)) : LDB.sets;
+      list = `<div class="lib-h">${q ? `${sets.length} for “${esc(LIB.q.trim())}”` : 'Sets people keep coming back to'}</div>` + sets.map(s => `<button class="lib-item ${LIB.pick === s.name ? 'on' : ''}" data-lset="${LDB.sets.indexOf(s)}"><b>${esc(s.name)}</b><span>${esc(s.line)} · ${s.items.length} · ${esc(s.by)}</span></button>`).join(''); }
+    $('libList').innerHTML = `<div class="lib-search"><input id="libQ" placeholder="${dict ? 'Search the dictionary…' : 'Search the principles…'}" spellcheck="false" autocomplete="off" value="${esc(LIB.q)}"></div>${list}`;
+    const inp = $('libQ'); inp.oninput = () => { LIB.q = inp.value; const at = inp.selectionStart; renderLibrary(); const i2 = $('libQ'); i2.focus(); i2.setSelectionRange(at, at); };
+    // the detail
+    const D = $('libDetail'); const t = dict && LIB.pick && learnTerm(LIB.pick), s = !dict && LIB.pick && LDB.sets.find(x => x.name === LIB.pick);
+    if (t) D.innerHTML = `<div class="lib-kicker">${esc(t.g)}</div><h3>${esc(t.t)}</h3><p>${esc(t.d)}</p>${t.why ? `<p class="lib-why">${esc(t.why)}</p>` : ''}${t.see && seeName(t.see) ? `<button class="lib-see" data-lsee="${t.see}">Open the ${esc(seeName(t.see))} →</button>` : ''}<div class="lib-acts"><button class="solid" data-ladd="term">Add as a note</button><button data-lask="${esc(t.t)}">Ask Mochi more</button></div>`;
+    else if (s) D.innerHTML = `<div class="lib-kicker">${esc(s.by)}</div><h3>${esc(s.name)}</h3><p class="lib-why">${esc(s.line)}</p><ol class="lib-items">${s.items.map(([a, b]) => `<li><b>${esc(a)}</b>${b ? ` <span>${esc(b)}</span>` : ''}</li>`).join('')}</ol><div class="lib-acts"><button class="solid" data-ladd="set">Add as a checklist</button></div>`;
+    else D.innerHTML = `<div class="lib-empty"><canvas id="libGoo" width="64" height="56"></canvas><p>${dict ? 'Pick a term to read it in full, or search for one.' : 'Pick a set to see what’s in it.'}</p></div>`;
+    const cv = $('libGoo'); if (cv && window.Goo) try { Goo(cv); } catch (e) {}
+  }
+  $('library').addEventListener('click', e => {
+    if (e.target === $('library')) return closeLibrary();
+    const part = e.target.closest('[data-lpart]'); if (part) { LIB.part = part.dataset.lpart; LIB.q = ''; LIB.pick = null; return renderLibrary(); }
+    const g = e.target.closest('[data-lgroup]'); if (g) { LIB.group = g.dataset.lgroup; LIB.q = ''; LIB.pick = null; return renderLibrary(); }
+    const tb = e.target.closest('[data-lterm]'); if (tb) { LIB.pick = tb.dataset.lterm; return renderLibrary(); }
+    const sb = e.target.closest('[data-lset]'); if (sb) { LIB.pick = LDB.sets[+sb.dataset.lset]?.name; return renderLibrary(); }
+    const add = e.target.closest('[data-ladd]'); if (add) { if (add.dataset.ladd === 'term') { const t = learnTerm(LIB.pick); if (t) dropTerm(t); } else { const s = LDB.sets.find(x => x.name === LIB.pick); if (s) dropSet(s); } return closeLibrary(); }
+    const see = e.target.closest('[data-lsee]'); if (see) { const k2 = see.dataset.lsee; closeLibrary(); if (DZ_TABS[k2]) { settings.wDesign = true; settings.dzTab = k2; applySettings(); renderDzTabs(); } else placeFramework(k2); return; }
+    const ak = e.target.closest('[data-lask]'); if (ak) { closeLibrary(); return ask(`Tell me more about ${ak.dataset.lask} in design, with an example I could try on this board.`); }
   });
+  ['pointerdown', 'mousedown', 'dblclick', 'wheel', 'keydown'].forEach(t => $('library').addEventListener(t, e => e.stopPropagation(), { passive: t === 'wheel' }));
+  $('libClose').onclick = closeLibrary;
+  addEventListener('keydown', e => { if (e.key === 'Escape' && $('library').classList.contains('on')) { e.stopImmediatePropagation(); closeLibrary(); } }, true);
+  document.querySelector('.box[data-box="learn"]')?.addEventListener('click', e => { const b = e.target.closest('[data-lib]'); if (b) openLibrary(b.dataset.lib); });
   // Mochi answers from the dictionary when she can't think (no Claude, offline, the web demo). Returns true if she did.
   function learnAnswer(q) {
     const s = String(q).toLowerCase().replace(/[?.!,’']/g, ' ').replace(/\s+/g, ' ').trim();
@@ -3358,10 +3382,10 @@
     const hits = LDB.terms.filter(t => { const n = t.t.toLowerCase(); return (' ' + s + ' ').includes(' ' + n + ' ') || s === n || s.endsWith(' ' + n) || (n.length > 4 && s.includes(n)); }).sort((a, b) => b.t.length - a.t.length);
     const t = hits[0]; if (!t) return false;
     const asks = /^(what|whats|what s|define|explain|meaning|tell me about|describe|who|how)\b/.test(s) || s === t.t.toLowerCase() || s.split(' ').length <= 3; if (!asks) return false;
-    say(`${t.t}: ${t.d}${t.why ? ' ' + t.why : ''}${t.see && seeName(t.see) ? ` (See the ${seeName(t.see)}.)` : ''}`, 0, [{ label: 'Put it on the board', run: () => dropTerm(t) }]); return true;
+    say(`${t.t}: ${t.d}${t.why ? ' ' + t.why : ''}${t.see && seeName(t.see) ? ` (See the ${seeName(t.see)}.)` : ''}`, 0, [{ label: 'Put it on the board', run: () => dropTerm(t) }, { label: 'Open the dictionary', ghost: true, run: () => { LIB.group = t.g; openLibrary('dictionary', t.t); } }]); return true;
   }
   // the panel's tabs: which come first, and which are off, live in Settings → Widgets
-  const DZ_TABS = { wf: 'Wireframing', flow: 'Flowchart', journey: 'Journey', site: 'Sitemap', mind: 'Mind map', learn: 'Learn' };
+  const DZ_TABS = { wf: 'Wireframing', flow: 'Flowchart', journey: 'Journey', site: 'Sitemap', mind: 'Mind map' };
   function dzOrder() {
     const s = settings.dzTabs || {}, keys = Object.keys(DZ_TABS), order = [...(s.order || []).filter(k => keys.includes(k)), ...keys.filter(k => !(s.order || []).includes(k))];
     const hidden = new Set(s.hidden || []), shown = order.filter(k => !hidden.has(k)); return { order, hidden, shown: shown.length ? shown : [order[0]] };
@@ -3370,7 +3394,7 @@
     const { shown } = dzOrder(), cur = shown.includes(settings.dzTab) ? settings.dzTab : shown[0];
     $('dzTabs').innerHTML = shown.map(k => `<button data-dzt="${k}" class="${k === cur ? 'on' : ''}">${DZ_TABS[k]}</button>`).join(''); $('dzTabs').hidden = shown.length < 2;
     $('design').querySelectorAll('.dz-pane').forEach(p => p.hidden = p.dataset.pane !== cur);
-    $('design').querySelector('.dz-head .label').textContent = DZ_TABS[cur]; $('design').dataset.tab = cur;
+    $('design').dataset.tab = cur;   // (the widget is called Ideate; the lit tab says which kit is open)
   }
   $('dzTabs').onclick = e => { const b = e.target.closest('[data-dzt]'); if (!b) return; if (placing) stopPlacing(); pickWF(null); settings.dzTab = b.dataset.dzt; renderDzTabs(); applySettings(); };
   function renderDzList() {
@@ -3387,7 +3411,7 @@
     L.ondragend = () => { if (!dragging) return; dragging.classList.remove('drag'); dragging = null; commit(); };
     $('dzReset').onclick = () => { delete settings.dzTabs; renderDzList(); renderDzTabs(); applySettings(); };
   })();
-  renderDzTabs(); renderDzList(); renderLearn();   // (after the tabs exist: the Learn tab's “see” chips name them)
+  renderDzTabs(); renderDzList();
 
   // ---------- remove a picture's background: the Mac's own Vision model, or the open-source one in the page (fetched once, kept by the browser) ----------
   const BGRM = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm'; let bgrm = null;
