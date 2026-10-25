@@ -850,7 +850,8 @@
       if (l.label) h += `<text class="w-label${on ? ' on' : ''}" data-wire="${l.id}" x="${lab.x + O}" y="${lab.y + O}">${esc(l.label)}</text>`;
       if (on) h += `<circle class="w-end" data-end="a" data-wire="${l.id}" cx="${p0.x + O}" cy="${p0.y + O}" r="6"/><circle class="w-end" data-end="b" data-wire="${l.id}" cx="${p2.x + O}" cy="${p2.y + O}" r="6"/>` + (l.route === 'elbow' ? '' : `<circle class="w-bend" data-wire="${l.id}" cx="${g.handle.x + O}" cy="${g.handle.y + O}" r="7"/>`);
     });
-    if (live) { const a = live.a, b = live.b; h += `<path class="live" d="M${a.x + O} ${a.y + O} Q${(a.x + b.x) / 2 + O} ${(a.y + b.y) / 2 - 30 + O} ${b.x + O} ${b.y + O}"/>`; }
+    if (live) { const a = live.a, b = live.b; h += `<path class="live${live.snap ? ' snap' : ''}" d="M${a.x + O} ${a.y + O} Q${(a.x + b.x) / 2 + O} ${(a.y + b.y) / 2 - 30 + O} ${b.x + O} ${b.y + O}"/>`;
+      if (live.snap) h += `<circle class="w-snap-halo" cx="${b.x + O}" cy="${b.y + O}" r="16"/><circle class="w-snap" cx="${b.x + O}" cy="${b.y + O}" r="7"/>`; }
     wires.innerHTML = h;
   }
   const linkById = id => board.links.find(l => l.id === id);
@@ -1455,7 +1456,8 @@
         c.x = d.bx + (it.x - d.bx) * kx; c.w = Math.max(8, it.w * kx); c.h = txt ? it.h : Math.max(8, it.h * ky); c.y = txt ? d.by + (it.y + it.h / 2 - d.by) * ky - it.h / 2 : d.by + (it.y - d.by) * ky;
         const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' }); });
       renderWires(); }
-    if (drag.mode === 'wire') { if (drag.sx != null && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) drag.moved = true; drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'wire') { if (drag.sx != null && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) drag.moved = true;
+      const t = wireTarget(drag, w); drag.to = t; drag.b = t ? t.pt : w; renderWires({ a: drag.a, b: drag.b, snap: t && drag.pa ? t.pt : null }); }
     if (drag.mode === 'mrotate') { const d = drag; let a = (Math.atan2(w.y - d.cy, w.x - d.cx) - d.a0) * 180 / Math.PI; a = ((a + 540) % 360) - 180;
       a = e.shiftKey ? Math.round(a / 15) * 15 : (Math.abs(a - Math.round(a / 15) * 15) < 2 ? Math.round(a / 15) * 15 : a); d.cur = a; const t = a * Math.PI / 180, co = Math.cos(t), si = Math.sin(t);
       d.items.forEach(it => { const c = it.c, dx = it.mx - d.cx, dy = it.my - d.cy, nx = d.cx + dx * co - dy * si, ny = d.cy + dx * si + dy * co;   // each piece's middle goes around the turn
@@ -1534,11 +1536,10 @@
       if (t) { d.l[d.end] = t.id; d.l['p' + d.end] = pinAt(t, w); save(); } renderWires();
     }
     if (d.mode === 'wire') {
-      const w = toWorld(e.clientX, e.clientY), t0 = [...board.cards].reverse().find(c => c.id !== d.id && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h), src = byId(d.id);
-      const t = d.pa && t0?.type === 'section' ? null : t0, linked = t && board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id));
+      const w = toWorld(e.clientX, e.clientY), src = byId(d.id), tg = wireTarget(d, w), t = tg && tg.c, linked = t && board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id));
       if (d.pa && src && !d.moved) quickAdd(src, d.side);                 // a click on a side dot: the next shape, lined up and connected
       else if (d.pa && src && !t) quickAdd(src, d.side, w);               // dropped on empty board: the next shape right there
-      else if (t && !linked) { remember(); board.links.push(d.pa && src ? kitLink(src, t, d.pa, SIDE[sideNear(t, w)]) : { id: uid(), a: d.id, b: t.id }); save(); }
+      else if (t && !linked) { remember(); board.links.push(d.pa && src ? kitLink(src, t, d.pa, SIDE[tg.side]) : { id: uid(), a: d.id, b: t.id }); save(); }   // near a side's middle: it snaps there
       renderWires();
     }
   });
@@ -3101,6 +3102,12 @@
   const sideOf = p => p.u <= 0 ? 'l' : p.u >= 1 ? 'r' : p.v <= 0 ? 't' : 'b';
   const sideNear = (c, w) => sideOf(pinAt(c, w));
   const wireLab = {};   // where each line's label sits, for typing into it
+  // while you drag a line: the card under (or near) the pointer, and on a diagram line, the middle of its nearest side to snap to
+  function wireTarget(d, w) {
+    const m = 36 / view.z, c = [...board.cards].reverse().find(c => c.id !== d.id && !c.hidden && (!d.pa || (c.type !== 'section' && c.type !== 'ink')) && w.x > c.x - m && w.x < c.x + c.w + m && w.y > c.y - m && w.y < c.y + c.h + m);
+    if (!c) return null; if (!d.pa) return { c, pt: w };
+    const s = sideNear(c, w); return { c, side: s, pt: pinPoint(c, SIDE[s]) };
+  }
   let wireTap = {};
   // the connector bar's little pictures: each one shows the kind of line it makes
   const WI = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;

@@ -2401,3 +2401,7 @@ body.dark .dz-tabs button.on, body.dark .kit-grid button.on, body.dark .kit-grid
 .wires text.w-label.on { fill: var(--select); }
 .w-edit { position: fixed; z-index: 9000; translate: -50% -50%; width: 150px; padding: 7px 12px; border: 0; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px var(--select), 0 10px 24px rgba(90, 50, 90, .2); color: var(--ink); font: 600 13px var(--font); text-align: center; outline: none; }
 body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
+/* the line you're dragging found a side to snap to */
+.wires path.live.snap { stroke: var(--select); stroke-width: 2.5; }
+.wires .w-snap { fill: #fff; stroke: var(--select); stroke-width: 2.5; }
+.wires .w-snap-halo { fill: var(--select); opacity: .18; }
