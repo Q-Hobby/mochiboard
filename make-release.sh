@@ -35,15 +35,26 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSpeechRecognitionUsageDescription</key><string>Mochi writes out your voice memos on your Mac, so you can search and sort them.</string>
 </dict></plist>
 PLIST
-codesign --force --deep --sign - "$APP"   # ad-hoc: no Apple Developer account, so the first open is right-click → Open
+# sign with Jessa's Developer ID when this Mac has it, then have Apple notarize it, so it opens on first double-click everywhere
+ID="Developer ID Application: Jessica Wolfe (WAK79U5DU8)"; SIGNED=
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$ID"; then
+  codesign --force --deep --options runtime --timestamp --entitlements assets/Mochiboard.entitlements --sign "$ID" "$APP"; SIGNED=1
+else codesign --force --deep --sign - "$APP"; echo "  (no Developer ID on this Mac: ad-hoc signed, so the first open needs Open Anyway)"; fi
 ( cd "$OUT" && /usr/bin/ditto -c -k --keepParent Mochiboard.app Mochiboard.zip )
+if [ -n "$SIGNED" ] && [ "${1:-}" != "--dry" ]; then
+  echo "  Sending to Apple's notary service (usually a few minutes)…"
+  xcrun notarytool submit "$OUT/Mochiboard.zip" --keychain-profile mochiboard --wait
+  xcrun stapler staple "$APP"
+  rm "$OUT/Mochiboard.zip"; ( cd "$OUT" && /usr/bin/ditto -c -k --keepParent Mochiboard.app Mochiboard.zip )   # zip again with Apple's ticket stapled in
+  spctl --assess --type execute -v "$APP" && echo "  ✓ Notarized and stapled"
+fi
 echo "  ✓ $OUT/Mochiboard.zip ($(du -h "$OUT/Mochiboard.zip" | cut -f1))"
 [ "${1:-}" = "--dry" ] && exit 0
 # release notes: the newest section of WHATSNEW.md
 NOTES="$(awk '/^## /{n++} n==1 && /^- /' WHATSNEW.md)"
 gh release create "v$V" "$OUT/Mochiboard.zip" --title "Mochiboard $V" --notes "$NOTES
 
-**Mac:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, then right-click it and choose **Open** the first time (it isn't from the App Store, so your Mac asks once).
+$( [ -n "$SIGNED" ] && echo "**Mac:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, and open it. It’s signed and notarized with Apple, so it opens like any Mac app." || echo "**Mac:** Mochiboard.zip below. Unzip it and drag Mochiboard into Applications. The first time, your Mac says it “could not verify Mochiboard is free of malware”: that’s because this build isn’t notarized by Apple. On macOS 15: double-click it once, click Done, then System Settings → Privacy & Security → scroll to Security → **Open Anyway**. On macOS 13/14: right-click → **Open**. Once." )
 
 **Windows:** Mochiboard-Setup.exe below (it appears a few minutes after this release). Open it and follow the steps. If Edge holds the download, choose Keep from its … menu; if Windows says it “protected your PC”, click More info, then Run anyway."
 echo "  ✓ Published v$V"
