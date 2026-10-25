@@ -3348,15 +3348,29 @@
 
   // ---------- remove a picture's background: the Mac's own Vision model, or the open-source one in the page (fetched once, kept by the browser) ----------
   const BGRM = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm'; let bgrm = null;
+  // crop a see-through PNG to the pixels that are left (plus a little breathing room)
+  function trimAlpha(src) {
+    return new Promise(res => { const im = new Image(); im.onload = () => {
+      const W = im.naturalWidth, H = im.naturalHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'); g.drawImage(im, 0, 0);
+      const d = g.getImageData(0, 0, W, H).data; let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 < 0) return res({ src, w: W, h: H, ow: W, oh: H });
+      const pad = Math.round(Math.max(W, H) * .02); x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+      const w = x1 - x0 + 1, h = y1 - y0 + 1, o = document.createElement('canvas'); o.width = w; o.height = h; o.getContext('2d').drawImage(cv, x0, y0, w, h, 0, 0, w, h);
+      res({ src: o.toDataURL('image/png'), w, h, ow: W, oh: H }); }; im.onerror = () => res({ src, w: 1, h: 1, ow: 1, oh: 1 }); im.src = src; });
+  }
   async function removeBg(c) {
-    if (c.nobg) { if (c.srcBg) { remember(); c.src = c.srcBg; delete c.srcBg; delete c.nobg; renderCard(c); selectOnly([c.id]); $('selbar').dataset.key = ''; save(); } return; }   // put the background back
+    if (c.nobg) { if (c.srcBg) { remember(); c.src = c.srcBg; if (c.bgBox) Object.assign(c, c.bgBox); delete c.srcBg; delete c.bgBox; delete c.nobg; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); } return; }   // put the background back
     if (c._busy) return; c._busy = true; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el?.classList.add('busy');
     chirp(MB.removeBg ? 'Lifting the subject out ✦' : 'Lifting the subject out ✦ The first time fetches a little model (about 40 MB), then it works offline.', 7000);
     try {
       let out = null;
       if (MB.removeBg) { try { out = await MB.removeBg(c.src); } catch (e) { if (!/macOS 14/.test(String(e.message))) throw e; } }   // an older Mac falls through to the page's model
       if (!out) { bgrm = bgrm || await import(BGRM); const blob = await bgrm.removeBackground(await (await fetch(await MB.mediaURL(c.src))).blob()); out = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }); }
-      remember(); c.srcBg = c.src; c.src = out; c.nobg = true; delete c.crop; renderCard(c); selectOnly([c.id]); $('selbar').dataset.key = ''; save(); chirp('Background gone ✦', 2000);
+      const t = await trimAlpha(out);   // hug the subject: the card shrinks to what's left, staying where its middle was
+      remember(); c.srcBg = c.src; c.bgBox = { x: c.x, y: c.y, w: c.w, h: c.h }; c.src = t.src; c.nobg = true; delete c.crop;
+      const cx = c.x + c.w / 2, cy = c.y + c.h / 2, w = Math.round(c.w * Math.min(1, t.w / Math.max(1, t.ow))), h = Math.round(w * t.h / Math.max(1, t.w)); c.w = Math.max(40, w); c.h = Math.max(40, h); c.x = Math.round(cx - c.w / 2); c.y = Math.round(cy - c.h / 2);
+      renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); chirp('Background gone ✦', 2000);
     } catch (e) { const m = String(e.message || e); say(/no subject/.test(m) ? 'I couldn’t find a subject to lift out of that one.' : 'Hmm, I couldn’t lift that one out. ' + m, 6000); }
     finally { c._busy = false; el?.classList.remove('busy'); }
   }
