@@ -104,8 +104,39 @@ def to_gif_frames(frames):
         out.append(p)
     return out
 
+# devil Mochi, from the 666-downloads post: red horns, a pointy tail, a tiny pitchfork, sly eyes and a smirk.
+# The post's body is 13 wide, and the fork and tail need 24 columns, so this one lives on a 24×24 grid.
+DN = 24
+SMALL = ['....BBBBB....', '..BBSSBBBBB..', '.BBSSBBBBBBB.', '.BSBBBBBBBBB.', 'BBBBBBBBBBBBB', 'BBBBBBBBBBBBB', 'BBBBBBBBBBBBB', 'BBBBBBBBBBBBB', 'BBBBBBBBBBBBB', 'DBBBBBBBBBBBD', 'DDDDDDDDDDDDD']
+def devil(color):
+    R, Q, K, G = hx('#ff5a7a'), hx('#d63a62'), hx(EYE), hx('#c9a24a')
+    pal = {'B': hx(color['B']), 'S': hx(color['S']), 'D': hx(color['D'])}
+    im = Image.new('RGBA', (PX, PX), (0, 0, 0, 0)); d = im.load(); s = PX / DN; ox, oy = 4, 7
+    def dot(x, y, c):
+        x += ox; y += oy
+        for yy in range(int(y * s), int((y + 1) * s)):
+            for xx in range(int(x * s), int((x + 1) * s)): d[xx, yy] = c
+    for y in range(3, 11): dot(-2, y, G)                                                        # the fork's handle (her side hides the top of it)
+    for x, y in [(-4, 2), (-3, 2), (-2, 2), (-1, 2), (0, 2), (-4, 1), (-4, 0), (-2, 1), (-2, 0), (-2, -1), (0, 1), (0, 0)]: dot(x, y, R)
+    for x, y in [(-4, -1), (-2, -2), (0, -1)]: dot(x, y, Q)
+    for x, y in [(12, 9), (13, 9), (14, 8), (15, 7), (15, 6), (16, 5), (17, 4)]: dot(x, y, R)   # the tail, low on the right, curling up to an arrowhead
+    for x, y in [(18, 2), (17, 3), (18, 3), (19, 3), (18, 4)]: dot(x, y, Q)
+    for y, row in enumerate(SMALL):
+        for x, ch in enumerate(row):
+            if ch != '.': dot(x, y, pal[ch])
+    for x, y in [(2, -2), (2, -1), (3, -1), (10, -2), (10, -1), (9, -1)]: dot(x, y, R)            # horns
+    dot(2, -2, Q); dot(10, -2, Q)
+    for c in (3, 9): dot(c, 5, K); dot(c, 6, K)
+    dot(2, 5, K); dot(10, 5, K)                                                                 # the sly slant
+    for c in (2, 10): dot(c, 7, R)                                                              # red cheeks
+    for x in (5, 6, 7): dot(x, 8, K)
+    dot(8, 7, K)                                                                                # smirk
+    return im
+
 def main():
     made = []
+    for name, color in COLORS.items():
+        f = f'mochi-devil-{name}.png'; devil(color).save(os.path.join(ROOT, f)); made.append(f)
     for name, pair in [('', ('pink', 'blue')), ('-mint', ('mint', 'lilac')), ('-butter', ('butter', 'peach'))]:
         f = f'mochi-double{name}.png'; double(pair).save(os.path.join(ROOT, f)); made.append(f)
     for color in COLORS:

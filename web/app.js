@@ -3856,7 +3856,8 @@
   const STAMPS = {
     mochi: [['Mochi', M('')], ['Happy', M('happy')], ['Love', M('love')], ['Party', M('party')], ['Wave', M('wave')], ['Shook', M('shook')], ['Sleepy', M('sleepy')], ['Cry', M('cry')], ['Sigh', M('sigh')],
       ['Double', M('double')], ['Double · mint', M('double-mint')], ['Double · butter', M('double-butter')],
-      ...['blue', 'pink', 'mint', 'lilac', 'butter', 'peach', 'night'].map(c => [c === 'blue' ? 'Wings' : 'Wings · ' + c, M('wings-' + c)])].map(([n, src]) => ({ n, src })),
+      ...['blue', 'pink', 'mint', 'lilac', 'butter', 'peach', 'night'].map(c => [c === 'blue' ? 'Wings' : 'Wings · ' + c, M('wings-' + c)]),
+      ...['blue', 'pink', 'mint', 'lilac', 'butter', 'peach', 'night'].map(c => [c === 'blue' ? 'Devil' : 'Devil · ' + c, M('devil-' + c)])].map(([n, src]) => ({ n, src })),
     moving: [{ n: 'Bounce', src: 'stamps/mochi-bounce.gif' }, { n: 'Sigh', src: 'stamps/mochi-sigh.gif' },
       ...['blue', 'pink', 'mint', 'lilac', 'butter', 'peach', 'night'].map(c => ({ n: c === 'blue' ? 'Fly' : 'Fly · ' + c, src: `stamps/mochi-fly-${c}.gif` })), { n: 'Hi!', src: M('wave'), mv: 'wiggle' }, { n: 'Love', src: M('love'), mv: 'pulse' },
       { n: 'Party', src: M('party'), mv: 'spin' }, { n: 'Shook', src: M('shook'), mv: 'shake' }, { n: 'Sleepy', src: M('sleepy'), mv: 'float' }, { n: 'Happy', src: M('happy'), mv: 'squish' }, { n: 'Hop', src: M(''), mv: 'hop' }],
