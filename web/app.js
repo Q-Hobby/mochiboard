@@ -1461,7 +1461,7 @@
         c.x = d.bx + (it.x - d.bx) * kx; c.w = Math.max(8, it.w * kx); c.h = txt ? it.h : Math.max(8, it.h * ky); c.y = txt ? d.by + (it.y + it.h / 2 - d.by) * ky - it.h / 2 : d.by + (it.y - d.by) * ky;
         const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' }); });
       renderWires(); }
-    if (drag.mode === 'wire') { if (drag.sx != null && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) drag.moved = true;
+    if (drag.mode === 'wire') { if (drag.sx != null && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) drag.moved = true;
       const t = wireTarget(drag, w); drag.to = t; drag.b = t ? t.pt : w; renderWires({ a: drag.a, b: drag.b, snap: t && drag.pa ? t.pt : null }); }
     if (drag.mode === 'mrotate') { const d = drag; let a = (Math.atan2(w.y - d.cy, w.x - d.cx) - d.a0) * 180 / Math.PI; a = ((a + 540) % 360) - 180;
       a = e.shiftKey ? Math.round(a / 15) * 15 : (Math.abs(a - Math.round(a / 15) * 15) < 2 ? Math.round(a / 15) * 15 : a); d.cur = a; const t = a * Math.PI / 180, co = Math.cos(t), si = Math.sin(t);
@@ -1547,7 +1547,8 @@
       const w = toWorld(e.clientX, e.clientY), src = byId(d.id), tg = wireTarget(d, w), t = tg && tg.c, same = (p, q) => !!p && !!q && p.u === q.u && p.v === q.v;
       // a diagram shape can have many lines to the same shape (Yes and No, there and back); only an exact repeat is skipped
       const linked = t && board.links.some(l => d.pa ? (l.a === d.id && l.b === t.id && same(l.pa, d.pa) && same(l.pb, SIDE[tg.side])) : ((l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id)));
-      if (d.pa && src && !d.moved) quickAdd(src, d.side);                 // a click on a side dot: the next shape, lined up and connected
+      const nearDot = d.sx != null && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 40;
+      if (d.pa && src && (!d.moved || (nearDot && !t))) quickAdd(src, d.side);   // a click (or a wobbly one) on a side dot: the next shape, lined up and connected
       else if (d.pa && src && !t) quickAdd(src, d.side, w);               // dropped on empty board: the next shape right there
       else if (t && !linked) { remember(); board.links.push(d.pa && src ? kitLink(src, t, d.pa, SIDE[tg.side]) : { id: uid(), a: d.id, b: t.id }); save(); }   // near a side's middle: it snaps there
       renderWires();
@@ -3098,6 +3099,7 @@
   const kp = document.createElement('div'); kp.id = 'kports'; world.appendChild(kp);
   kp.innerHTML = ['t', 'r', 'b', 'l'].map(s => `<i class="kport" data-side="${s}" title="Drag to another shape to connect, or click to add the next one"></i>`).join('');
   let kpFor = null;
+  new MutationObserver(() => { if (kpFor && !cardsEl.querySelector(`[data-id="${kpFor}"]`)) showPorts(null); }).observe(cardsEl, { childList: true });   // the card went away (deleted, undone): its dots go with it, right away
   function showPorts(c) {
     kpFor = c ? c.id : null; kp.classList.toggle('on', !!c); if (!c) return;
     const o = 20 / view.z, h = c.type === 'title' ? 50 : c.h, at = { t: [c.x + c.w / 2, c.y - o], r: [c.x + c.w + o, c.y + h / 2], b: [c.x + c.w / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
