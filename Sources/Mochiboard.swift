@@ -3,6 +3,8 @@
 import AppKit
 import UniformTypeIdentifiers
 import Speech
+import Vision
+import CoreImage
 @preconcurrency import WebKit
 
 let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
@@ -145,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             rewriteText(args["text"] as? String ?? "", how: args["how"] as? String ?? "", title: args["title"] as? String ?? "", around: args["around"] as? String ?? "") { ok, text in reply(ok, text) }
         case "connections":
             connections { reply(true, $0) }
+        case "removeBg": removeBackground(args["src"] as? String ?? "") { reply($0, $1) }
         case "fetchImage":
             fetchImage(args["url"] as? String ?? "") { reply($0 != nil, $0 ?? "couldn't load that image") }
         // export what's on screen inside a rectangle as a crisp PNG or a real PDF, then let the person pick where to save it
@@ -322,6 +325,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
     // pictures from Mobbin or Higgsfield come in as links; bring them home as data, so they're saved with the board
+    // lift the subject out of a picture: macOS's own Vision model finds it, nothing leaves the Mac. Answers a PNG data URL with a see-through background.
+    func removeBackground(_ src: String, _ done: @escaping (Bool, Any) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard #available(macOS 14.0, *) else { return done(false, "needs macOS 14") }
+            var data: Data? = nil
+            if src.hasPrefix("data:"), let comma = src.firstIndex(of: ",") { data = Data(base64Encoded: String(src[src.index(after: comma)...]), options: .ignoreUnknownCharacters) }
+            else if src.hasPrefix("/") { data = try? Data(contentsOf: URL(fileURLWithPath: src)) }
+            else if let u = URL(string: src), u.isFileURL { data = try? Data(contentsOf: u) }
+            guard let d = data, let ns = NSImage(data: d), let cg = ns.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return done(false, "couldn't read that picture") }
+            do {
+                let req = VNGenerateForegroundInstanceMaskRequest(), handler = VNImageRequestHandler(cgImage: cg, options: [:])
+                try handler.perform([req])
+                guard let r = req.results?.first, !r.allInstances.isEmpty else { return done(false, "no subject") }
+                let pb = try r.generateMaskedImage(ofInstances: r.allInstances, from: handler, croppedToInstancesExtent: false)
+                let ci = CIImage(cvPixelBuffer: pb)
+                guard let out = CIContext().createCGImage(ci, from: ci.extent), let png = NSBitmapImageRep(cgImage: out).representation(using: .png, properties: [:]) else { return done(false, "couldn't make the cut-out") }
+                done(true, "data:image/png;base64," + png.base64EncodedString())
+            } catch { done(false, "couldn't lift the subject out: \(error.localizedDescription)") }
+        }
+    }
     func fetchImage(_ s: String, done: @escaping (String?) -> Void) {
         guard let url = URL(string: s) else { return done(nil) }
         URLSession.shared.dataTask(with: URLRequest(url: url, timeoutInterval: 30)) { data, resp, _ in
