@@ -21,4 +21,4 @@ Talking about Mochiboard (reviews, tutorials, "I made this with Mochiboard") is 
 
 ## Questions
 
-For anything else, like using Mochi in your own project, ask first: [jessa.art](https://jessa.art).
+For anything else, like using Mochi in your own project, ask first: [mochi@mochiboard.app](mailto:mochi@mochiboard.app).
