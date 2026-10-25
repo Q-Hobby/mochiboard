@@ -1,9 +1,9 @@
 // Keeps a copy of Mochiboard in the browser so it opens without internet (the website version).
 // The Mac app loads these files from disk, so it doesn't need this.
 // Network first, so a new version shows up when you're online; the saved copy is the fallback when you're not.
-const CACHE = 'mochiboard-v7';
+const CACHE = 'mochiboard-v8';
 const FILES = [
-  './', 'index.html', 'style.css', 'fonts.css', 'app.js', 'bridge.js', 'goo.js', 'vendor/editor.js', 'vendor/docx.js', 'icons/names.js', 'icons/MaterialIconsOutlined-Regular.otf',
+  './', 'index.html', 'style.css', 'fonts.css', 'app.js', 'bridge.js', 'goo.js', 'starter.js', 'vendor/editor.js', 'vendor/docx.js', 'icons/names.js', 'icons/MaterialIconsOutlined-Regular.otf',
   'fonts/DMSans-400-latin.woff2', 'fonts/DMSans-500-latin.woff2', 'fonts/DMSans-700-latin.woff2', 'fonts/DMSans-800-latin.woff2',
   'fonts/DMSans-400-latin-ext.woff2', 'fonts/DMSans-500-latin-ext.woff2', 'fonts/DMSans-700-latin-ext.woff2', 'fonts/DMSans-800-latin-ext.woff2',
   'fonts/Caveat-500-latin.woff2', 'fonts/Caveat-700-latin.woff2', 'fonts/Caveat-500-latin-ext.woff2', 'fonts/Caveat-700-latin-ext.woff2',
