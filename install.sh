@@ -2,11 +2,11 @@
 # Mochiboard installer: builds the app, puts it in ~/Applications and opens it.
 #   ./install.sh            build + install + open
 #   ./install.sh --update   get the newest version from GitHub first
-#   ./install.sh --beta     build "Mochiboard Beta" instead: the in-progress app, side by side with the real one, with its own boards
+#   ./install.sh --testing  build "Mochiboard Testing" instead: the in-progress app, side by side with the real one, with its own boards
 set -e
 cd "$(dirname "$0")"
 NAME="Mochiboard"; BID="io.github.jessawolfe-ux.mochiboard"; BETA=
-for arg in "$@"; do [ "$arg" = "--beta" ] && { BETA=1; NAME="Mochiboard Beta"; BID="io.github.jessawolfe-ux.mochiboard.beta"; }; done
+for arg in "$@"; do case "$arg" in --testing|--beta) BETA=1; NAME="Mochiboard Testing"; BID="io.github.jessawolfe-ux.mochiboard.testing";; esac; done
 APP="$HOME/Applications/$NAME.app"
 CERT="Mochi Local Signing"
 [ "${1:-}" = "--update" ] && { echo "  Getting the newest Mochiboard…"; git pull --ff-only; }
@@ -60,7 +60,7 @@ fi
 codesign --force --deep --sign "$CERT" build/Mochiboard.app >/dev/null 2>&1 || codesign --force --deep --sign - build/Mochiboard.app >/dev/null 2>&1 || true
 pkill -x "$NAME" 2>/dev/null && sleep 1.5 || true   # let the old one finish quitting before opening the new one
 # the first Beta starts from a copy of your real boards, so you test on real work without touching it
-if [ -n "$BETA" ] && [ ! -d "$HOME/Library/Application Support/Mochiboard Beta" ] && [ -d "$HOME/Library/Application Support/Mochiboard" ]; then cp -R "$HOME/Library/Application Support/Mochiboard" "$HOME/Library/Application Support/Mochiboard Beta"; echo "  (copied your boards into Mochiboard Beta's own folder)"; fi
+if [ -n "$BETA" ] && [ ! -d "$HOME/Library/Application Support/Mochiboard Testing" ] && [ -d "$HOME/Library/Application Support/Mochiboard" ]; then cp -R "$HOME/Library/Application Support/Mochiboard" "$HOME/Library/Application Support/Mochiboard Testing"; echo "  (copied your boards into Mochiboard Testing's own folder)"; fi
 mkdir -p "$HOME/Applications" && rm -rf "$APP" && cp -R build/Mochiboard.app "$APP"
 open "$APP"
 echo "  ✓ $NAME is in ~/Applications and open."
