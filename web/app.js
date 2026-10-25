@@ -3116,7 +3116,7 @@
     const cur = kpFor && byId(kpFor), w = toWorld(e.clientX, e.clientY), m = 44 / view.z;   // near the shape still counts, so you can reach its dots
     if (!(cur && w.x > cur.x - m && w.x < cur.x + cur.w + m && w.y > cur.y - m && w.y < cur.y + cur.h + m)) kpLater();
   });
-  new MutationObserver(() => { if (drag || placing) return; const s = sel.size === 1 && byId([...sel][0]); if (PORTABLE(s) && (kpFor !== s.id || !kp.classList.contains('on'))) showPorts(s); else if (!s && kpFor && !sel.size) kpLater(); }).observe(cardsEl, { attributes: true, attributeFilter: ['class'], subtree: true });   // selection changes show up as class changes on the cards
+  new MutationObserver(() => { if (drag || placing) return; const s = sel.size === 1 && byId([...sel][0]); if (PORTABLE(s) && (kpFor !== s.id || !kp.classList.contains('on'))) showPorts(s); else if (s && !PORTABLE(s) && kpFor) showPorts(null); else if (!s && kpFor && !sel.size) kpLater(); })   // typing into a card: its dots step out of the way until you're done.observe(cardsEl, { attributes: true, attributeFilter: ['class'], subtree: true });   // selection changes show up as class changes on the cards
   const sideOf = p => p.u <= 0 ? 'l' : p.u >= 1 ? 'r' : p.v <= 0 ? 't' : 'b';
   const sideNear = (c, w) => sideOf(pinAt(c, w));
   const wireLab = {};   // where each line's label sits, for typing into it
