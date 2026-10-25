@@ -187,8 +187,10 @@
   <div class="keys" id="keys"><span><kbd>⌘K</kbd> quick capture</span><span><kbd>double-click</kbd> new note</span><span><kbd>F</kbd> focus</span><span><kbd>⌘\</kbd> just the board</span><span><kbd>M</kbd> ask Mochi</span><span><kbd>space</kbd> drag to pan</span><button id="keysX" title="Hide">×</button></div>
   <!-- wireframes: screens, boxes and text, plus a design panel for the selection -->
   <aside class="design" id="design">
-    <div class="dz-head"><span class="label">Wireframe</span><button class="mini" id="dzMin" title="Minimize">–</button></div>
+    <div class="dz-head"><span class="label">Wireframing</span><button class="mini" id="dzMin" title="Minimize">–</button></div>
     <div class="dz-body">
+      <div class="dz-tabs" id="dzTabs"></div>
+      <div class="dz-pane" data-pane="wf">
       <div class="dz-tools">
         <button data-wf="frame" title="Screen: pick a device, then click to place"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M9 15h2"/></svg><span>Screen</span></button>
         <button data-wf="box" title="Box: drag to draw (R)"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="13" height="10" rx="1.5"/></svg><span>Box</span></button>
@@ -199,6 +201,11 @@
       <div class="dz-icons" id="dzIcons"><input id="iconSearch" placeholder="Search icons… home, heart, settings" spellcheck="false" autocomplete="off"><div class="dz-icon-grid" id="iconGrid"></div></div>
       <div class="dz-pieces"><div class="label">Pieces</div><div class="dz-piece-grid" id="dzPieces"></div></div>
       <div class="dz-props" id="dzProps"></div>
+      </div>
+      <div class="dz-pane" data-pane="flow" id="kit-flow" hidden></div>
+      <div class="dz-pane" data-pane="journey" id="kit-journey" hidden></div>
+      <div class="dz-pane" data-pane="site" id="kit-site" hidden></div>
+      <div class="dz-pane" data-pane="mind" id="kit-mind" hidden></div>
     </div>
   </aside>
   <svg class="guides" id="guides"></svg>
@@ -348,7 +355,9 @@
         <label class="set-row"><div><b>Board colors</b><small>The colors you've saved for this board</small></div><input type="checkbox" class="tgl" data-set="wColors"></label>
         <label class="set-row"><div><b>Dress up Mochi</b><small>Hats, glasses and more for Mochi</small></div><input type="checkbox" class="tgl" data-set="wDressup"></label>
         <label class="set-row"><div><b>Mochi's music</b><small>Three little lo-fi songs that loop softly while you work</small></div><input type="checkbox" class="tgl" data-set="wMusic"></label>
-        <label class="set-row"><div><b>Wireframe</b><small>Screens, boxes and ready-made pieces to sketch with</small></div><input type="checkbox" class="tgl" data-set="wDesign"></label>
+        <label class="set-row"><div><b>Wireframe</b><small>Screens, boxes, flowcharts, journeys, sitemaps and mind maps</small></div><input type="checkbox" class="tgl" data-set="wDesign"></label>
+        <div class="set-row sub"><div><b>Wireframe tabs</b><small>Switch tabs on or off, and drag to choose which comes first.</small></div><button class="set-btn" id="dzReset">Reset</button></div>
+        <div class="tbe-list set-tblist" id="setDzList"></div>
         <label class="set-row"><div><b>Unsorted</b><small>Ideas waiting for a spot. ⌘K still saves there when it's off</small></div><input type="checkbox" class="tgl" data-set="wTray"></label>
         <div class="set-row"><div><b>Arrange them</b><small>Drag a widget by its title into any spot on either side</small></div><button class="set-btn" id="wgReset">Reset layout</button></div>
       </section>

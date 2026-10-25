@@ -705,6 +705,7 @@
     else if (parentOf(c.id)) el.classList.add('inside');
     if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
+    el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane);
     if (c.type === 'video') setupVideo(c, el);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
@@ -748,6 +749,14 @@
       circle: `<ellipse cx="50" cy="50" rx="50" ry="50" ${attrs(P)}/>`,
       tri: `<path d="${c.radius ? roundedD([{ x: 50, y: 2 }, { x: 98, y: 98 }, { x: 2, y: 98 }], true, c.radius * 100 / Math.max(1, Math.min(c.w || 160, c.h || 160))) : 'M50 2 L98 98 L2 98 Z'}" stroke-linejoin="round" ${attrs(P)}/>`,
       star: `<path d="${c.radius ? roundedD([[50, 3], [62, 36], [97, 37], [69, 58], [79, 93], [50, 72], [21, 93], [31, 58], [3, 37], [38, 36]].map(([x, y]) => ({ x, y })), true, c.radius * 100 / Math.max(1, Math.min(c.w || 160, c.h || 160))) : 'M50 3 L62 36 L97 37 L69 58 L79 93 L50 72 L21 93 L31 58 L3 37 L38 36 Z'}" ${attrs(P)}/>`,
+      // diagram shapes: their curves and slants stay the same size however wide or tall the shape is
+      diamond: `<path d="M50 1 L99 50 L50 99 L1 50 Z" stroke-linejoin="round" ${attrs(P)}/>`,
+      pill: (() => { const W = c.w || 160, H = c.h || 64, r = Math.min(W, H) / 2; return `<rect x="0" y="0" width="100" height="100" rx="${r * 100 / W}" ry="${r * 100 / H}" ${attrs(P)}/>`; })(),
+      io: (() => { const s = Math.min(25, 20 * 100 / (c.w || 180)); return `<path d="M${s} 0 H100 L${100 - s} 100 H0 Z" stroke-linejoin="round" ${attrs(P)}/>`; })(),
+      doc: `<path d="M0 0 H100 V84 C78 72 62 102 34 95 C20 91 9 86 0 90 Z" ${attrs(P)}/>`,
+      db: (() => { const e = Math.min(18, 12 * 100 / (c.h || 116)); return `<path d="M0 ${e} A50 ${e} 0 0 1 100 ${e} V${100 - e} A50 ${e} 0 0 1 0 ${100 - e} Z" ${attrs(P)}/><path d="M0 ${e} A50 ${e} 0 0 0 100 ${e}" fill="none" style="stroke:${sk ? c.stroke : 'rgba(40, 20, 50, .2)'}" stroke-width="${sk ? c.sw : 1.5}" vector-effect="non-scaling-stroke"/>`; })(),
+      fnote: (() => { const fx = Math.min(30, 20 * 100 / (c.w || 170)), fy = Math.min(30, 20 * 100 / (c.h || 110)); return `<path d="M0 0 H${100 - fx} L100 ${fy} V100 H0 Z" stroke-linejoin="round" ${attrs(P)}/><path d="M${100 - fx} 0 V${fy} H100" fill="none" style="stroke:${sk ? c.stroke : 'rgba(40, 20, 50, .2)'}" stroke-width="${sk ? c.sw : 1.5}" vector-effect="non-scaling-stroke"/>`; })(),
+      page: (() => { const W = c.w || 150, H = c.h || 96, b = 22 * 100 / H; return `<rect x="0" y="0" width="100" height="100" rx="${8 * 100 / W}" ry="${8 * 100 / H}" ${attrs(P)}/><path d="M0 ${b} H100" fill="none" style="stroke:${sk ? c.stroke : 'rgba(40, 20, 50, .18)'}" stroke-width="${sk ? c.sw : 1.5}" vector-effect="non-scaling-stroke"/>`; })(),
       heart: `<path d="M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z" ${attrs(P)}/>`,
       line: (c.squig || 'straight') === 'straight' ? `<line x1="0" y1="50" x2="100" y2="50" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
         : `<path d="${squigPath(c)}" fill="none" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" stroke-linejoin="${(c.round ?? 60) < 15 && c.squig === 'zigzag' ? 'miter' : 'round'}" vector-effect="non-scaling-stroke"/>`,
@@ -829,13 +838,17 @@
   }
   function renderWires(live) {
     const O = 5000; let h = '';
-    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b);
-      const d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`, on = selWire === l.id;
+    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b), on = selWire === l.id;
+      let d, from, p0 = g.p0, p2 = g.p2, lab;
+      if (l.route === 'elbow') { const E = elbowPts(l, a, b, g); d = roundPoly(E, O); p0 = E[0]; p2 = E[E.length - 1]; from = E[E.length - 2]; lab = polyMid(E); }
+      else { d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`; from = g.c1; lab = { x: (g.p0.x + 2 * g.c1.x + g.p2.x) / 4, y: (g.p0.y + 2 * g.c1.y + g.p2.y) / 4 }; }
+      wireLab[l.id] = lab;
       let arrow = '';
-      if (l.arrow) { const ux = g.p2.x - g.c1.x, uy = g.p2.y - g.c1.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, tip = { x: g.p2.x + O, y: g.p2.y + O };
+      if (l.arrow) { const ux = p2.x - from.x, uy = p2.y - from.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, tip = { x: p2.x + O, y: p2.y + O };
         arrow = `<path class="w-arrow${on ? ' on' : ''}" d="M${tip.x - ax * 11 - ay * 7} ${tip.y - ay * 11 + ax * 7} L${tip.x} ${tip.y} L${tip.x - ax * 11 + ay * 7} ${tip.y - ay * 11 - ax * 7}"/>`; }
       h += `<path class="w${l.dash ? ' dash' : ''}${on ? ' on' : ''}" d="${d}"/>${arrow}<path class="w-hit" data-wire="${l.id}" d="${d}"/>`;
-      if (on) h += `<circle class="w-end" data-end="a" data-wire="${l.id}" cx="${g.p0.x + O}" cy="${g.p0.y + O}" r="6"/><circle class="w-end" data-end="b" data-wire="${l.id}" cx="${g.p2.x + O}" cy="${g.p2.y + O}" r="6"/><circle class="w-bend" data-wire="${l.id}" cx="${g.handle.x + O}" cy="${g.handle.y + O}" r="7"/>`;
+      if (l.label) h += `<text class="w-label${on ? ' on' : ''}" data-wire="${l.id}" x="${lab.x + O}" y="${lab.y + O}">${esc(l.label)}</text>`;
+      if (on) h += `<circle class="w-end" data-end="a" data-wire="${l.id}" cx="${p0.x + O}" cy="${p0.y + O}" r="6"/><circle class="w-end" data-end="b" data-wire="${l.id}" cx="${p2.x + O}" cy="${p2.y + O}" r="6"/>` + (l.route === 'elbow' ? '' : `<circle class="w-bend" data-wire="${l.id}" cx="${g.handle.x + O}" cy="${g.handle.y + O}" r="7"/>`);
     });
     if (live) { const a = live.a, b = live.b; h += `<path class="live" d="M${a.x + O} ${a.y + O} Q${(a.x + b.x) / 2 + O} ${(a.y + b.y) / 2 - 30 + O} ${b.x + O} ${b.y + O}"/>`; }
     wires.innerHTML = h;
@@ -1020,14 +1033,14 @@
     shape: LI('<g data-l24="1"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" /><rect x="3" y="14" width="7" height="7" rx="1" /><circle cx="17.5" cy="17.5" r="3.5" /></g>'), icon: LI('<g data-l24="1"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" x2="9.01" y1="9" y2="9" /><line x1="15" x2="15.01" y1="9" y2="9" /></g>'),
   };
   const lyText = s => String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-  const SHAPE_N = { rect: 'Rectangle', circle: 'Circle', tri: 'Triangle', star: 'Star', heart: 'Heart', line: 'Line' };
+  const SHAPE_N = { rect: 'Rectangle', circle: 'Circle', tri: 'Triangle', star: 'Star', heart: 'Heart', line: 'Line', diamond: 'Decision', pill: 'Start / end', io: 'Input / output', doc: 'Document', db: 'Database', fnote: 'Note', page: 'Page' };
   function layerName(c) {
     if (c.type === 'section') return lyText(c.text) || 'Section';
     if (c.ln) return c.ln;
     const t = {
       frame: c.name || 'Screen', coll: c.name || 'Collection', note: lyText(c.name) || lyText(c.text), text: lyText(c.text), title: lyText(c.text), todo: lyText(c.text) || lyText(c.items?.[0]?.t),
       image: c.tagText || 'Image', link: c.title || (c.url ? host(c.url) : 'Link'), doc: c.text || 'Doc', canvas: c.text || 'Canvas', swatch: c.label || (c.hex || '').toUpperCase(),
-      shape: SHAPE_N[c.shape || 'rect'], path: c.closed ? 'Pen shape' : 'Pen line', stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', video: c.title || 'Video', spotify: c.title || 'Spotify', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
+      shape: (c.kit && lyText(c.text)) || SHAPE_N[c.shape || 'rect'], path: c.closed ? 'Pen shape' : 'Pen line', stamp: 'Stamp', icon: c.name || 'Icon', audio: 'Voice memo', video: c.title || 'Video', spotify: c.title || 'Spotify', ink: 'Drawing', box: c.img ? 'Image spot' : 'Box', font: c.font || 'DM Sans',
     }[c.type];
     return t || ({ note: 'Note', text: 'Text', title: 'Title', todo: 'Checklist' })[c.type] || c.type;
   }
@@ -1349,6 +1362,8 @@
     if (e.target.id === 'rh' && rhFor === 'm' && e.button === 0) { const cs = selCards().filter(c => !c.locked && c.type !== 'ink'); if (cs.length > 1) { remember();
       const items = cs.map(c => { const r = realBox(c); return { c, x: c.x, y: c.y, w: r.w, h: r.h, fs0: fsMul(c), size0: c.size, sw0: c.sw }; }), bx = Math.min(...items.map(i => i.x)), by = Math.min(...items.map(i => i.y));
       drag = { mode: 'gresize', multi: true, sx: w.x, sy: w.y, bx, by, bw: Math.max(...items.map(i => i.x + i.w)) - bx, bh: Math.max(...items.map(i => i.y + i.h)) - by, items }; stage.setPointerCapture(e.pointerId); return; } }
+    if (e.target.classList?.contains('kport') && kpFor && e.button === 0) { const c = byId(kpFor), s = e.target.dataset.side;   // a diagram shape's side dot
+      if (c) { drag = { mode: 'wire', id: c.id, a: pinPoint(c, SIDE[s]), pa: SIDE[s], side: s, sx: e.clientX, sy: e.clientY }; showPorts(null); stage.setPointerCapture(e.pointerId); return; } }
     if (e.target.id === 'rh' && rhFor && e.button === 0) { const c = byId(rhFor); if (c) { drag = { mode: 'resize', id: c.id, sx: w.x, sy: w.y, w0: c.w, h0: c.h, fs0: fsMul(c) }; stage.setPointerCapture(e.pointerId); return; } }
     if (cropping && e.target.closest('.crop-ui')) { e.preventDefault(); cropDown(e); return; }
     if (placing?.type === 'box' && e.button === 0) { e.preventDefault(); stopPlacing(); drag = { mode: 'drawbox', sx: w.x, sy: w.y }; stage.setPointerCapture(e.pointerId); return; }
@@ -1358,7 +1373,7 @@
       const l = linkById(wireEl.dataset.wire); if (!l) return;
       if (wireEl.classList.contains('w-bend')) drag = { mode: 'bend', l };
       else if (wireEl.dataset.end) drag = { mode: 'rewire', l, end: wireEl.dataset.end };
-      else { selectWire(l.id); return; }
+      else { const now = Date.now(), again = wireTap.id === l.id && now - wireTap.t < 450; wireTap = again ? {} : { id: l.id, t: now }; selectWire(l.id); if (again) setTimeout(() => editWireLabel(l), 60); return; }   // pressing a line twice: type its label (the first press redraws the lines, so the browser never sends a double-click)
       stage.setPointerCapture(e.pointerId); return;
     }
     if (selWire && !el) selectWire(null);
@@ -1440,7 +1455,7 @@
         c.x = d.bx + (it.x - d.bx) * kx; c.w = Math.max(8, it.w * kx); c.h = txt ? it.h : Math.max(8, it.h * ky); c.y = txt ? d.by + (it.y + it.h / 2 - d.by) * ky - it.h / 2 : d.by + (it.y - d.by) * ky;
         const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' }); });
       renderWires(); }
-    if (drag.mode === 'wire') { drag.b = w; renderWires({ a: drag.a, b: w }); }
+    if (drag.mode === 'wire') { if (drag.sx != null && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) drag.moved = true; drag.b = w; renderWires({ a: drag.a, b: w }); }
     if (drag.mode === 'mrotate') { const d = drag; let a = (Math.atan2(w.y - d.cy, w.x - d.cx) - d.a0) * 180 / Math.PI; a = ((a + 540) % 360) - 180;
       a = e.shiftKey ? Math.round(a / 15) * 15 : (Math.abs(a - Math.round(a / 15) * 15) < 2 ? Math.round(a / 15) * 15 : a); d.cur = a; const t = a * Math.PI / 180, co = Math.cos(t), si = Math.sin(t);
       d.items.forEach(it => { const c = it.c, dx = it.mx - d.cx, dy = it.my - d.cy, nx = d.cx + dx * co - dy * si, ny = d.cy + dx * si + dy * co;   // each piece's middle goes around the turn
@@ -1518,12 +1533,16 @@
       if (t) { d.l[d.end] = t.id; d.l['p' + d.end] = pinAt(t, w); save(); } renderWires();
     }
     if (d.mode === 'wire') {
-      const w = toWorld(e.clientX, e.clientY), t = [...board.cards].reverse().find(c => c.id !== d.id && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h);
-      if (t && !board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id))) { board.links.push({ id: uid(), a: d.id, b: t.id }); save(); }
+      const w = toWorld(e.clientX, e.clientY), t0 = [...board.cards].reverse().find(c => c.id !== d.id && w.x > c.x && w.x < c.x + c.w && w.y > c.y && w.y < c.y + c.h), src = byId(d.id);
+      const t = d.pa && t0?.type === 'section' ? null : t0, linked = t && board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id));
+      if (d.pa && src && !d.moved) quickAdd(src, d.side);                 // a click on a side dot: the next shape, lined up and connected
+      else if (d.pa && src && !t) quickAdd(src, d.side, w);               // dropped on empty board: the next shape right there
+      else if (t && !linked) { remember(); board.links.push(d.pa && src ? kitLink(src, t, d.pa, SIDE[sideNear(t, w)]) : { id: uid(), a: d.id, b: t.id }); save(); }
       renderWires();
     }
   });
   stage.addEventListener('dblclick', e => {
+    const wl = e.target.closest('[data-wire]') || document.elementsFromPoint(e.clientX, e.clientY).find(x => x.matches?.('.wires .w-hit, .wires .w-label')); if (wl && !wl.dataset.end && !wl.classList.contains('w-bend')) { e.preventDefault(); return editWireLabel(linkById(wl.dataset.wire)); }
     if (penT) { const P = penT.pts; if (P.length > 1 && Math.hypot(P[P.length - 1].x - P[P.length - 2].x, P[P.length - 1].y - P[P.length - 2].y) < 4 / view.z) P.pop(); endPen(true); return; }   // a double-click finishes the line
     if (settings.dblNote === false) return;   // only the setting turns this off
     const hitEl = document.elementFromPoint(e.clientX, e.clientY);
@@ -1897,6 +1916,7 @@
   const WIDGETS = [['wLayers', () => document.querySelector('.box[data-box="layers"]')], ['wColors', () => document.querySelector('.box[data-box="colors"]')],
     ['wDressup', () => document.querySelector('.box[data-box="dressup"]')], ['wMusic', () => document.querySelector('.box[data-box="music"]')], ['wDesign', () => $('design')], ['wTray', () => $('tray')]];
   function applySettings() {
+    if ($('dzTabs')) renderDzTabs();
     queueMicrotask(() => applyColors()); queueMicrotask(() => applyGridShape()); queueMicrotask(() => applyToolbar());
     goos.forEach(g => g.setColors(MOCHI_COLORS[settings.mochi] || MOCHI_COLORS.blue));
     window.MochiOutfit = settings.outfit || {}; queueMicrotask(() => renderDressup());
@@ -2342,13 +2362,14 @@
 
   // ---------- placing: pick a tool, the new thing rides on your cursor, click to drop it, then type ----------
   let placing = null, mouse = { x: 0, y: 0 };
-  const PLACE = { note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], piece: ['', [300, 60]], icon: ['', [28, 28]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] , video: ['Video', [360, 246]] };
+  const PLACE = { kit: ['', [300, 180]], note: ['Note', [220, 120]], todo: ['Checklist', [240, 170]], title: ['Title', [300, 56]], coll: ['Collection', [288, 200]], swatch: ['Color', [120, 150]], doc: ['Doc', [240, 52]], canvas: ['Canvas', [260, 180]], link: ['Paste a link', [260, 52]], shape: ['', [160, 160]], stamp: ['', [56, 56]], audio: ['Voice memo', [290, 150]], piece: ['', [300, 60]], icon: ['', [28, 28]], frame: ['Screen', [393, 852]], text: ['Text', [220, 26]], box: ['Drag to draw a box', [160, 100]] , video: ['Video', [360, 246]] };
   function startPlacing(type, extra = {}) {
-    if (placing?.type === type && placing.extra?.shape === extra.shape) return stopPlacing();
+    if (placing?.type === type && placing.extra?.shape === extra.shape && placing.extra?.piece === extra.piece) return stopPlacing();
     stopPlacing(); placing = { type, extra }; selectOnly([]);
     const g = $('ghost'), [label, [w, h]] = PLACE[type]; g.className = 'ghost on ' + type; g.innerHTML = `<span>${label}</span>`;
     g.style.width = w + 'px'; g.style.height = (extra.shape === 'line' ? 24 : h) + 'px'; if (type === 'shape') g.innerHTML = shapeSVG({ shape: extra.shape });
     if (type === 'piece') { const P = PIECES[extra.piece], items = P.make(P.w || 360), W = Math.max(...items.map(i => i.x + i.w)), H = Math.max(...items.map(i => i.y + i.h)); g.style.width = W + 'px'; g.style.height = H + 'px'; g.querySelector('span').textContent = extra.piece; }
+    if (type === 'kit') { const P = KITS[extra.kit].pieces[extra.piece], s = P.shape; if (s) { g.innerHTML = shapeSVG(s); g.style.width = s.w + 'px'; g.style.height = s.h + 'px'; } else { g.style.width = '300px'; g.style.height = '180px'; g.querySelector('span').textContent = extra.piece; } }
     if (type === 'icon') { g.innerHTML = `<span class="mi" style="font-size:28px;position:static;color:#27272a">${esc(extra.name)}</span>`; g.style.width = g.style.height = '28px'; }
     if (type === 'frame' && DEVICES[extra.device]) { g.style.width = DEVICES[extra.device][0] + 'px'; g.style.height = DEVICES[extra.device][1] + 'px'; g.querySelector('span').textContent = extra.device; }
     if (type === 'stamp') { const st = extra.stamp; g.innerHTML = stampHTML(st); g.style.width = g.style.height = '56px'; } moveGhost(); stage.classList.add('placing');
@@ -2359,6 +2380,7 @@
   addEventListener('pointermove', e => { mouse = { x: e.clientX, y: e.clientY }; moveGhost(); }, true);
   function placeAt(w) {
     if (placing.type === 'stamp') return stampAt(w, placing.extra.stamp);
+    if (placing.type === 'kit') { const { kit, piece } = placing.extra; stopPlacing(); $('design').querySelectorAll('[data-kp].on').forEach(x => x.classList.remove('on')); return placeKit(kit, piece, w); }
     if (placing.type === 'piece') { const n = placing.extra.piece; stopPlacing(); $('dzPieces').querySelectorAll('.on').forEach(x => x.classList.remove('on')); return placePiece(n, w); }
     const type = placing.type, more = placing.extra || {}; stopPlacing();
     const dev = DEVICES[more.device], extra = type === 'icon' ? { name: more.name || 'star', color: '#27272a', w: 28, h: 28, r: 0 } : type === 'frame' ? { name: more.device === 'Desktop' ? 'Desktop' : 'Screen', device: more.device || 'Custom', w: dev ? dev[0] : 393, h: dev ? dev[1] : 852, radius: dev ? dev[2] : 0, fill: '#ffffff', r: 0 }
@@ -2444,9 +2466,9 @@
       { t: 'how', x: 990, y: 90, text: 'Everyone writes quietly for 5 minutes: one note per thought.\n\nRoses are wins, thorns are pains, buds are ideas worth trying.\n\nThen read them out, group the alike ones, and pick one bud to try next.' },
     ] },
   };
-  function placeFramework(key) {
-    const F = FRAMEWORKS[key]; if (!F) return; remember(); stopPlacing();
-    const c0 = centerWorld(), x0 = board.cards.length ? Math.max(...board.cards.map(c => c.x + c.w)) + 200 : c0.x - 500, y0 = board.cards.length ? Math.min(...board.cards.map(c => c.y)) : c0.y - 300;
+  function placeFramework(key, at, F0) {
+    const F = F0 || FRAMEWORKS[key]; if (!F) return; remember(); stopPlacing();
+    const c0 = centerWorld(), x0 = at ? Math.round(at.x) : board.cards.length ? Math.max(...board.cards.map(c => c.x + c.w)) + 200 : c0.x - 500, y0 = at ? Math.round(at.y) : board.cards.length ? Math.min(...board.cards.map(c => c.y)) : c0.y - 300;
     const made = [], keyed = {};
     F.items.forEach(it => {
       const at = { x: x0 + it.x, y: y0 + it.y };
@@ -3055,6 +3077,210 @@
     const g = uid(), made = items.map(it => { const c = card(it.type, { ...it, x: ox + it.x, y: oy + it.y, r: 0, group: g }); board.cards.push(c); renderCard(c, true); return c; });
     fileIntoFrame(made); selectOnly(made.map(c => c.id)); renderWires(); save();
   }
+  // ---------- diagram kits: the Flowchart, Journey, Sitemap and Mind map tabs of the Wireframe panel ----------
+  // a diagram shape has a dot on each side: drag one to another shape to connect them, drop it on empty board for the next shape there, or click it to add the next one lined up
+  const SIDE = { t: { u: .5, v: 0 }, r: { u: 1, v: .5 }, b: { u: .5, v: 1 }, l: { u: 0, v: .5 } }, OPP = { t: 'b', b: 't', l: 'r', r: 'l' }, DIR = { t: [0, -1], r: [1, 0], b: [0, 1], l: [-1, 0] };
+  // the dots live in their own layer over the lines (a line leaving a side would otherwise sit right on top of its dot)
+  const kp = document.createElement('div'); kp.id = 'kports'; world.appendChild(kp);
+  kp.innerHTML = ['t', 'r', 'b', 'l'].map(s => `<i class="kport" data-side="${s}" title="Drag to another shape to connect, or click to add the next one"></i>`).join('');
+  let kpFor = null;
+  function showPorts(c) {
+    kpFor = c ? c.id : null; kp.classList.toggle('on', !!c); if (!c) return;
+    const o = 20 / view.z, h = c.h, at = { t: [c.x + c.w / 2, c.y - o], r: [c.x + c.w + o, c.y + h / 2], b: [c.x + c.w / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
+    kp.style.setProperty('--iz', (1 / view.z).toFixed(4)); kp.querySelectorAll('.kport').forEach(d => { const [x, y] = at[d.dataset.side]; d.style.left = x + 'px'; d.style.top = y + 'px'; });
+  }
+  stage.addEventListener('pointermove', e => {
+    if (drag || placing || space || sel.size > 1 || e.buttons) { if (kpFor) showPorts(null); return; }
+    const under = document.elementsFromPoint(e.clientX, e.clientY); if (under.some(x => x.classList?.contains('kport'))) return;
+    const top = under.map(x => x.closest?.('.card')).find(Boolean), c = top && top.classList.contains('kitc') ? byId(top.dataset.id) : null;
+    if (c) { if (kpFor !== c.id || !kp.classList.contains('on')) showPorts(c); return; }
+    const cur = kpFor && byId(kpFor), w = toWorld(e.clientX, e.clientY), m = 34 / view.z;   // near the shape still counts, so you can reach its dots
+    if (!(cur && w.x > cur.x - m && w.x < cur.x + cur.w + m && w.y > cur.y - m && w.y < cur.y + cur.h + m)) showPorts(null);
+  });
+  const sideOf = p => p.u <= 0 ? 'l' : p.u >= 1 ? 'r' : p.v <= 0 ? 't' : 'b';
+  const sideNear = (c, w) => sideOf(pinAt(c, w));
+  const wireLab = {};   // where each line's label sits, for typing into it
+  let wireTap = {};
+  // a right-angle line: out of each end the way its side faces, then across
+  function elbowPts(l, a, b, g) {
+    const dx = g.p2.x - g.p0.x, dy = g.p2.y - g.p0.y, horiz = Math.abs(dx) >= Math.abs(dy);
+    const dirOf = (p, sgn) => p ? DIR[sideOf(p)] : horiz ? [(Math.sign(dx) || 1) * sgn, 0] : [0, (Math.sign(dy) || 1) * sgn];
+    const dA = dirOf(l.pa, 1), dB = dirOf(l.pb, -1), sd = v => v[0] > 0 ? 'r' : v[0] < 0 ? 'l' : v[1] < 0 ? 't' : 'b';
+    const P0 = l.pa ? g.p0 : pinPoint(a, SIDE[sd(dA)]), P2 = l.pb ? g.p2 : pinPoint(b, SIDE[sd(dB)]), s = 20;
+    const a1 = { x: P0.x + dA[0] * s, y: P0.y + dA[1] * s }, b1 = { x: P2.x + dB[0] * s, y: P2.y + dB[1] * s }, hA = !!dA[0], hB = !!dB[0];
+    let pts;
+    if (hA && hB) { const mx = (a1.x + b1.x) / 2; pts = [P0, { x: mx, y: P0.y }, { x: mx, y: P2.y }, P2]; }
+    else if (!hA && !hB) { const my = (a1.y + b1.y) / 2; pts = [P0, { x: P0.x, y: my }, { x: P2.x, y: my }, P2]; }
+    else if (hA) pts = [P0, { x: P2.x, y: P0.y }, P2];
+    else pts = [P0, { x: P0.x, y: P2.y }, P2];
+    return pts.filter((p, i) => !i || Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) > .5);
+  }
+  function roundPoly(pts, O, r = 10) {   // the corners softly rounded
+    let d = `M${pts[0].x + O} ${pts[0].y + O}`;
+    for (let i = 1; i < pts.length - 1; i++) { const p = pts[i], a = pts[i - 1], b = pts[i + 1], la = Math.hypot(p.x - a.x, p.y - a.y) || 1, lb = Math.hypot(b.x - p.x, b.y - p.y) || 1, k = Math.min(r, la / 2, lb / 2);
+      d += ` L${p.x - (p.x - a.x) / la * k + O} ${p.y - (p.y - a.y) / la * k + O} Q${p.x + O} ${p.y + O} ${p.x + (b.x - p.x) / lb * k + O} ${p.y + (b.y - p.y) / lb * k + O}`; }
+    const z = pts[pts.length - 1]; return d + ` L${z.x + O} ${z.y + O}`;
+  }
+  function polyMid(pts) {   // halfway along the line
+    const seg = pts.slice(1).map((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y)); let left = seg.reduce((n, x) => n + x, 0) / 2;
+    for (let i = 0; i < seg.length; i++) { if (left <= seg[i]) { const k = left / (seg[i] || 1); return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * k, y: pts[i].y + (pts[i + 1].y - pts[i].y) * k }; } left -= seg[i]; }
+    return pts[0];
+  }
+  function editWireLabel(l) {
+    if (!l) return; renderWires(); const p = wireLab[l.id]; if (!p) return; const r = stage.getBoundingClientRect();
+    const inp = document.createElement('input'); inp.className = 'w-edit'; inp.value = l.label || ''; inp.placeholder = 'Label'; inp.maxLength = 60;
+    Object.assign(inp.style, { left: r.left + view.x + p.x * view.z + 'px', top: r.top + view.y + p.y * view.z + 'px' });
+    ['pointerdown', 'mousedown', 'dblclick', 'keyup'].forEach(t => inp.addEventListener(t, e => e.stopPropagation()));
+    document.body.appendChild(inp); inp.focus(); inp.select();
+    let done = false; const fin = keep => { if (done) return; done = true; const v = inp.value.trim();
+      if (keep && v !== (l.label || '')) { remember(); if (v) l.label = v; else delete l.label; save(); } inp.remove(); $('selbar').dataset.key = ''; renderWires(); };
+    inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') fin(true); if (e.key === 'Escape') fin(false); }; inp.onblur = () => fin(true);
+  }
+
+  // the pieces
+  const FLOW = {
+    'Start / end': { shape: 'pill', w: 160, h: 64, fill: 'mint', text: 'Start' },
+    'Process': { shape: 'rect', w: 170, h: 90, fill: 'sky', text: 'Do a thing', radius: 10 },
+    'Decision': { shape: 'diamond', w: 160, h: 120, fill: 'butter', text: 'Yes or no?' },
+    'Input / output': { shape: 'io', w: 180, h: 84, fill: 'pink', text: 'Input' },
+    'Document': { shape: 'doc', w: 160, h: 104, fill: 'lilac', text: 'Document' },
+    'Database': { shape: 'db', w: 140, h: 116, fill: 'peach', text: 'Database' },
+    'Note': { shape: 'fnote', w: 170, h: 110, fill: 'gray', text: 'A note' },
+  };
+  const PAGE = { shape: 'page', w: 150, h: 96, fill: '#ffffff', stroke: '#d9cfe0', sw: 1.5, text: 'Page' };
+  const ROOT = { shape: 'pill', w: 230, h: 92, fill: 'pink', text: 'Big idea' }, BRANCH = { shape: 'pill', w: 160, h: 60, fill: 'sky', text: 'Branch' };
+  const MIND_COLORS = ['sky', 'mint', 'butter', 'lilac', 'peach', 'pink'];
+  function kitCard(kit, s, at, o = {}) {   // `at` is where its middle goes
+    const c = card('shape', { kit, shape: s.shape, fill: s.fill, text: s.text ?? '', w: s.w, h: s.h, r: 0, ...(s.radius != null ? { radius: s.radius } : {}), ...(s.stroke ? { stroke: s.stroke, sw: s.sw || 1.5 } : {}), ...o });
+    c.x = Math.round(at.x - c.w / 2); c.y = Math.round(at.y - c.h / 2); return c;
+  }
+  function kitLink(a, b, pa, pb, o = {}) {
+    const l = { id: uid(), a: a.id, b: b.id, ...o };
+    if (a.kit === 'mind') return l;   // mind maps: soft curves, edge to edge
+    if (pa) l.pa = pa; if (pb) l.pb = pb; l.route = 'elbow'; if (a.kit === 'flow') l.arrow = true; return l;
+  }
+  const crowded = (c, list) => list.some(k => k !== c && k.type !== 'section' && c.x < k.x + k.w + 20 && k.x < c.x + c.w + 20 && c.y < k.y + k.h + 20 && k.y < c.y + c.h + 20);
+  function quickAdd(c, side, at) {
+    remember();
+    const s = c.kit === 'mind' ? (c.root ? { ...BRANCH, fill: MIND_COLORS[board.links.filter(l => l.a === c.id).length % MIND_COLORS.length] } : { ...BRANCH, w: 140, h: 52, fill: c.fill, text: 'Idea' })
+      : c.kit === 'site' ? PAGE : { shape: c.shape, w: c.w, h: c.h, fill: c.fill, text: '', ...(c.radius != null ? { radius: c.radius } : {}), ...(c.stroke ? { stroke: c.stroke, sw: c.sw } : {}) };
+    const [dx, dy] = DIR[side], gap = c.kit === 'mind' ? 80 : c.kit === 'site' ? 50 : 70;
+    const mid = at || { x: c.x + c.w / 2 + dx * (c.w / 2 + gap + s.w / 2), y: c.y + c.h / 2 + dy * (c.h / 2 + gap + s.h / 2) }, n = kitCard(c.kit, s, mid);
+    if (!at) { const others = board.cards.filter(k => !k.hidden), step = dx ? n.h + 30 : n.w + 30;   // something already there: slide along until there's room
+      for (let i = 1; crowded(n, others) && i < 16; i++) { const k = c.kit === 'site' && side === 'b' ? i : (i % 2 ? 1 : -1) * Math.ceil(i / 2); n.x = Math.round(mid.x - n.w / 2 + (dx ? 0 : step * k)); n.y = Math.round(mid.y - n.h / 2 + (dx ? step * k : 0)); } }
+    addCard(n); board.links.push(kitLink(c, n, SIDE[side], at ? SIDE[sideNear(n, center(c))] : SIDE[OPP[side]]));
+    selectOnly([n.id]); renderWires(); save(); setTimeout(() => startEdit(n.id), 30); return n;
+  }
+  function lanes(at, names, W = 1100, H = 220) {   // swimlanes: sections stacked into rows; whatever sits in a lane moves with it
+    const cols = ['sky', 'lilac', 'mint', 'butter', 'peach', 'pink'];
+    return names.map((n, i) => card('section', { x: Math.round(at.x), y: Math.round(at.y + i * (H + 10)), w: W, h: H, text: n, color: cols[i % cols.length], lane: true, r: 0 }));
+  }
+  function starterFlow(at) {
+    const F = (n, x, y, o) => kitCard('flow', { ...FLOW[n], ...o }, { x: at.x + x, y: at.y + y });
+    const s = F('Start / end', 0, 0, { text: 'Start' }), p1 = F('Process', 0, 150, { text: 'Open the app' }), d = F('Decision', 0, 320, { text: 'Signed in?' });
+    const yes = F('Process', 300, 320, { text: 'Show home' }), no = F('Process', 0, 500, { text: 'Sign in' }), e = F('Start / end', 300, 500, { text: 'Done' });
+    const L = (a, b, sa, sb, o) => kitLink(a, b, SIDE[sa], SIDE[sb], o);
+    return { cards: [s, p1, d, yes, no, e], links: [L(s, p1, 'b', 't'), L(p1, d, 'b', 't'), L(d, yes, 'r', 'l', { label: 'Yes' }), L(d, no, 'b', 't', { label: 'No' }), L(yes, e, 'b', 't'), L(no, e, 'r', 'l')] };
+  }
+  function sitemapStarter(at) {
+    const P = (t, x, y) => kitCard('site', { ...PAGE, text: t }, { x: at.x + x, y: at.y + y }), home = P('Home', 0, 0);
+    const kids = ['About', 'Work', 'Blog', 'Contact'].map((t, i) => P(t, (i - 1.5) * 190, 170)), work = kids[1], sub = ['Case study', 'Process'].map((t, i) => P(t, work.x + work.w / 2 - at.x + (i - .5) * 175, 340));
+    const L = (a, b) => kitLink(a, b, SIDE.b, SIDE.t);
+    return { cards: [home, ...kids, ...sub], links: [...kids.map(k => L(home, k)), ...sub.map(k => L(work, k))] };
+  }
+  function mindStarter(at) {
+    const root = kitCard('mind', ROOT, at, { root: true }), names = ['Who it’s for', 'Problems', 'Ideas', 'Questions', 'Inspiration', 'Next steps'];
+    const kids = names.map((t, i) => { const a = -Math.PI / 2 + (i + .5) * Math.PI * 2 / names.length; return kitCard('mind', { ...BRANCH, text: t, fill: MIND_COLORS[i] }, { x: at.x + Math.cos(a) * 340, y: at.y + Math.sin(a) * 210 }); });
+    return { cards: [root, ...kids], links: kids.map(k => kitLink(root, k)) };
+  }
+  function blueprint(at) {
+    const steps = ['Discover', 'Sign up', 'First use', 'Get help'], W = 220, X0 = 230, made = [];
+    const rows = [['Customer actions', ['Hears about it from a friend', 'Signs up on their phone', 'Sets a first goal', 'Asks for help in chat'], 'white'],
+      ['Frontstage · what they see', ['Landing page', 'Sign up screens', 'Home screen', 'Chat with a person'], 'sky'],
+      ['Backstage · what they don’t', ['Referral tracking', 'ID check', 'Goal suggestions', 'Agent sees their account'], 'lilac'],
+      ['Support · systems and partners', ['Analytics', 'Identity partner', 'Bank data feed', 'Help desk tool'], 'butter']];
+    made.push(card('title', { x: Math.round(at.x), y: Math.round(at.y), text: 'Service blueprint' }));
+    steps.forEach((s, i) => made.push(card('text', { x: Math.round(at.x + X0 + i * (W + 30)), y: Math.round(at.y + 70), w: W, h: 28, text: s, size: 18, weight: 700, color: '#27272a', font: 'DM Sans', align: 'center', r: 0 })));
+    const L = lanes({ x: at.x, y: at.y + 112 }, rows.map(r => r[0]), X0 + steps.length * (W + 30) + 10, 192); made.push(...L);
+    rows.forEach((r, k) => r[1].forEach((t, i) => made.push(card('note', { x: Math.round(at.x + X0 + i * (W + 30)), y: L[k].y + 62, w: W, h: 110, text: t, color: r[2], r: 0 }))));
+    return { cards: made };
+  }
+  const PERSONA = { emoji: '🙂', name: 'Persona', items: [
+    { t: 'title', x: 0, y: 0, text: 'Persona' },
+    { t: 'note', x: 0, y: 90, name: 'Who', color: 'white', text: 'Maya Chen, 29\nProduct manager in Austin\n\n“I want to feel on top of my money without thinking about it.”' },
+    { t: 'coll', x: 260, y: 90, name: 'Goals', color: 'mint', notes: [{ text: 'Save for a trip this year' }, { text: 'Know where every dollar goes' }] },
+    { t: 'coll', x: 570, y: 90, name: 'Frustrations', color: 'pink', notes: [{ text: 'Fees she didn’t see coming' }, { text: 'Too many apps to check' }] },
+    { t: 'coll', x: 880, y: 90, name: 'Habits', color: 'sky', notes: [{ text: 'Checks her balance on the bus' }, { text: 'Pays bills on Sundays' }] },
+    { t: 'how', x: 1190, y: 90, text: 'Base her on what you heard in research, not guesses.\n\nKeep her goals and frustrations specific. A real quote does more than a paragraph.\n\nOne persona per kind of person who uses it differently.' },
+  ] };
+  const KIC = {
+    lanes: '<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M2.5 8h15M2.5 12.5h15M6.5 3.5v13"/>',
+    flow: '<rect x="7" y="2" width="6" height="3.4" rx="1.7"/><path d="M10 5.4v2.2M10 7.6l3 2.6-3 2.6-3-2.6zM10 12.8v2.2"/><rect x="7" y="15" width="6" height="3" rx="1"/>',
+    persona: '<circle cx="10" cy="7" r="3"/><path d="M4.5 17c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/>',
+    blueprint: '<path d="M2.5 5h15M2.5 10h15M2.5 15h15"/><circle cx="6" cy="5" r="1.3"/><circle cx="11" cy="10" r="1.3"/><circle cx="15" cy="15" r="1.3"/>',
+    site: '<rect x="7.5" y="2.5" width="5" height="3.5" rx="1"/><rect x="2.5" y="13.5" width="4" height="3.5" rx="1"/><rect x="8" y="13.5" width="4" height="3.5" rx="1"/><rect x="13.5" y="13.5" width="4" height="3.5" rx="1"/><path d="M10 6v4M4.5 13.5V10h11v3.5M10 10v3.5"/>',
+    mind: '<circle cx="10" cy="10" r="2.6"/><circle cx="3.8" cy="4.5" r="1.6"/><circle cx="16.2" cy="4.5" r="1.6"/><circle cx="3.8" cy="15.5" r="1.6"/><circle cx="16.2" cy="15.5" r="1.6"/><path d="M8 8.3L5 5.6M12 8.3l3-2.7M8 11.7l-3 2.7M12 11.7l3 2.7"/>',
+  };
+  const KITS = {
+    flow: { hint: 'Click a shape, then the board. Hover a shape: drag a side dot to another shape to connect, or click a dot to add the next step. Double-click a line to label it.', pieces: {
+      ...Object.fromEntries(Object.entries(FLOW).map(([n, s]) => [n, { shape: s, place: at => [kitCard('flow', s, at)] }])),
+      'Swimlanes': { ic: KIC.lanes, place: at => lanes({ x: at.x - 40, y: at.y - 40 }, ['Customer', 'App', 'Team']) },
+      'Starter flow': { ic: KIC.flow, place: at => starterFlow(at) } } },
+    journey: { hint: 'Research boards to fill in. Each one comes with Mochi’s how-to note; delete it whenever you like.', pieces: {
+      'Journey map': { ic: TPL_IC.journey, fw: 'journey' }, 'Empathy map': { ic: TPL_IC.empathy, fw: 'empathy' },
+      'Persona': { ic: KIC.persona, fw: PERSONA }, 'Service blueprint': { ic: KIC.blueprint, place: at => blueprint(at) } } },
+    site: { hint: 'Hover a page and click the dot underneath to add a page below it (or to the side for a sibling).', pieces: {
+      'Page': { shape: PAGE, place: at => [kitCard('site', PAGE, at)] }, 'Sitemap starter': { ic: KIC.site, place: at => sitemapStarter(at) } } },
+    mind: { hint: 'Start with a big idea. Hover it and click a dot to grow a branch; branches keep their color as they grow.', pieces: {
+      'Big idea': { shape: ROOT, place: at => [kitCard('mind', ROOT, at, { root: true })] }, 'Branch': { shape: BRANCH, place: at => [kitCard('mind', BRANCH, at)] },
+      'Mind map starter': { ic: KIC.mind, place: at => mindStarter(at) } } },
+  };
+  function placeKit(kit, name, w) {
+    const P = KITS[kit]?.pieces[name]; if (!P) return;
+    if (P.fw) return placeFramework(typeof P.fw === 'string' ? P.fw : null, w, typeof P.fw === 'string' ? null : P.fw);
+    remember(); const out = P.place(w), { cards, links = [] } = Array.isArray(out) ? { cards: out } : out;
+    cards.forEach(c => { board.cards.push(c); renderCard(c, true); }); board.links.push(...links);
+    const picks = cards.filter(c => c.type !== 'section'); selectOnly((picks.length ? picks : cards).map(c => c.id)); renderWires(); save();
+    if (cards.length === 1 && cards[0].type === 'shape') setTimeout(() => startEdit(cards[0].id), 30);
+  }
+  function renderKits() {
+    Object.entries(KITS).forEach(([k, K]) => { const el = $('kit-' + k); if (!el) return;
+      el.innerHTML = `<div class="kit-grid">${Object.entries(K.pieces).map(([n, p]) => `<button data-kit="${k}" data-kp="${esc(n)}" title="Add ${esc(n.toLowerCase())}">${p.shape ? `<span class="kp-sh">${shapeSVG(p.shape)}</span>` : `<svg class="kp-ic" viewBox="0 0 20 20">${p.ic}</svg>`}<span>${esc(n)}</span></button>`).join('')}</div><div class="dz-hint">${K.hint}</div>`; });
+  }
+  renderKits();
+  $('design').addEventListener('click', e => { const b = e.target.closest('[data-kp]'); if (!b) return; pickWF(null);
+    $('design').querySelectorAll('[data-kp]').forEach(x => x.classList.toggle('on', x === b)); startPlacing('kit', { kit: b.dataset.kit, piece: b.dataset.kp });
+    if (placing?.type !== 'kit') b.classList.remove('on'); });
+
+  // the panel's tabs: which come first, and which are off, live in Settings → Widgets
+  const DZ_TABS = { wf: 'Wireframing', flow: 'Flowchart', journey: 'Journey', site: 'Sitemap', mind: 'Mind map' };
+  function dzOrder() {
+    const s = settings.dzTabs || {}, keys = Object.keys(DZ_TABS), order = [...(s.order || []).filter(k => keys.includes(k)), ...keys.filter(k => !(s.order || []).includes(k))];
+    const hidden = new Set(s.hidden || []), shown = order.filter(k => !hidden.has(k)); return { order, hidden, shown: shown.length ? shown : [order[0]] };
+  }
+  function renderDzTabs() {
+    const { shown } = dzOrder(), cur = shown.includes(settings.dzTab) ? settings.dzTab : shown[0];
+    $('dzTabs').innerHTML = shown.map(k => `<button data-dzt="${k}" class="${k === cur ? 'on' : ''}">${DZ_TABS[k]}</button>`).join(''); $('dzTabs').hidden = shown.length < 2;
+    $('design').querySelectorAll('.dz-pane').forEach(p => p.hidden = p.dataset.pane !== cur);
+    $('design').querySelector('.dz-head .label').textContent = DZ_TABS[cur]; $('design').dataset.tab = cur;
+  }
+  $('dzTabs').onclick = e => { const b = e.target.closest('[data-dzt]'); if (!b) return; if (placing) stopPlacing(); pickWF(null); settings.dzTab = b.dataset.dzt; renderDzTabs(); applySettings(); };
+  function renderDzList() {
+    const L = $('setDzList'); if (!L) return; const { order, hidden } = dzOrder();
+    L.innerHTML = order.map(k => `<div class="tbe-row${hidden.has(k) ? ' off' : ''}" draggable="true" data-tb="${k}"><span class="tbe-grip">⋮⋮</span><span class="tbe-name">${DZ_TABS[k]}</span><input type="checkbox" class="tgl" ${hidden.has(k) ? '' : 'checked'} aria-label="Show ${DZ_TABS[k]}"></div>`).join('');
+  }
+  (() => { const L = $('setDzList'); if (!L) return;
+    const now = () => ({ order: [...L.querySelectorAll('.tbe-row')].map(r => r.dataset.tb), hidden: [...L.querySelectorAll('.tbe-row')].filter(r => !r.querySelector('input').checked).map(r => r.dataset.tb) });
+    const commit = () => { const n = now(); if (n.hidden.length >= n.order.length) { n.hidden = n.hidden.slice(1); chirp('One tab stays on ✦', 1800); } settings.dzTabs = n; renderDzList(); renderDzTabs(); applySettings(); };
+    L.onchange = e => { if (e.target.matches('input')) commit(); };
+    let dragging = null;
+    L.ondragstart = e => { dragging = e.target.closest('.tbe-row'); if (!dragging) return; dragging.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragging.dataset.tb); };
+    L.ondragover = e => { if (!dragging) return; e.preventDefault(); const r = e.target.closest('.tbe-row'); if (!r || r === dragging) return; const box = r.getBoundingClientRect(); L.insertBefore(dragging, e.clientY < box.top + box.height / 2 ? r : r.nextSibling); };
+    L.ondragend = () => { if (!dragging) return; dragging.classList.remove('drag'); dragging = null; commit(); };
+    $('dzReset').onclick = () => { delete settings.dzTabs; renderDzList(); renderDzTabs(); applySettings(); };
+  })();
+  renderDzTabs(); renderDzList();
+
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -3924,10 +4150,10 @@ ${proseCSS()}
   addEventListener('resize', snapSoon); setTimeout(snapSoon, 300);
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
-    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb); if (bar.dataset.key === key) return; bar.dataset.key = key;
+    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb) + lw.route + lw.label; if (bar.dataset.key === key) return; bar.dataset.key = key;
       const tb = (a, label, on, tip) => `<button class="sb-txt ${on ? 'on' : ''}" data-wb="${a}" title="${tip}">${label}</button>`;
-      bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0, 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0, 'Straight line')
-        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
+      bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0 && lw.route !== 'elbow', 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0 && lw.route !== 'elbow', 'Straight line') + tb('elbow', 'Right angle', lw.route === 'elbow', 'Right-angle line, like a flowchart')
+        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)') + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
     // hidden only while a drag is really happening, or a wheel that isn't from this bar is really on screen (left-over state never hides the bar)
     const wheelUp = $('cpop').classList.contains('on') && $('cpop').classList.contains('tint') && !$('cpop').classList.contains('from-bar') && $('cpop').offsetParent && $('settings').classList.contains('on');
@@ -4046,6 +4272,9 @@ ${proseCSS()}
     const a = e.target.closest('[data-wb]')?.dataset.wb, l = selWire && linkById(selWire); if (!a || !l) return; e.stopImmediatePropagation();
     if (a === 'curve') l.bend = l.bend === 0 ? undefined : l.bend; if (a === 'curve' && l.bend === undefined) delete l.bend;
     if (a === 'straight') l.bend = 0;
+    if (a === 'curve' || a === 'straight') delete l.route;
+    if (a === 'elbow') l.route = 'elbow';
+    if (a === 'label') { $('selbar').dataset.key = ''; return editWireLabel(l); }
     if (a === 'dash') l.dash = !l.dash;
     if (a === 'arrow') l.arrow = !l.arrow;
     if (a === 'flip') { [l.a, l.b] = [l.b, l.a]; [l.pa, l.pb] = [l.pb, l.pa]; if (!l.pa) delete l.pa; if (!l.pb) delete l.pb; if (l.bend) l.bend = -l.bend; }
