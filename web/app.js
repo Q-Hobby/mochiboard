@@ -839,15 +839,16 @@
   function renderWires(live) {
     const O = 5000; let h = '';
     board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b), on = selWires.has(l.id);
-      let d, from, p0 = g.p0, p2 = g.p2, lab;
-      if (l.route === 'elbow') { const E = elbowPts(l, a, b, g); d = roundPoly(E, O); p0 = E[0]; p2 = E[E.length - 1]; from = E[E.length - 2]; lab = polyMid(E); }
-      else { d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`; from = g.c1; lab = { x: (g.p0.x + 2 * g.c1.x + g.p2.x) / 4, y: (g.p0.y + 2 * g.c1.y + g.p2.y) / 4 }; }
+      let d, from, from0, p0 = g.p0, p2 = g.p2, lab;
+      if (l.route === 'elbow') { const E = elbowPts(l, a, b, g); d = roundPoly(E, O); p0 = E[0]; p2 = E[E.length - 1]; from = E[E.length - 2]; from0 = E[1]; lab = polyMid(E); }
+      else { d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`; from = from0 = g.c1; lab = { x: (g.p0.x + 2 * g.c1.x + g.p2.x) / 4, y: (g.p0.y + 2 * g.c1.y + g.p2.y) / 4 }; }
       wireLab[l.id] = lab;
-      let arrow = '';
-      if (l.arrow) { const ux = p2.x - from.x, uy = p2.y - from.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, tip = { x: p2.x + O, y: p2.y + O };
+      const wc = l.color ? ` style="--wc:${l.color}"` : '', sh = p => ({ x: p.x + O, y: p.y + O });
+      const arrow = headPath(headOf(l), sh(p2), sh(from), on, l.color) + headPath(tailOf(l), sh(p0), sh(from0), on, l.color);
+      if (false) { const ux = p2.x - from.x, uy = p2.y - from.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, tip = { x: p2.x + O, y: p2.y + O };
         arrow = `<path class="w-arrow${on ? ' on' : ''}" d="M${tip.x - ax * 11 - ay * 7} ${tip.y - ay * 11 + ax * 7} L${tip.x} ${tip.y} L${tip.x - ax * 11 + ay * 7} ${tip.y - ay * 11 - ax * 7}"/>`; }
-      h += `<path class="w${l.dash ? ' dash' : ''}${on ? ' on' : ''}" d="${d}"/>${arrow}<path class="w-hit" data-wire="${l.id}" d="${d}"/>`;
-      if (l.label) h += `<text class="w-label${on ? ' on' : ''}" data-wire="${l.id}" x="${lab.x + O}" y="${lab.y + O}">${esc(l.label)}</text>`;
+      h += `<path class="w${l.dash ? ' dash' : ''}${on ? ' on' : ''}" d="${d}"${wc}/>${arrow}<path class="w-hit" data-wire="${l.id}" d="${d}"/>`;
+      if (l.label) h += `<text class="w-label${on ? ' on' : ''}" data-wire="${l.id}" x="${lab.x + O}" y="${lab.y + O}"${wc}>${esc(l.label)}</text>`;
       if (on) h += `<circle class="w-end" data-end="a" data-wire="${l.id}" cx="${p0.x + O}" cy="${p0.y + O}" r="6"/><circle class="w-end" data-end="b" data-wire="${l.id}" cx="${p2.x + O}" cy="${p2.y + O}" r="6"/>` + (l.route === 'elbow' ? '' : `<circle class="w-bend" data-wire="${l.id}" cx="${g.handle.x + O}" cy="${g.handle.y + O}" r="7"/>`);
     });
     if (live) { const a = live.a, b = live.b; h += `<path class="live${live.snap ? ' snap' : ''}" d="M${a.x + O} ${a.y + O} Q${(a.x + b.x) / 2 + O} ${(a.y + b.y) / 2 - 30 + O} ${b.x + O} ${b.y + O}"/>`;
@@ -3092,13 +3093,14 @@
   let kpFor = null;
   function showPorts(c) {
     kpFor = c ? c.id : null; kp.classList.toggle('on', !!c); if (!c) return;
-    const o = 20 / view.z, h = c.h, at = { t: [c.x + c.w / 2, c.y - o], r: [c.x + c.w + o, c.y + h / 2], b: [c.x + c.w / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
+    const o = 20 / view.z, h = c.type === 'title' ? 50 : c.h, at = { t: [c.x + c.w / 2, c.y - o], r: [c.x + c.w + o, c.y + h / 2], b: [c.x + c.w / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
     kp.style.setProperty('--iz', (1 / view.z).toFixed(4)); kp.querySelectorAll('.kport').forEach(d => { const [x, y] = at[d.dataset.side]; d.style.left = x + 'px'; d.style.top = y + 'px'; });
   }
+  const PORTABLE = c => !!c && !c.hidden && c.type !== 'section' && c.type !== 'ink' && editing !== c.id;
   stage.addEventListener('pointermove', e => {
-    if (drag || placing || space || sel.size > 1 || e.buttons) { if (kpFor) showPorts(null); return; }
+    if (drag || placing || space || sel.size > 1 || e.buttons || penT || drawOn) { if (kpFor) showPorts(null); return; }
     const under = document.elementsFromPoint(e.clientX, e.clientY); if (under.some(x => x.classList?.contains('kport'))) return;
-    const top = under.map(x => x.closest?.('.card')).find(Boolean), c = top && top.classList.contains('kitc') ? byId(top.dataset.id) : null;
+    const top = under.map(x => x.closest?.('.card')).find(Boolean), c0 = top && byId(top.dataset.id), c = PORTABLE(c0) ? c0 : null;
     if (c) { if (kpFor !== c.id || !kp.classList.contains('on')) showPorts(c); return; }
     const cur = kpFor && byId(kpFor), w = toWorld(e.clientX, e.clientY), m = 34 / view.z;   // near the shape still counts, so you can reach its dots
     if (!(cur && w.x > cur.x - m && w.x < cur.x + cur.w + m && w.y > cur.y - m && w.y < cur.y + cur.h + m)) showPorts(null);
@@ -3106,6 +3108,28 @@
   const sideOf = p => p.u <= 0 ? 'l' : p.u >= 1 ? 'r' : p.v <= 0 ? 't' : 'b';
   const sideNear = (c, w) => sideOf(pinAt(c, w));
   const wireLab = {};   // where each line's label sits, for typing into it
+  // line ends: an open arrow, a filled triangle, a dot, a diamond, or nothing, at either end
+  const headOf = l => l.head || (l.arrow ? 'arrow' : 'none'), tailOf = l => l.tail || 'none', ENDS = ['none', 'arrow', 'tri', 'dot', 'diamond'], END_N = { none: 'None', arrow: 'Arrow', tri: 'Triangle', dot: 'Dot', diamond: 'Diamond' };
+  function headPath(kind, tip, from, on, col) {
+    if (!kind || kind === 'none') return '';
+    const ux = tip.x - from.x, uy = tip.y - from.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, nx = -ay, ny = ax, st = col ? ` style="--wc:${col}"` : '', cls = on ? ' on' : '';
+    if (kind === 'arrow') return `<path class="w-arrow${cls}" d="M${tip.x - ax * 11 + nx * 7} ${tip.y - ay * 11 + ny * 7} L${tip.x} ${tip.y} L${tip.x - ax * 11 - nx * 7} ${tip.y - ay * 11 - ny * 7}"${st}/>`;
+    if (kind === 'tri') return `<path class="w-arrow w-solid${cls}" d="M${tip.x} ${tip.y} L${tip.x - ax * 13 + nx * 6.5} ${tip.y - ay * 13 + ny * 6.5} L${tip.x - ax * 13 - nx * 6.5} ${tip.y - ay * 13 - ny * 6.5} Z"${st}/>`;
+    if (kind === 'dot') return `<circle class="w-arrow w-solid${cls}" cx="${tip.x - ax * 5}" cy="${tip.y - ay * 5}" r="5"${st}/>`;
+    return `<path class="w-arrow w-solid${cls}" d="M${tip.x} ${tip.y} L${tip.x - ax * 7 + nx * 5.5} ${tip.y - ay * 7 + ny * 5.5} L${tip.x - ax * 14} ${tip.y - ay * 14} L${tip.x - ax * 7 - nx * 5.5} ${tip.y - ay * 7 - ny * 5.5} Z"${st}/>`;
+  }
+  const WEND = { none: '<path d="M3 10h14"/>', arrow: '<path d="M3 10h13M12 6l4 4-4 4"/>', tri: '<path d="M3 10h8"/><path d="M11 5.5l6 4.5-6 4.5z" fill="currentColor"/>', dot: '<path d="M3 10h9"/><circle cx="14.5" cy="10" r="3" fill="currentColor"/>', diamond: '<path d="M3 10h7"/><path d="M10 10l3.5-4 3.5 4-3.5 4z" fill="currentColor"/>' };
+  const endIcon = (kind, tail) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"${tail ? ' style="transform:scaleX(-1)"' : ''}>${WEND[kind] || WEND.none}</svg>`;
+  const CARET_W = '<svg class="sb-caret" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg>';
+  function wireEndsPop(lw) {
+    const row = (which, cur) => `<div class="sb-endrow"><span>${which === 'head' ? 'End' : 'Start'}</span>${ENDS.map(k => `<button data-we="${which}:${k}" class="${cur === k ? 'on' : ''}" title="${END_N[k]}">${endIcon(k, which === 'tail')}</button>`).join('')}</div>`;
+    return `<span class="sb-popw" data-popw="wends"><button class="sb-poptrig sb-ic" data-pop="wends" title="Line ends">${endIcon(headOf(lw), false)}${CARET_W}</button><div class="sb-pop sb-pop-wends">${row('head', headOf(lw))}${row('tail', tailOf(lw))}</div></span>`;
+  }
+  function wireColorPop(lw) {
+    const cur = lw.color || '', custom = cur && !WCOLORS.includes(cur);
+    return `<span class="sb-popw" data-popw="wcolor"><button class="sb-poptrig" data-pop="wcolor" title="Line color"><i class="sb-cur" style="background:${cur || 'var(--ink-soft)'}"></i>${CARET_W}</button><div class="sb-pop sb-pop-wcolor"><div class="sb-dots">${WCOLORS.map(c => `<button data-wc="${c}" title="${c ? c : 'Default'}" style="background:${c || 'var(--ink-soft)'}" class="${cur === c ? 'on' : ''}"></button>`).join('')}<label class="sf-any ${custom ? 'on' : ''}" title="Any color"${custom ? ` style="--any:${cur}"` : ''}><input type="color" data-wcany value="${cur || '#8d8595'}"></label></div></div></span>`;
+  }
+  const WCOLORS = ['', '#494848', '#f27aa8', '#e8b03a', '#4fbf87', '#9b7cf0', '#4a9df5', '#ff8a5c', '#ffffff'];
   // while you drag a line: the card under (or near) the pointer, and on a diagram line, the middle of its nearest side to snap to
   function wireTarget(d, w) {
     const m = 36 / view.z, c = [...board.cards].reverse().find(c => c.id !== d.id && !c.hidden && (!d.pa || (c.type !== 'section' && c.type !== 'ink')) && w.x > c.x - m && w.x < c.x + c.w + m && w.y > c.y - m && w.y < c.y + c.h + m);
@@ -3176,18 +3200,28 @@
   function kitLink(a, b, pa, pb, o = {}) {
     const l = { id: uid(), a: a.id, b: b.id, ...o };
     if (a.kit === 'mind') return l;   // mind maps: soft curves, edge to edge
-    if (pa) l.pa = pa; if (pb) l.pb = pb; l.route = 'elbow'; if (a.kit === 'flow') l.arrow = true; return l;
+    if (pa) l.pa = pa; if (pb) l.pb = pb; if (a.kit) l.route = 'elbow'; if (!a.kit || a.kit === 'flow') l.arrow = true; return l;   // diagram kits: right angles; anything else: a soft curve with an arrow
   }
   const crowded = (c, list) => list.some(k => k !== c && k.type !== 'section' && c.x < k.x + k.w + 20 && k.x < c.x + c.w + 20 && c.y < k.y + k.h + 20 && k.y < c.y + c.h + 20);
+  const QUICK = {
+    note: c => card('note', { w: c.w, h: c.h, text: '', color: c.color, r: 0 }), todo: c => card('todo', { w: c.w, h: c.h, text: '', items: [], color: c.color, r: 0 }),
+    text: c => card('text', { w: c.w, h: c.h, text: '', size: c.size, weight: c.weight, font: c.font, color: c.color, align: c.align, r: 0 }), title: c => card('title', { text: '', fs: c.fs, tc: c.tc }),
+    box: c => card('box', { w: c.w, h: c.h, fill: c.fill, radius: c.radius, stroke: c.stroke, sw: c.sw, r: 0 }), shape: c => card('shape', { w: c.w, h: c.h, shape: c.shape, fill: c.fill, radius: c.radius, stroke: c.stroke, sw: c.sw, text: '', r: 0 }),
+    frame: c => card('frame', { w: c.w, h: c.h, name: 'Screen', device: c.device, radius: c.radius, fill: c.fill, r: 0 }), doc: () => card('doc', { text: '', body: '' }), canvas: () => card('canvas', { text: '' }),
+  };
   function quickAdd(c, side, at) {
+    let n;
+    if (!c.kit) { const mk = QUICK[c.type]; if (!mk) { if (!at) chirp('Drag this dot onto another card to connect them ✦', 2400); return; } n = mk(c); if (c.onFrame) n.onFrame = c.onFrame; }
     remember();
-    const s = c.kit === 'mind' ? (c.root ? { ...BRANCH, fill: MIND_COLORS[board.links.filter(l => l.a === c.id).length % MIND_COLORS.length] } : { ...BRANCH, w: 140, h: 52, fill: c.fill, text: 'Idea' })
+    const s = !c.kit ? null : c.kit === 'mind' ? (c.root ? { ...BRANCH, fill: MIND_COLORS[board.links.filter(l => l.a === c.id).length % MIND_COLORS.length] } : { ...BRANCH, w: 140, h: 52, fill: c.fill, text: 'Idea' })
       : c.kit === 'site' ? PAGE : { shape: c.shape, w: c.w, h: c.h, fill: c.fill, text: '', ...(c.radius != null ? { radius: c.radius } : {}), ...(c.stroke ? { stroke: c.stroke, sw: c.sw } : {}) };
-    const [dx, dy] = DIR[side], gap = c.kit === 'mind' ? 80 : c.kit === 'site' ? 50 : 70;
-    const mid = at || { x: c.x + c.w / 2 + dx * (c.w / 2 + gap + s.w / 2), y: c.y + c.h / 2 + dy * (c.h / 2 + gap + s.h / 2) }, n = kitCard(c.kit, s, mid);
+    if (s) n = kitCard(c.kit, s, { x: 0, y: 0 });
+    const [dx, dy] = DIR[side], gap = c.kit === 'mind' ? 80 : c.kit === 'site' ? 50 : 70, H = c.type === 'title' ? 50 : c.h;
+    const mid = at || { x: c.x + c.w / 2 + dx * (c.w / 2 + gap + n.w / 2), y: c.y + H / 2 + dy * (H / 2 + gap + n.h / 2) };
+    n.x = Math.round(mid.x - n.w / 2); n.y = Math.round(mid.y - n.h / 2);
     if (!at) { const others = board.cards.filter(k => !k.hidden), step = dx ? n.h + 30 : n.w + 30;   // something already there: slide along until there's room
       for (let i = 1; crowded(n, others) && i < 16; i++) { const k = c.kit === 'site' && side === 'b' ? i : (i % 2 ? 1 : -1) * Math.ceil(i / 2); n.x = Math.round(mid.x - n.w / 2 + (dx ? 0 : step * k)); n.y = Math.round(mid.y - n.h / 2 + (dx ? step * k : 0)); } }
-    addCard(n); board.links.push(kitLink(c, n, SIDE[side], at ? SIDE[sideNear(n, center(c))] : SIDE[OPP[side]]));
+    addCard(n); if (!c.kit && n.type !== 'frame') fileIntoFrame([n]); board.links.push(kitLink(c, n, SIDE[side], at ? SIDE[sideNear(n, center(c))] : SIDE[OPP[side]]));
     selectOnly([n.id]); renderWires(); save(); setTimeout(() => startEdit(n.id), 30); return n;
   }
   function lanes(at, names, W = 1100, H = 220) {   // swimlanes: sections stacked into rows; whatever sits in a lane moves with it
@@ -4181,10 +4215,10 @@ ${proseCSS()}
   addEventListener('resize', snapSoon); setTimeout(snapSoon, 300);
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
-    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb) + lw.route + lw.label + selWires.size; if (bar.dataset.key === key) return; bar.dataset.key = key;
+    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + lw.head + lw.tail + lw.color + !!(lw.pa || lw.pb) + lw.route + lw.label + selWires.size; if (bar.dataset.key === key) return; bar.dataset.key = key;
       const tb = (a, label, on, tip) => `<button class="sb-ic ${on ? 'on' : ''}" data-wb="${a}" title="${label}" aria-label="${label}: ${tip}">${WICON[a]}</button>`;
       bar.innerHTML = `<span class="sb-label">${selWires.size > 1 ? 'Connectors · ' + selWires.size : 'Connector'}</span>` + tb('curve', 'Curved', lw.bend !== 0 && lw.route !== 'elbow', 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0 && lw.route !== 'elbow', 'Straight line') + tb('elbow', 'Right angle', lw.route === 'elbow', 'Right-angle line, like a flowchart')
-        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + (selWires.size > 1 ? '' : tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)')) + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
+        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + wireEndsPop(lw) + wireColorPop(lw) + tb('flip', 'Flip', false, 'Swap which end has the arrow') + (selWires.size > 1 ? '' : tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)')) + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
     // hidden only while a drag is really happening, or a wheel that isn't from this bar is really on screen (left-over state never hides the bar)
     const wheelUp = $('cpop').classList.contains('on') && $('cpop').classList.contains('tint') && !$('cpop').classList.contains('from-bar') && $('cpop').offsetParent && $('settings').classList.contains('on');
@@ -4298,7 +4332,14 @@ ${proseCSS()}
   }
   (function tick() { placeSelbar(); drawGroupBoxes(); if (++coverT % 8 === 0) checkTitleCover(); requestAnimationFrame(tick); })();
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
-  $('selbar').addEventListener('input', e => { if (!e.target.matches('[data-sfany]')) return; const one = selCards()[0]; if (!one) return; one.fill = e.target.value; renderCard(one); selectOnly([one.id]); e.target.closest('.sf-any').style.setProperty('--any', one.fill); save(); });
+  $('selbar').addEventListener('click', e => {
+    const we = e.target.closest('[data-we]'), wcb = e.target.closest('[data-wc]'); if (!we && !wcb) return; const ls = [...selWires].map(linkById).filter(Boolean); if (!ls.length) return; e.stopImmediatePropagation(); remember();
+    if (we) { const [which, kind] = we.dataset.we.split(':'); ls.forEach(l => { if (which === 'head') { delete l.arrow; if (kind === 'none') delete l.head; else l.head = kind; } else { if (kind === 'none') delete l.tail; else l.tail = kind; } }); }
+    else ls.forEach(l => { if (wcb.dataset.wc) l.color = wcb.dataset.wc; else delete l.color; });
+    closeSbPops(); $('selbar').dataset.key = ''; renderWires(); save();
+  }, true);
+  $('selbar').addEventListener('input', e => { if (e.target.matches('[data-wcany]')) { const ls = [...selWires].map(linkById).filter(Boolean); ls.forEach(l => l.color = e.target.value); e.target.closest('.sf-any').style.setProperty('--any', e.target.value); $('selbar').querySelector('[data-popw="wcolor"] .sb-cur')?.style.setProperty('background', e.target.value); renderWires(); clearTimeout(e.target._t); e.target._t = setTimeout(save, 300); return; }
+    if (!e.target.matches('[data-sfany]')) return; const one = selCards()[0]; if (!one) return; one.fill = e.target.value; renderCard(one); selectOnly([one.id]); e.target.closest('.sf-any').style.setProperty('--any', one.fill); save(); });
   $('selbar').addEventListener('click', e => {
     const a = e.target.closest('[data-wb]')?.dataset.wb, ls = [...selWires].map(linkById).filter(Boolean), l0 = ls[0]; if (!a || !l0) return; e.stopImmediatePropagation();
     if (a === 'label') { $('selbar').dataset.key = ''; return editWireLabel(l0); }

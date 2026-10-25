@@ -2393,7 +2393,17 @@ body.dark .dz-tabs button.on, body.dark .kit-grid button.on, body.dark .kit-grid
 .kport:hover { background: var(--select); }
 .kport:hover::after { color: #fff; }
 .stage.moving #kports, .stage.placing #kports, body.exporting #kports { display: none !important; }
-.card.kitc .knob { display: none; }
+.card .knob { display: none !important; }   /* the side dots took over from the old right-side knob */
+.wires path.w, .wires .w-arrow { stroke: var(--wc, var(--ink-soft)); }
+.wires .w-solid { fill: var(--wc, var(--ink-soft)); stroke: none; }
+.wires .w.on, .wires .w-arrow.on { stroke: var(--select); } .wires .w-solid.on { fill: var(--select); stroke: none; }
+body.dark .wires path.w, body.dark .wires .w-arrow { stroke: var(--wc, #8d8596); } body.dark .wires .w-solid { fill: var(--wc, #8d8596); }
+.wires text.w-label { fill: var(--wc, var(--ink)); }
+.sb-pop-wends { flex-direction: column; gap: 4px; }
+.sb-endrow { display: flex; align-items: center; gap: 2px; } .sb-endrow > span { width: 40px; font: 600 11px/1 var(--font); color: var(--ink-soft); padding-left: 4px; }
+.sb-endrow button { width: 32px; height: 30px; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+.sb-endrow button svg { width: 18px; height: 18px; } .sb-endrow button:hover { background: var(--blush); } .sb-endrow button.on { background: var(--ink); color: #fff; }
+.selbar .sb-poptrig.sb-ic { width: auto; padding: 0 8px 0 10px; }
 /* swimlanes: sections with squarer corners */
 .card.section.lane, .card.section.lane .sec-glass { border-radius: 18px; }
 /* words on a line */
