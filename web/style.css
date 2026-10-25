@@ -2411,6 +2411,17 @@ body.dark .wires path.w, body.dark .wires .w-arrow { stroke: var(--wc, #8d8596);
 .card.image.nobg .body { padding: 0; } .card.image.nobg img { object-fit: contain; } .card.image.nobg .imgwrap { overflow: visible; }
 .card.image.busy .imgwrap::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .6) 50%, transparent 70%); background-size: 220% 100%; animation: bgShimmer 1.1s linear infinite; }
 @keyframes bgShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+/* the Learn tab */
+.learn-search { margin-top: 10px; } .learn-search input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 0; border-radius: 12px; background: #f7f3f8; font: 500 12.5px/1.2 var(--font); color: var(--ink); outline: none; }
+.learn-search input:focus { box-shadow: inset 0 0 0 1.5px var(--pink); }
+.learn-n { margin-left: 4px; font-weight: 600; opacity: .55; }
+.learn-sets { display: grid; gap: 6px; margin-top: 8px; } .learn-sets button { display: grid; gap: 2px; padding: 9px 11px; border: 0; border-radius: 12px; background: #f7f3f8; color: var(--ink); text-align: left; cursor: pointer; font-family: var(--font); }
+.learn-sets button b { font: 700 12px/1.25 var(--font); } .learn-sets button small { font: 500 10.5px/1.2 var(--font); color: var(--ink-soft); } .learn-sets button:hover { background: var(--blush); }
+.learn-terms { display: grid; gap: 4px; margin-top: 8px; max-height: 46vh; overflow: auto; padding-right: 2px; }
+.learn-terms button { display: grid; gap: 3px; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; font-family: var(--font); }
+.learn-terms button:hover { background: #f7f3f8; } .learn-terms button b { font: 700 12px/1.25 var(--font); } .learn-terms button span { font: 500 11px/1.4 var(--font); color: var(--ink-soft); }
+.learn-terms button i { justify-self: start; font: 600 10.5px/1 var(--font); font-style: normal; color: var(--pink-deep); padding: 4px 8px; border-radius: 999px; background: var(--blush); }
+body.dark .learn-search input, body.dark .learn-sets button, body.dark .learn-terms button:hover { background: #302b35; } body.dark .learn-terms button i { background: #4a3a48; color: #ffb8d2; }
 /* swimlanes: sections with squarer corners */
 .card.section.lane, .card.section.lane .sec-glass { border-radius: 18px; }
 /* words on a line */

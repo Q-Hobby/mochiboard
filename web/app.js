@@ -2227,6 +2227,7 @@
   }
   // without AI (switched off, or Claude Code not installed) Mochi still helps with the simple stuff, right here on the Mac
   function offlineMochi(q, why) {
+    if (learnAnswer(q)) return;
     const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
     if (/group|sort|organi[sz]e|tidy|line up/i.test(q) && notes.length) {
       const x0 = Math.min(...notes.map(c => c.x)), y0 = Math.min(...notes.map(c => c.y));
@@ -2242,6 +2243,7 @@
   const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip');
   const DL = [{ label: 'Download Mochiboard ✦', run: getApp }, { label: 'Keep playing', ghost: true, run: () => {} }];
   function webMochi(q) {
+    if (learnAnswer(q)) return;
     const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
     if (/group|sort|organi[sz]e|tidy|line up/i.test(q) && notes.length) return offlineMochi(q, 'In the Mac app I can sort them by theme too, with Claude.');
     const what = /mobbin/i.test(q) ? 'Mobbin lives in your Claude account, and I can only reach it from the Mac app.' : /higgsfield|photo|picture|image/i.test(q) ? 'Making pictures with Higgsfield happens in the Mac app, where I can check the price with you first.' : 'I think with Claude Code, and that lives in the Mac app.';
@@ -3322,8 +3324,44 @@
     $('design').querySelectorAll('[data-kp]').forEach(x => x.classList.toggle('on', x === b)); startPlacing('kit', { kit: b.dataset.kit, piece: b.dataset.kp });
     if (placing?.type !== 'kit') b.classList.remove('on'); });
 
+  // ---------- Learn: a plain-English UX dictionary and the principle sets, from learn.js. A term drops onto the board as a note; a set as a checklist ----------
+  const LDB = window.LEARN || { terms: [], sets: [] }, FW_NAMES = { journey: 'Journey map', empathy: 'Empathy map', affinity: 'Affinity map', matrix: 'Impact / effort', hmw: 'How might we', rtb: 'Rose, thorn, bud', opportunity: 'Opportunity map' };
+  const seeName = s => DZ_TABS[s] ? DZ_TABS[s] + ' tab' : FW_NAMES[s] ? FW_NAMES[s] + ' template' : '';
+  function renderLearn(q = '') {
+    const el = $('kit-learn'); if (!el) return; const n = q.trim().toLowerCase();
+    const terms = n ? LDB.terms.filter(t => (t.t + ' ' + t.d + ' ' + (t.why || '')).toLowerCase().includes(n)) : LDB.terms;
+    const sets = n ? LDB.sets.filter(s => (s.name + ' ' + s.by + ' ' + s.items.map(i => i[0] + ' ' + i[1]).join(' ')).toLowerCase().includes(n)) : LDB.sets;
+    el.innerHTML = `<div class="learn-search"><input id="learnQ" placeholder="Search a term… lean UX, persona, Fitts" spellcheck="false" autocomplete="off" value="${esc(q)}"></div>
+      ${sets.length ? `<div class="label dz-sub">Principles</div><div class="learn-sets">${sets.map((s, i) => `<button data-lset="${LDB.sets.indexOf(s)}" title="${esc(s.line)} · ${esc(s.by)}"><b>${esc(s.name)}</b><small>${s.items.length} · ${esc(s.by.split(',')[0])}</small></button>`).join('')}</div>` : ''}
+      ${terms.length ? `<div class="label dz-sub">Dictionary <span class="learn-n">${terms.length}</span></div><div class="learn-terms">${terms.map(t => `<button data-lterm="${esc(t.t)}" title="Click to add it to the board"><b>${esc(t.t)}</b><span>${esc(t.d)}</span>${t.see && seeName(t.see) ? `<i data-lsee="${t.see}">${esc(seeName(t.see))} →</i>` : ''}</button>`).join('')}</div>` : (n ? '<div class="dz-hint">Nothing by that name yet. Ask Mochi and she’ll do her best ✦</div>' : '')}
+      ${n ? '' : '<div class="dz-hint">Click a term to drop it on the board as a note, or a principle set to get a checklist you can tick off against a design. Mochi can answer “what’s a persona?” from here too.</div>'}`;
+    const inp = $('learnQ'); if (inp) { inp.oninput = () => { const v = inp.value, at = inp.selectionStart; renderLearn(v); const i2 = $('learnQ'); i2.focus(); i2.setSelectionRange(at, at); }; ['pointerdown', 'keydown'].forEach(t => inp.addEventListener(t, e => e.stopPropagation())); }
+  }
+  const learnTerm = name => LDB.terms.find(t => t.t.toLowerCase() === String(name).toLowerCase());
+  function dropTerm(t, at) {
+    const p = at || centerWorld(); remember(); const c = card('note', { x: Math.round(p.x - 130), y: Math.round(p.y - 80), w: 260, h: 150, name: t.t, text: t.d + (t.why ? '\n\n' + t.why : ''), color: 'butter' });
+    addCard(c); selectOnly([c.id]); chirp(`${t.t} is on the board ✦`, 1800); return c;
+  }
+  function dropSet(s, at) {
+    const p = at || centerWorld(); remember(); const c = card('todo', { x: Math.round(p.x - 140), y: Math.round(p.y - 120), w: 300, h: 60 + s.items.length * 30, text: s.name, items: s.items.map(([t, d]) => ({ t: d ? t + ' — ' + d : t, done: false })), color: 'white', r: 0 });
+    addCard(c); selectOnly([c.id]); chirp(`${s.name} ✦ ${s.by}`, 3000); return c;
+  }
+  $('design').addEventListener('click', e => {
+    const see = e.target.closest('[data-lsee]'); if (see) { e.stopPropagation(); const k = see.dataset.lsee; if (DZ_TABS[k]) { settings.dzTab = k; renderDzTabs(); applySettings(); } else placeFramework(k); return; }
+    const tb = e.target.closest('[data-lterm]'); if (tb) { const t = learnTerm(tb.dataset.lterm); if (t) dropTerm(t); return; }
+    const sb = e.target.closest('[data-lset]'); if (sb) { const s = LDB.sets[+sb.dataset.lset]; if (s) dropSet(s); }
+  });
+  // Mochi answers from the dictionary when she can't think (no Claude, offline, the web demo). Returns true if she did.
+  function learnAnswer(q) {
+    const s = String(q).toLowerCase().replace(/[?.!,’']/g, ' ').replace(/\s+/g, ' ').trim();
+    if (s.split(' ').length > 12) return false;   // long asks aren't dictionary questions
+    const hits = LDB.terms.filter(t => { const n = t.t.toLowerCase(); return (' ' + s + ' ').includes(' ' + n + ' ') || s === n || s.endsWith(' ' + n) || (n.length > 4 && s.includes(n)); }).sort((a, b) => b.t.length - a.t.length);
+    const t = hits[0]; if (!t) return false;
+    const asks = /^(what|whats|what s|define|explain|meaning|tell me about|describe|who|how)\b/.test(s) || s === t.t.toLowerCase() || s.split(' ').length <= 3; if (!asks) return false;
+    say(`${t.t}: ${t.d}${t.why ? ' ' + t.why : ''}${t.see && seeName(t.see) ? ` (See the ${seeName(t.see)}.)` : ''}`, 0, [{ label: 'Put it on the board', run: () => dropTerm(t) }]); return true;
+  }
   // the panel's tabs: which come first, and which are off, live in Settings → Widgets
-  const DZ_TABS = { wf: 'Wireframing', flow: 'Flowchart', journey: 'Journey', site: 'Sitemap', mind: 'Mind map' };
+  const DZ_TABS = { wf: 'Wireframing', flow: 'Flowchart', journey: 'Journey', site: 'Sitemap', mind: 'Mind map', learn: 'Learn' };
   function dzOrder() {
     const s = settings.dzTabs || {}, keys = Object.keys(DZ_TABS), order = [...(s.order || []).filter(k => keys.includes(k)), ...keys.filter(k => !(s.order || []).includes(k))];
     const hidden = new Set(s.hidden || []), shown = order.filter(k => !hidden.has(k)); return { order, hidden, shown: shown.length ? shown : [order[0]] };
@@ -3349,7 +3387,7 @@
     L.ondragend = () => { if (!dragging) return; dragging.classList.remove('drag'); dragging = null; commit(); };
     $('dzReset').onclick = () => { delete settings.dzTabs; renderDzList(); renderDzTabs(); applySettings(); };
   })();
-  renderDzTabs(); renderDzList();
+  renderDzTabs(); renderDzList(); renderLearn();   // (after the tabs exist: the Learn tab's “see” chips name them)
 
   // ---------- remove a picture's background: the Mac's own Vision model, or the open-source one in the page (fetched once, kept by the browser) ----------
   const BGRM = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm'; let bgrm = null;
@@ -5088,5 +5126,5 @@ ${proseCSS()}
     setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
-  window.__mb = { selectOnly, restack, music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
+  window.__mb = { ask, selectOnly, restack, music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
 })();
