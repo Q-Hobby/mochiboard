@@ -1506,6 +1506,7 @@
           else ids.forEach(id => { const from = parentOf(id); if (from) { from.kids = from.kids.filter(k => k !== id); const el = cardsEl.querySelector(`[data-id="${id}"]`); el?.classList.remove('inside'); byId(id).r = tilt(); renderCard(byId(id)); } });
         }
         if (!skip.size) fileIntoFrame(d.start.map(s2 => s2.c).filter(c => c.type !== 'frame' && !parentOf(c.id)));
+        if (d.start.length === 1 && d.start[0].c.kit) autoLink(d.start[0].c);
         save(); renderWires();
       }
       else if (d.start.length === 1 && d.start[0].c.type === 'swatch' && document.elementFromPoint(e.clientX, e.clientY)?.closest('.chipcol')) openColor(d.start[0].c);   // only the color itself opens the wheel; the rest of the card just selects it
@@ -1856,7 +1857,7 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   // ---------- widgets snap into the left and right sidebars. Drag one by its title: little drop boxes show where it can go ----------
   // the Boards panel is pinned at the top left (it's home to your boards and Settings), everything else can move
@@ -3235,13 +3236,25 @@
       'Big idea': { shape: ROOT, place: at => [kitCard('mind', ROOT, at, { root: true })] }, 'Branch': { shape: BRANCH, place: at => [kitCard('mind', BRANCH, at)] },
       'Mind map starter': { ic: KIC.mind, place: at => mindStarter(at) } } },
   };
+  // auto-connect: set a diagram shape down close to another one and a line joins them (Settings → Widgets turns it off)
+  function autoLink(c) {
+    if (settings.autoLink === false || !c || !c.kit) return;
+    const linked = k => board.links.some(l => (l.a === c.id && l.b === k.id) || (l.b === c.id && l.a === k.id));
+    let best = null, bd = Infinity;
+    board.cards.forEach(k => { if (k === c || !k.kit || k.hidden || k.kit !== c.kit || linked(k)) return;
+      const gx = Math.max(k.x - (c.x + c.w), c.x - (k.x + k.w), 0), gy = Math.max(k.y - (c.y + c.h), c.y - (k.y + k.h), 0), d = Math.hypot(gx, gy); if (d < bd) { bd = d; best = k; } });
+    if (!best || bd > 110) return;
+    const dx = (c.x + c.w / 2) - (best.x + best.w / 2), dy = (c.y + c.h / 2) - (best.y + best.h / 2), s = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');   // the sides that face each other
+    const l = kitLink(best, c, SIDE[s], SIDE[OPP[s]]); board.links.push(l); renderWires(); save();
+    chirp('Connected ✦', 2200, [{ label: 'Undo', run: () => { board.links = board.links.filter(x => x !== l); renderWires(); save(); } }]);
+  }
   function placeKit(kit, name, w) {
     const P = KITS[kit]?.pieces[name]; if (!P) return;
     if (P.fw) return placeFramework(typeof P.fw === 'string' ? P.fw : null, w, typeof P.fw === 'string' ? null : P.fw);
     remember(); const out = P.place(w), { cards, links = [] } = Array.isArray(out) ? { cards: out } : out;
     cards.forEach(c => { board.cards.push(c); renderCard(c, true); }); board.links.push(...links);
     const picks = cards.filter(c => c.type !== 'section'); selectOnly((picks.length ? picks : cards).map(c => c.id)); renderWires(); save();
-    if (cards.length === 1 && cards[0].type === 'shape') setTimeout(() => startEdit(cards[0].id), 30);
+    if (cards.length === 1 && cards[0].type === 'shape') { autoLink(cards[0]); setTimeout(() => startEdit(cards[0].id), 30); }
   }
   function renderKits() {
     Object.entries(KITS).forEach(([k, K]) => { const el = $('kit-' + k); if (!el) return;
