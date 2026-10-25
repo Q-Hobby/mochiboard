@@ -3102,6 +3102,13 @@
   const sideNear = (c, w) => sideOf(pinAt(c, w));
   const wireLab = {};   // where each line's label sits, for typing into it
   let wireTap = {};
+  // the connector bar's little pictures: each one shows the kind of line it makes
+  const WI = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const WICON = {
+    curve: WI('<path d="M3 15c5 0 4-10 9-10h5"/>'), straight: WI('<path d="M3 15L17 5"/>'), elbow: WI('<path d="M3 15h7V5h7"/>'),
+    dash: WI('<path d="M3 10h14" stroke-dasharray="3 2.6"/>'), arrow: WI('<path d="M3 10h13M12 6l4 4-4 4"/>'), flip: WI('<path d="M4 7h11M12 4l3 3-3 3M16 13H5M8 10l-3 3 3 3"/>'),
+    label: WI('<path d="M2 10h4M14 10h4"/><rect x="6.5" y="6.5" width="7" height="7" rx="2"/>'), auto: WI('<rect x="2" y="8" width="5" height="6" rx="1.2"/><rect x="13" y="8" width="5" height="6" rx="1.2"/><path d="M7 11h6M10 2.5v3M8.5 4h3"/>'),
+  };
   // a right-angle line: out of each end the way its side faces, then across
   function elbowPts(l, a, b, g) {
     const dx = g.p2.x - g.p0.x, dy = g.p2.y - g.p0.y, horiz = Math.abs(dx) >= Math.abs(dy);
@@ -4164,7 +4171,7 @@ ${proseCSS()}
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
     if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb) + lw.route + lw.label; if (bar.dataset.key === key) return; bar.dataset.key = key;
-      const tb = (a, label, on, tip) => `<button class="sb-txt ${on ? 'on' : ''}" data-wb="${a}" title="${tip}">${label}</button>`;
+      const tb = (a, label, on, tip) => `<button class="sb-ic ${on ? 'on' : ''}" data-wb="${a}" title="${label}" aria-label="${label}: ${tip}">${WICON[a]}</button>`;
       bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0 && lw.route !== 'elbow', 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0 && lw.route !== 'elbow', 'Straight line') + tb('elbow', 'Right angle', lw.route === 'elbow', 'Right-angle line, like a flowchart')
         + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)') + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
