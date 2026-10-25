@@ -1536,7 +1536,9 @@
       if (t) { d.l[d.end] = t.id; d.l['p' + d.end] = pinAt(t, w); save(); } renderWires();
     }
     if (d.mode === 'wire') {
-      const w = toWorld(e.clientX, e.clientY), src = byId(d.id), tg = wireTarget(d, w), t = tg && tg.c, linked = t && board.links.some(l => (l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id));
+      const w = toWorld(e.clientX, e.clientY), src = byId(d.id), tg = wireTarget(d, w), t = tg && tg.c, same = (p, q) => !!p && !!q && p.u === q.u && p.v === q.v;
+      // a diagram shape can have many lines to the same shape (Yes and No, there and back); only an exact repeat is skipped
+      const linked = t && board.links.some(l => d.pa ? (l.a === d.id && l.b === t.id && same(l.pa, d.pa) && same(l.pb, SIDE[tg.side])) : ((l.a === d.id && l.b === t.id) || (l.b === d.id && l.a === t.id)));
       if (d.pa && src && !d.moved) quickAdd(src, d.side);                 // a click on a side dot: the next shape, lined up and connected
       else if (d.pa && src && !t) quickAdd(src, d.side, w);               // dropped on empty board: the next shape right there
       else if (t && !linked) { remember(); board.links.push(d.pa && src ? kitLink(src, t, d.pa, SIDE[tg.side]) : { id: uid(), a: d.id, b: t.id }); save(); }   // near a side's middle: it snaps there
