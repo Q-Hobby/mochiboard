@@ -3494,6 +3494,14 @@
     } catch (e) { const m = String(e.message || e); say(/no subject/.test(m) ? 'I couldn’t find a subject to lift out of that one.' : 'Hmm, I couldn’t lift that one out. ' + m, 6000); }
     finally { c._busy = false; el?.classList.remove('busy'); }
   }
+  // ---------- the browser try-out: a small banner says where boards live, with the way out; × puts it away for good on this browser ----------
+  if (MB.web && $('webBar')) {
+    let off = false; try { off = localStorage.getItem('mochiboard:webbar') === 'off'; } catch (e) {}
+    if (!off) $('webBar').hidden = false;
+    ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('webBar').addEventListener(t, e => e.stopPropagation()));
+    $('wbGet').onclick = () => MB.openURL('https://mochiboard.app/#download');
+    $('wbX').onclick = () => { $('webBar').hidden = true; try { localStorage.setItem('mochiboard:webbar', 'off'); } catch (e) {} };
+  }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {

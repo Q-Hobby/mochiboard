@@ -2441,6 +2441,9 @@ body.dark .learn-links button { background: #302b35; } body.dark .learn-links bu
 body.dark .lib-nav, body.dark .lib-list { border-color: #3a3540; } body.dark .lib-nav button:hover, body.dark .lib-item:hover, body.dark .lib-search input, body.dark .lib-acts button { background: #302b35; } body.dark .lib-item.on, body.dark .lib-nav button.on { background: #4a3a48; }
 body.dark .lib-acts button.solid { background: var(--pink); color: #2b2630; }
 @media (max-width: 760px) { .lib-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .lib-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid #f0e8f1; } .lib-detail { display: none; } }
+/* the browser try-out banner */
+.webbar .ub-text { margin-right: 10px; }
+@media (max-width: 760px) { .webbar { left: 12px; right: 12px; translate: none; white-space: normal; border-radius: 20px; padding: 10px 8px 10px 14px; flex-wrap: wrap; row-gap: 8px; } .webbar .ub-text { line-height: 1.35; } }
 /* swimlanes: sections with squarer corners */
 .card.section.lane, .card.section.lane .sec-glass { border-radius: 18px; }
 /* words on a line */
