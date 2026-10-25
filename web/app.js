@@ -3569,22 +3569,23 @@
   }
 
   // ---- what Mochi is doing while she thinks: a line made from the ask itself ("finding font ideas…"), and little check-ins when it runs long ----
-  const DOING = [
-    [/\bfonts?\b|typeface|typography|type ideas/i, 'finding font ideas'],
-    [/\b(organi[sz]e|group|sort|cluster|tidy|arrange|by theme)\b/i, 'sorting your notes'],
-    [/\b(mobbin|inspiration|references?|examples? of|real apps?|how do other)\b/i, 'looking through real apps'],
-    [/\b(wireframes?|screens?|mockups?|app layout|landing page|website|user flow|log ?in|sign ?up|onboarding|checkout|dashboard)\b/i, 'sketching screens'],
-    [/\b(pictures?|photos?|images?|illustrations?|fill the)\b/i, 'picking pictures'],
-    [/\b(site ?map|flow ?chart|journey|mind ?map|persona|affinity|impact|effort|retro|storyboard|template|framework)\b/i, 'mapping it out'],
+  const DOING = [   // Mochi's own verbs: she squishes, hops, bounces and peeks
+    [/^(what|why|how come|is|are|does|do|should i|which is)\b|\bwhat (is|are|does)\b|\bmean\b|\bexplain\b/i, 'squishing on that one'],
+    [/\b(mobbin|inspiration|references?|examples? of|other apps|real apps|how (do )?(other|most|good) (apps|people|designers|teams))\b/i, 'peeking at real apps'],
+    [/\bfonts?\b|typeface|typography|type ideas/i, 'squishing through fonts'],
+    [/\b(organi[sz]e|group|sort|cluster|tidy|arrange|by theme)\b/i, 'hopping your notes into piles'],
+    [/\b(wireframes?|screens?|mockups?|app layout|landing page|website|user flow|log ?in|sign ?up|onboarding|checkout|dashboard)\b/i, 'sketching little screens'],
+    [/\b(pictures?|photos?|images?|illustrations?|fill the)\b/i, 'hunting for pictures'],
+    [/\b(site ?map|flow ?chart|journey|mind ?map|persona|affinity|impact|effort|retro|storyboard|template|framework)\b/i, 'bouncing a map together'],
     [/\b(colou?rs?|palette|swatch|hex)\b/i, 'mixing colors'],
     [/\b(rename|move|file|folder|project|archive|boards?)\b/i, 'tidying your boards'],
-    [/\b(summari[sz]e|sum up|tl;?dr|recap|what did)\b/i, 'reading the board'],
-    [/\b(write|draft|copy|headline|tagline|name for|names for|caption)\b/i, 'finding the words'],
-    [/\b(plan|schedule|week|checklist|to-?do|steps)\b/i, 'planning it out'],
-    [/^(what|why|how|is|are|should|can|could|does|do)\b/i, 'thinking it over'],
+    [/\b(summari[sz]e|sum up|tl;?dr|recap|what did)\b/i, 'reading the whole board'],
+    [/\b(write|draft|copy|headline|tagline|name for|names for|caption)\b/i, 'nibbling on words'],
+    [/\b(plan|schedule|week|checklist|to-?do|steps)\b/i, 'lining up the steps'],
   ];
-  function doingLabel(q) { const s = String(q || ''); const hit = DOING.find(([re]) => re.test(s)); return hit ? hit[1] : 'thinking'; }
-  const LATER = ['still on it', 'nearly there ✦', 'this one’s a thinker', 'ok, really nearly there'];
+  const DOING_ANY = ['hopping on it', 'squishing on it', 'bouncing ideas around', 'wiggling into it'];
+  function doingLabel(q) { const s = String(q || ''); const hit = DOING.find(([re]) => re.test(s)); return hit ? hit[1] : DOING_ANY[Math.floor(Math.random() * DOING_ANY.length)]; }
+  const LATER = ['still squishing', 'nearly there ✦', 'this one’s a thinker', 'ok, really nearly there'];
   let doingTimer = 0;
   function showDoing(label) {
     clearTimeout(doingTimer); const put = t => { const b = $('mcList').querySelector('.typing span'); if (b) b.textContent = t + '…'; $('mcStatus').textContent = t + '…'; };
