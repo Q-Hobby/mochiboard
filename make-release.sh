@@ -43,7 +43,7 @@ echo "  ✓ $OUT/Mochiboard.zip ($(du -h "$OUT/Mochiboard.zip" | cut -f1))"
 NOTES="$(awk '/^## /{n++} n==1 && /^- /' WHATSNEW.md)"
 gh release create "v$V" "$OUT/Mochiboard.zip" --title "Mochiboard $V" --notes "$NOTES
 
-**Mac:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, then right-click it and choose **Open** the first time (it isn't from the App Store, so your Mac asks once).
+**Mac:** Mochiboard.zip below. Unzip it and drag Mochiboard into Applications. The first time, your Mac says it “could not verify Mochiboard is free of malware”: that’s because it isn’t notarized by Apple yet, not because anything is wrong. On macOS 15: double-click it once, click Done, then System Settings → Privacy & Security → scroll to Security → **Open Anyway**. On macOS 13/14: right-click → **Open**. Once. Details: https://mochiboard.app/code-signing.html
 
 **Windows:** Mochiboard-Setup.exe below (it appears a few minutes after this release). Open it and follow the steps. If Edge holds the download, choose Keep from its … menu; if Windows says it “protected your PC”, click More info, then Run anyway."
 echo "  ✓ Published v$V"
