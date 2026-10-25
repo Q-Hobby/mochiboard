@@ -1340,7 +1340,8 @@
     t.onblur = () => endEdit();
   }
   function endEdit() { if (!editing) return; { const c0 = byId(editing), e0 = cardsEl.querySelector(`[data-id="${editing}"]`); if (c0 && e0 && ['title', 'text'].includes(c0.type)) setTimeout(() => textStrokeSVG(c0, e0), 0); }
-    const el = cardsEl.querySelector(`[data-id="${editing}"]`); if (el) { el.classList.remove('editing'); el.querySelectorAll('[contenteditable]').forEach(n => n.contentEditable = 'false'); } editing = null; }
+    const el = cardsEl.querySelector(`[data-id="${editing}"]`); if (el) { el.classList.remove('editing'); el.querySelectorAll('[contenteditable]').forEach(n => n.contentEditable = 'false');
+      const c1 = byId(editing); if (c1 && c1.type === 'title') { if (!c1.fixedW && el.offsetWidth) c1.w = el.offsetWidth; if (el.offsetHeight) c1.h = el.offsetHeight; renderWires(); } } editing = null; }
 
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
@@ -3102,7 +3103,8 @@
   new MutationObserver(() => { if (kpFor && !cardsEl.querySelector(`[data-id="${kpFor}"]`)) showPorts(null); }).observe(cardsEl, { childList: true });   // the card went away (deleted, undone): its dots go with it, right away
   function showPorts(c) {
     kpFor = c ? c.id : null; kp.classList.toggle('on', !!c); if (!c) return;
-    const o = 20 / view.z, h = c.type === 'title' ? 50 : c.h, at = { t: [c.x + c.w / 2, c.y - o], r: [c.x + c.w + o, c.y + h / 2], b: [c.x + c.w / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
+    const el = cardsEl.querySelector(`[data-id="${c.id}"]`), W = el && c.type !== 'section' && el.offsetWidth ? el.offsetWidth : c.w;   // the card as it really is on screen (a title that just got shorter, say)
+    const o = 20 / view.z, h = el && c.type !== 'section' && el.offsetHeight ? el.offsetHeight : (c.type === 'title' ? 50 : c.h), at = { t: [c.x + W / 2, c.y - o], r: [c.x + W + o, c.y + h / 2], b: [c.x + W / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
     kp.style.setProperty('--iz', (1 / view.z).toFixed(4)); kp.querySelectorAll('.kport').forEach(d => { const [x, y] = at[d.dataset.side]; d.style.left = x + 'px'; d.style.top = y + 'px'; });
   }
   const PORTABLE = c => !!c && !c.hidden && c.type !== 'section' && c.type !== 'ink' && editing !== c.id;
