@@ -3563,7 +3563,7 @@
     let key = keys.length === 1 ? keys[0] : keys[0].startsWith('onboard') ? (quiz ? keys[1] : keys[0]) : (web ? keys[1] : keys[0]);
     const F = flowBy(key), alt = keys.find(k => k !== key); if (!F) return false;
     placeFlow(key, true);
-    say(`Here’s ${F.name} from the library: ${F.screens.length} screens with the why beside them. Change anything; it’s yours now ✦`, 0,
+    say(`Here’s ${F.name} from the library: ${F.screens.length === 1 ? 'one screen' : F.screens.length + ' screens'} with the why beside it. Change anything; it’s yours now ✦`, 0,
       [...(alt ? [{ label: `Try the ${flowBy(alt).platform === 'web' ? 'web' : alt.includes('quiz') ? 'quiz' : 'mobile'} one instead`, run: () => { undo(); placeFlow(alt); } }] : []), { label: 'Undo', ghost: true, run: () => undo() }]);
     return true;
   }
