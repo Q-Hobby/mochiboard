@@ -3497,7 +3497,13 @@
   // ---------- the browser try-out: a small banner says where boards live, with the way out; × puts it away for good on this browser ----------
   if (MB.web && $('webBar')) {
     let off = false; try { off = localStorage.getItem('mochiboard:webbar') === 'off'; } catch (e) {}
-    if (!off) $('webBar').hidden = false;
+    // sit in the open space between the board's name and the panels on the right; step down only when that's too tight (the update banner's rule)
+    const fitWebBar = () => { const b = $('webBar'); if (b.hidden) return; b.classList.remove('low'); b.style.left = '';
+      const st = stage.getBoundingClientRect(), t = document.querySelector('.top')?.getBoundingClientRect(), w = b.getBoundingClientRect().width;
+      const right = [$('design'), $('tray')].map(el => el?.getBoundingClientRect()).filter(r => r && r.width && r.top < 140).reduce((m, r) => Math.min(m, r.left), st.right);
+      const from = (t ? t.right : st.left) + 20, to = right - 20;
+      if (to - from >= w) b.style.left = (from + to) / 2 - st.left + 'px'; else b.classList.add('low'); };
+    if (!off) { $('webBar').hidden = false; requestAnimationFrame(fitWebBar); setTimeout(fitWebBar, 400); addEventListener('resize', fitWebBar); }
     ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('webBar').addEventListener(t, e => e.stopPropagation()));
     $('wbGet').onclick = () => MB.openURL('https://mochiboard.app/#download');
     $('wbX').onclick = () => { $('webBar').hidden = true; try { localStorage.setItem('mochiboard:webbar', 'off'); } catch (e) {} };
