@@ -2183,7 +2183,7 @@
   function tip(text) { if (settings.chat === 'chatty') say(text, 6000); }
   function say(text, ms = 6000, acts = []) {
     if (chatOpen()) { if (text) addMsg('mochi', text, acts); return; }
-    $('mSay').textContent = text; $('mActs').innerHTML = '';
+    $('mSay').textContent = noOrphan(text); $('mActs').innerHTML = '';
     acts.forEach(a => { const b = document.createElement('button'); b.textContent = a.label; b.className = a.cls || (a.ghost ? 'ghost' : ''); b.onclick = () => { $('mBubble').classList.remove('on'); a.run(); }; $('mActs').appendChild(b); });
     $('mBubble').classList.add('on'); hopMochi(); clearTimeout(sayT); if (ms) sayT = setTimeout(() => $('mBubble').classList.remove('on'), ms);
   }
@@ -2209,8 +2209,9 @@
   // where a chat lives depends on Settings: saved with the board, kept only until Mochiboard quits, or not kept at all
   const sessionChats = {};
   function chatLog() { if (!board) return []; if (settings.chatKeep === 'board') return (board.chat = board.chat || []); return (sessionChats[board.id] = sessionChats[board.id] || []); }
+  const noOrphan = t => String(t ?? '').replace(/ ([✦♡★☆✧]+)$/, '\u00a0$1');
   function addMsg(who, text, acts = []) {
-    if (!board) return; const log = chatLog(), m = { who, text, t: Date.now() }, max = +settings.chatMax || 60;
+    if (!board) return; const log = chatLog(), m = { who, text: who === 'mochi' ? noOrphan(text) : text, t: Date.now() }, max = +settings.chatMax || 60;
     log.push(m); if (log.length > max) log.splice(0, log.length - max); if (settings.chatKeep === 'board') save();
     const list = $('mcList'); list.querySelector('.mc-empty')?.remove(); list.appendChild(msgEl({ ...m, acts })); list.scrollTop = list.scrollHeight;
   }
