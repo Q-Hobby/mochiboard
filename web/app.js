@@ -1302,7 +1302,7 @@
     const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
     if (!c.tagText) { c.tagText = 'label'; renderCard(c); selectOnly([c.id]); }
     const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`);
-    editField(e2, e2.querySelector('.tag'), v => c.tagText = v.trim(), () => { if (!c.tagText) { delete c.tagText; renderCard(c); selectOnly([c.id]); save(); } });
+    editField(e2, e2.querySelector('.tag'), v => c.tagText = v.trim(), () => { if (!c.tagText) { delete c.tagText; renderCard(c); if (sel.has(c.id)) selectOnly([c.id]); save(); } });   // (clicking elsewhere already moved the selection; leave it there)
   }
   let lastTap = {};
   function startEdit(id, target) {
