@@ -1482,7 +1482,10 @@
     if (drag.mode === 'marquee') {
       const m = $('marquee'), r = stage.getBoundingClientRect(), x0 = Math.min(drag.sx, e.clientX), y0 = Math.min(drag.sy, e.clientY), x1 = Math.max(drag.sx, e.clientX), y1 = Math.max(drag.sy, e.clientY);
       Object.assign(m.style, { display: 'block', left: x0 - r.left + 'px', top: y0 - r.top + 'px', width: x1 - x0 + 'px', height: y1 - y0 + 'px' });
-      const a = toWorld(x0, y0), b = toWorld(x1, y1), hit = board.cards.filter(c => !c.hidden && !c.locked && (c.type === 'section' ? c.x > a.x && c.x + c.w < b.x && c.y > a.y && c.y + c.h < b.y : c.x < b.x && c.x + c.w > a.x && c.y < b.y && c.y + c.h > a.y)).flatMap(c => groupOf(c.id));
+      const a = toWorld(x0, y0), b = toWorld(x1, y1);
+      const secIn = c => (c.x > a.x && c.x + c.w < b.x && c.y > a.y && c.y + c.h < b.y) || (a.x < c.x + 60 && b.x > c.x + 60 && a.y < c.y + 30 && b.y > c.y + 30)
+        || Math.max(0, Math.min(b.x, c.x + c.w) - Math.max(a.x, c.x)) * Math.max(0, Math.min(b.y, c.y + c.h) - Math.max(a.y, c.y)) >= c.w * c.h * .5;
+      const hit = board.cards.filter(c => !c.hidden && !c.locked && (c.type === 'section' ? c.id !== drag.sec && secIn(c) : c.x < b.x && c.x + c.w > a.x && c.y < b.y && c.y + c.h > a.y)).flatMap(c => groupOf(c.id));
       selectOnly([...new Set([...drag.base, ...hit])]);
     }
   });
