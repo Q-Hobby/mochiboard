@@ -39,6 +39,7 @@
 
   // ---------- boards ----------
   const TEMPLATES = {
+    'Dream it': () => ({ cards: (window.STARTER_DREAM || []).map(c => ({ ...JSON.parse(JSON.stringify(c)), id: uid() })), tray: [], view: { x: 360, y: 150, z: 1 } }),
     'Moodboard': () => ({ cards: [
       card('title', { x: 0, y: -40, text: 'Moodboard' }),
       card('note', { x: 0, y: 60, text: 'The feeling in three words:', color: 'butter' }),
@@ -63,7 +64,7 @@
   }
   function newBoard(name = 'Untitled board', tpl) {
     const b = { id: uid(), name, color: COLOR_NAMES[1 + Math.floor(Math.random() * 6)], cards: [], links: [], tray: [], view: { x: 160, y: 140, z: 1 } };
-    if (tpl) { const t = TEMPLATES[tpl](); b.cards = t.cards; b.tray = t.tray; b.name = tpl; }
+    if (tpl) { const t = TEMPLATES[tpl](); b.cards = t.cards; b.tray = t.tray; b.name = tpl; if (t.view) b.view = t.view; }
     return b;
   }
   // ---------- the library: projects hold folders, folders hold boards ----------
@@ -5217,7 +5218,7 @@ ${proseCSS()}
   // ---------- start ----------
   (async () => {
     let list = await MB.list();
-    if (!list.length) { const b = newBoard('Brain dump', 'Brain dump'); b.name = 'My first board'; await MB.save(b); list = await MB.list(); }
+    if (!list.length) { const b = newBoard('Dream it', 'Dream it'); b.name = 'My first board'; await MB.save(b); list = await MB.list(); }   // everyone starts from the poster
     let last = null; try { last = localStorage.getItem('mochiboard:last'); } catch (e) {}
     await openBoard(list.some(b => b.id === last) ? last : list[0].id);
     applySettings(); phone.init();
