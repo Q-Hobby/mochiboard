@@ -4879,6 +4879,7 @@ ${proseCSS()}
   let updInfo = null;
   if (!MB.native) $('setUpdate').style.display = 'none';   // updating is a Mac app thing: the web version changes when the site does
   async function checkUpdate(force) {
+    if (document.documentElement.classList.contains('beta')) return;   // the Beta build is ahead of every release; updates come from ./install.sh --beta
     if (!MB.native) return;
     let last = 0; try { last = +localStorage.getItem('mochiboard:updChecked') || 0; } catch (e) {}
     if (!force && Date.now() - last < 15 * 60 * 1000 && updInfo) return showUpdate();   // at most every 15 minutes (it used to wait 20 hours, so an app left open never noticed)

@@ -7,7 +7,8 @@ import Vision
 import CoreImage
 @preconcurrency import WebKit
 
-let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Mochiboard")
+let isBeta = (Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta")   // Mochiboard Beta: Jessa's in-progress build, with its own boards folder
+let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/" + (isBeta ? "Mochiboard Beta" : "Mochiboard"))
 let boardsDir = support.appendingPathComponent("boards")
 let mediaDir = support.appendingPathComponent("media", isDirectory: true)   // videos live here as their own files; boards just point at them
 final class MediaScheme: NSObject, WKURLSchemeHandler {
@@ -74,21 +75,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         config.setURLSchemeHandler(MediaScheme(), forURLScheme: "mbmedia")
         try? FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true); DispatchQueue.global(qos: .utility).async { self.sweepMedia() }
         // tell the page it's in the app (it makes room for the window buttons)
-        config.userContentController.addUserScript(WKUserScript(source: "document.documentElement.classList.add('native')", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.addUserScript(WKUserScript(source: "document.documentElement.classList.add('native')" + (isBeta ? "; document.documentElement.classList.add('beta')" : ""), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")   // the page can read its own files (Mochi's music loads into memory to loop perfectly); WebKit still limits it to the app's web folder
         web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = self; web.uiDelegate = self
         web.setValue(false, forKey: "drawsBackground")
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = "Mochiboard"
+        window.titlebarAppearsTransparent = true; window.titleVisibility = .hidden; window.title = isBeta ? "Mochiboard Beta" : "Mochiboard"
         window.backgroundColor = NSColor(red: 0.984, green: 0.973, blue: 0.988, alpha: 1)
         window.minSize = NSSize(width: 380, height: 520)   // narrow enough to sit beside other apps; below 700 wide it switches to the phone layout
         let host = NSView(); window.contentView = host
         web.frame = host.bounds; web.autoresizingMask = [.width, .height]; host.addSubview(web)
         // a strip at the top of the sidebar to drag the window by (the page fills the whole window, title bar included)
         let strip = DragStrip(frame: NSRect(x: 76, y: host.bounds.height - 40, width: 156, height: 40)); strip.autoresizingMask = [.minYMargin]; host.addSubview(strip)
-        window.center(); window.setFrameAutosaveName("Mochiboard")
+        window.center(); window.setFrameAutosaveName(isBeta ? "Mochiboard Beta" : "Mochiboard")
         let page = Bundle.main.resourceURL!.appendingPathComponent("web/index.html")
         web.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
         window.makeKeyAndOrderFront(nil)
