@@ -448,7 +448,7 @@
     if (dir < 0 ? past.length < 2 : !future.length) return say(dir < 0 ? 'Nothing left to undo' : 'Nothing to redo', 1800);
     if (dir < 0) future.push(past.pop()); else past.push(future.pop());
     const st = JSON.parse(past[past.length - 1]); restoring = true;
-    Object.assign(board, st); sel.clear(); selWire = null; endEdit(); renderAll(); renderPalette(); save(); restoring = false;
+    Object.assign(board, st); sel.clear(); selWire = null; selWires.clear(); endEdit(); renderAll(); renderPalette(); save(); restoring = false;
   }
   // every card keeps real numbers for its place and size (a bad one would break saving)
   function cleanNumbers() { board.cards.forEach(c => { ['x', 'y'].forEach(k => { if (!Number.isFinite(c[k])) c[k] = 0; }); ['w', 'h'].forEach(k => { if (!Number.isFinite(c[k]) || c[k] <= 0) c[k] = k === 'w' ? 200 : 100; }); ['r', 'rot'].forEach(k => { if (c[k] != null && !Number.isFinite(c[k])) c[k] = 0; }); }); }
@@ -814,7 +814,7 @@
   }
 
   // ---------- connectors: curved lines from edge to edge; select one to bend it, re-attach it, or restyle it ----------
-  let selWire = null;
+  let selWire = null, selWires = new Set();   // the line you picked, and every line picked with Shift
   const center = c => ({ x: c.x + c.w / 2, y: c.y + (c.type === 'title' ? 25 : c.h / 2) });
   function edgePoint(c, toward) {   // where the line from a card's center toward a point leaves the card
     const m = center(c), dx = toward.x - m.x, dy = toward.y - m.y, hw = c.w / 2 + 6, hh = (c.type === 'title' ? 25 : c.h / 2) + 6;
@@ -838,7 +838,7 @@
   }
   function renderWires(live) {
     const O = 5000; let h = '';
-    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b), on = selWire === l.id;
+    board.links.forEach(l => { const a = byId(l.a), b = byId(l.b); if (!a || !b) return; const g = wireGeom(l, a, b), on = selWires.has(l.id);
       let d, from, p0 = g.p0, p2 = g.p2, lab;
       if (l.route === 'elbow') { const E = elbowPts(l, a, b, g); d = roundPoly(E, O); p0 = E[0]; p2 = E[E.length - 1]; from = E[E.length - 2]; lab = polyMid(E); }
       else { d = `M${g.p0.x + O} ${g.p0.y + O} Q${g.c1.x + O} ${g.c1.y + O} ${g.p2.x + O} ${g.p2.y + O}`; from = g.c1; lab = { x: (g.p0.x + 2 * g.c1.x + g.p2.x) / 4, y: (g.p0.y + 2 * g.c1.y + g.p2.y) / 4 }; }
@@ -855,7 +855,9 @@
     wires.innerHTML = h;
   }
   const linkById = id => board.links.find(l => l.id === id);
-  function selectWire(id) { selWire = id; if (id) selectOnly([]); renderWires(); }
+  function selectWire(id, add) {
+    if (add && id) { selWires.has(id) ? selWires.delete(id) : selWires.add(id); selWire = [...selWires].pop() || null; } else { selWires = new Set(id ? [id] : []); selWire = id; }
+    if (selWire) selectOnly([]); renderWires(); }
   const byId = id => board.cards.find(c => c.id === id);
   let trayN = null;
   function renderTray() {
@@ -868,7 +870,7 @@
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
   }
   // (the stage gets a 'multi' class when more than one thing is selected: tilt handles only show for one thing at a time)
-  function selectOnly(ids) { if (ids.length && selWire) { selWire = null; renderWires(); } sel = new Set(ids); stage.classList.toggle('multi', sel.size > 1); LY.reveal = true; layersSoon(); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
+  function selectOnly(ids) { if (ids.length && selWires.size) { selWire = null; selWires.clear(); renderWires(); } sel = new Set(ids); stage.classList.toggle('multi', sel.size > 1); LY.reveal = true; layersSoon(); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
 
   // ---------- adding things ----------
   // ---------- the Pen: click to drop points (straight lines), click-and-drag for a smooth curve, click the first point to close a shape;
@@ -902,7 +904,7 @@
     const seg = (a, b) => a.ox == null && b.ix == null ? ` L${f(b.x)} ${f(b.y)}` : ` C${f(a.ox ?? a.x)} ${f(a.oy ?? a.y)} ${f(b.ix ?? b.x)} ${f(b.iy ?? b.y)} ${f(b.x)} ${f(b.y)}`;
     let d = `M${f(pts[0].x)} ${f(pts[0].y)}`; for (let i = 1; i < pts.length; i++) d += seg(pts[i - 1], pts[i]); if (closed && pts.length > 2) d += seg(pts[pts.length - 1], pts[0]) + ' Z'; return d; };
   let penT = null;   // { pts, down, hover, svg } while the Pen is in your hand
-  function startPen() { stopPlacing(); if (drawOn) exitDraw(); selectOnly([]); selWire = null;
+  function startPen() { stopPlacing(); if (drawOn) exitDraw(); selectOnly([]); selWire = null; selWires.clear();
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.classList.add('pen-live'); world.appendChild(svg);
     penT = { pts: [], down: null, hover: null, svg }; stage.classList.add('pen-mode'); $('tools').querySelector('[data-add="pen"]')?.classList.add('on'); drawPen(); }
   function endPen(keep = true, closed = false) { if (!penT) return; const p = penT; penT = null; p.svg.remove(); stage.classList.remove('pen-mode'); $('tools').querySelector('[data-add="pen"]')?.classList.remove('on');
@@ -1374,10 +1376,10 @@
       const l = linkById(wireEl.dataset.wire); if (!l) return;
       if (wireEl.classList.contains('w-bend')) drag = { mode: 'bend', l };
       else if (wireEl.dataset.end) drag = { mode: 'rewire', l, end: wireEl.dataset.end };
-      else { const now = Date.now(), again = wireTap.id === l.id && now - wireTap.t < 450; wireTap = again ? {} : { id: l.id, t: now }; selectWire(l.id); if (again) setTimeout(() => editWireLabel(l), 60); return; }   // pressing a line twice: type its label (the first press redraws the lines, so the browser never sends a double-click)
+      else { const now = Date.now(), again = wireTap.id === l.id && now - wireTap.t < 450; if (e.shiftKey) { selectWire(l.id, true); return; } wireTap = again ? {} : { id: l.id, t: now }; selectWire(l.id); if (again) setTimeout(() => editWireLabel(l), 60); return; }   // pressing a line twice: type its label (the first press redraws the lines, so the browser never sends a double-click)
       stage.setPointerCapture(e.pointerId); return;
     }
-    if (selWire && !el) selectWire(null);
+    if (selWires.size && !el && !e.shiftKey) selectWire(null);
     if (space || e.button === 1) { drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (el) {
       const id = el.dataset.id, c = byId(id);
@@ -1692,11 +1694,11 @@
     if (e.key === 'Escape' && drawOn) { exitDraw(); return; }
     if (e.key === 'Escape' && docCard) { closeDoc(); return; }
     if (e.key === 'Escape' && (placing || $('shapePick').classList.contains('on') || $('tplPick').classList.contains('on') || $('stampWheel').classList.contains('on') || $('stampPick').classList.contains('on'))) { stopPlacing(); return; }
-    if (e.key === 'Escape' && selWire) { selectWire(null); return; }
+    if (e.key === 'Escape' && selWires.size) { selectWire(null); return; }
     if (e.key === 'Escape') { closeColor(); capture(false); endEdit(); setFocus(false); selectOnly([]); mochiOpen(false); document.activeElement.blur(); return; }
     if (typing || homeAt || $('capture').classList.contains('on')) return;   // never fire board shortcuts while quick capture is open
     if (e.key === ' ') { space = true; stage.classList.add('space'); e.preventDefault(); }
-    if ((e.key === 'Backspace' || e.key === 'Delete') && selWire) { board.links = board.links.filter(l => l.id !== selWire); selWire = null; renderWires(); save(); return; }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && selWires.size) { remember(); board.links = board.links.filter(l => !selWires.has(l.id)); selWire = null; selWires.clear(); renderWires(); save(); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && sel.size) removeSelected();
     if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyG' && sel.size) { e.preventDefault(); makeSection(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g' && sel.size) { e.preventDefault(); groupSel(!e.shiftKey); return; }
@@ -2521,7 +2523,7 @@
     const all = new Set(cs); cs.forEach(c => { if (c.type === 'coll') (c.kids || []).forEach(k => byId(k) && all.add(byId(k))); if (c.type === 'frame') onFrame(c).forEach(k => all.add(k)); });
     const list = [...all], x0 = Math.min(...list.map(c => c.x)) - 24, y0 = Math.min(...list.map(c => c.y)) - 40, x1 = Math.max(...list.map(c => c.x + c.w)) + 24, y1 = Math.max(...list.map(c => c.y + c.h)) + 24;
     const keep = { ...view }, keepSel = [...sel], r = stage.getBoundingClientRect(), bw = x1 - x0, bh = y1 - y0;
-    selectOnly([]); selWire = null; endEdit(); renderWires(); document.body.classList.add('exporting');
+    selectOnly([]); selWire = null; selWires.clear(); endEdit(); renderWires(); document.body.classList.add('exporting');
     const z = Math.min((r.width - 60) / bw, (r.height - 60) / bh, 2); view = { x: (r.width - bw * z) / 2 - x0 * z, y: (r.height - bh * z) / 2 - y0 * z, z }; applyView();
     await nextFrame(); await new Promise(res => setTimeout(res, 150));
     try {
@@ -3547,7 +3549,7 @@
     stage.classList.toggle('erasing', drawOn && pen.tool === 'eraser'); stage.classList.toggle('drawing', drawOn && pen.tool !== 'eraser');
     try { localStorage.setItem('mochiboard:pen', JSON.stringify(pen)); } catch (e) {}
   }
-  function enterDraw() { if (pen.tool === 'eraser') pen.tool = 'pen'; stopPlacing(); selectOnly([]); selWire = null; drawOn = true; $('dock').classList.add('drawing'); renderDrawbar();
+  function enterDraw() { if (pen.tool === 'eraser') pen.tool = 'pen'; stopPlacing(); selectOnly([]); selWire = null; selWires.clear(); drawOn = true; $('dock').classList.add('drawing'); renderDrawbar();
     if (!liveSvg) { liveSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); liveSvg.classList.add('live-ink'); world.appendChild(liveSvg); const ring = document.createElement('div'); ring.className = 'erase-ring'; ring.id = 'eraseRing'; stage.appendChild(ring); } }
   function exitDraw() { drawOn = false; stroke = null; erasing = false; $('dock').classList.remove('drawing'); stage.classList.remove('drawing', 'erasing'); if (liveSvg) liveSvg.innerHTML = ''; }
   $('drawbar').addEventListener('pointerdown', e => e.stopPropagation());
@@ -4179,10 +4181,10 @@ ${proseCSS()}
   addEventListener('resize', snapSoon); setTimeout(snapSoon, 300);
   function placeSelbar() {
     const bar = $('selbar'), dock = $('dock'), cs = selCards(), lw = selWire && linkById(selWire);
-    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb) + lw.route + lw.label; if (bar.dataset.key === key) return; bar.dataset.key = key;
+    if (lw && !homeAt) { dock.classList.add('ctx'); bar.classList.add('on'); const key = 'w' + lw.id + lw.bend + lw.dash + lw.arrow + !!(lw.pa || lw.pb) + lw.route + lw.label + selWires.size; if (bar.dataset.key === key) return; bar.dataset.key = key;
       const tb = (a, label, on, tip) => `<button class="sb-ic ${on ? 'on' : ''}" data-wb="${a}" title="${label}" aria-label="${label}: ${tip}">${WICON[a]}</button>`;
-      bar.innerHTML = `<span class="sb-label">Connector</span>` + tb('curve', 'Curved', lw.bend !== 0 && lw.route !== 'elbow', 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0 && lw.route !== 'elbow', 'Straight line') + tb('elbow', 'Right angle', lw.route === 'elbow', 'Right-angle line, like a flowchart')
-        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)') + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
+      bar.innerHTML = `<span class="sb-label">${selWires.size > 1 ? 'Connectors · ' + selWires.size : 'Connector'}</span>` + tb('curve', 'Curved', lw.bend !== 0 && lw.route !== 'elbow', 'Curved line (drag the middle dot to bend it)') + tb('straight', 'Straight', lw.bend === 0 && lw.route !== 'elbow', 'Straight line') + tb('elbow', 'Right angle', lw.route === 'elbow', 'Right-angle line, like a flowchart')
+        + `<span class="sb-sep"></span>` + tb('dash', 'Dashed', !!lw.dash, 'Dashed line') + tb('arrow', 'Arrow', !!lw.arrow, 'Arrow at the end') + tb('flip', 'Flip', false, 'Swap which end has the arrow') + (selWires.size > 1 ? '' : tb('label', lw.label ? 'Edit label' : 'Label', false, 'Words on the line (or double-click the line)')) + (lw.pa || lw.pb ? `<span class="sb-sep"></span>` + tb('auto', 'Auto ends', false, 'Let the line choose where it meets each card again') : '') + `<span class="sb-sep"></span><button class="sb-ic" data-wb="del" title="Delete">${ICON.del}</button>`;
       return; }
     // hidden only while a drag is really happening, or a wheel that isn't from this bar is really on screen (left-over state never hides the bar)
     const wheelUp = $('cpop').classList.contains('on') && $('cpop').classList.contains('tint') && !$('cpop').classList.contains('from-bar') && $('cpop').offsetParent && $('settings').classList.contains('on');
@@ -4298,17 +4300,19 @@ ${proseCSS()}
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
   $('selbar').addEventListener('input', e => { if (!e.target.matches('[data-sfany]')) return; const one = selCards()[0]; if (!one) return; one.fill = e.target.value; renderCard(one); selectOnly([one.id]); e.target.closest('.sf-any').style.setProperty('--any', one.fill); save(); });
   $('selbar').addEventListener('click', e => {
-    const a = e.target.closest('[data-wb]')?.dataset.wb, l = selWire && linkById(selWire); if (!a || !l) return; e.stopImmediatePropagation();
+    const a = e.target.closest('[data-wb]')?.dataset.wb, ls = [...selWires].map(linkById).filter(Boolean), l0 = ls[0]; if (!a || !l0) return; e.stopImmediatePropagation();
+    if (a === 'label') { $('selbar').dataset.key = ''; return editWireLabel(l0); }
+    remember(); ls.forEach(l => {
     if (a === 'curve') l.bend = l.bend === 0 ? undefined : l.bend; if (a === 'curve' && l.bend === undefined) delete l.bend;
     if (a === 'straight') l.bend = 0;
     if (a === 'curve' || a === 'straight') delete l.route;
     if (a === 'elbow') l.route = 'elbow';
-    if (a === 'label') { $('selbar').dataset.key = ''; return editWireLabel(l); }
     if (a === 'dash') l.dash = !l.dash;
     if (a === 'arrow') l.arrow = !l.arrow;
     if (a === 'flip') { [l.a, l.b] = [l.b, l.a]; [l.pa, l.pb] = [l.pb, l.pa]; if (!l.pa) delete l.pa; if (!l.pb) delete l.pb; if (l.bend) l.bend = -l.bend; }
     if (a === 'auto') { delete l.pa; delete l.pb; }
-    if (a === 'del') { board.links = board.links.filter(x => x !== l); selWire = null; }
+    if (a === 'del') board.links = board.links.filter(x => x !== l); });
+    if (a === 'del') { selWire = null; selWires.clear(); }
     $('selbar').dataset.key = ''; renderWires(); save();
   }, true);
   // hover a button in the selection bar: a quick little name bubble above it (the same look as the main toolbar's)
