@@ -2404,6 +2404,8 @@ body.dark .wires path.w, body.dark .wires .w-arrow { stroke: var(--wc, #8d8596);
 .sb-endrow button { width: 32px; height: 30px; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--ink); display: grid; place-items: center; cursor: pointer; }
 .sb-endrow button svg { width: 18px; height: 18px; } .sb-endrow button:hover { background: var(--blush); } .sb-endrow button.on { background: var(--ink); color: #fff; }
 .selbar .sb-poptrig.sb-ic { width: auto; padding: 0 8px 0 10px; }
+/* a picture without its border: the photo fills the card, with the card's rounded corners and shadow */
+.card.image.noframe .body { padding: 0; } .card.image.noframe .frame { background: transparent; } .card.image.noframe .imgwrap { border-radius: 18px; }
 /* a cut-out picture floats on its own, no card behind it */
 .card.image.nobg .frame { background: transparent; box-shadow: none; filter: none; }
 .card.image.nobg .body { padding: 0; } .card.image.nobg img { object-fit: contain; } .card.image.nobg .imgwrap { overflow: visible; }

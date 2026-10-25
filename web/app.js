@@ -705,7 +705,7 @@
     else if (parentOf(c.id)) el.classList.add('inside');
     if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
-    el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg);
+    el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg); el.classList.toggle('noframe', !!c.noframe);
     if (c.type === 'video') setupVideo(c, el);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
@@ -1260,7 +1260,7 @@
     vfs.forEach((f, n) => addVideo(f, at ? { x: at.x + n * 30, y: at.y + n * 30 } : null));
     let i = 0;
     for (const f of files) { if (!f.type.startsWith('image/')) continue; const im = await imageFromFile(f);
-      const w = 260, h = Math.round(w * im.h / im.w) + 16, c = card('image', { src: im.src, w, h });
+      const nf = settings.imgFrame === false, w = 260, h = Math.round(w * im.h / im.w) + (nf ? 0 : 16), c = card('image', { src: im.src, w, h, ...(nf ? { noframe: true } : {}) });
       if (toTray) { board.tray.unshift(c); renderTray(); save(); continue; }
       const p = at || centerWorld(); c.x = p.x - w / 2 + i * 30; c.y = p.y - h / 2 + i * 30; i++; addCard(c); }
   }
@@ -1863,7 +1863,7 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true, imgFrame: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   // ---------- widgets snap into the left and right sidebars. Drag one by its title: little drop boxes show where it can go ----------
   // the Boards panel is pinned at the top left (it's home to your boards and Settings), everything else can move
@@ -4185,6 +4185,7 @@ ${proseCSS()}
     color: I('<g data-l24="1"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" /><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" /><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" /><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" /></g>'),
     name: I('<g data-l24="1"><path d="M5 4h1a3 3 0 0 1 3 3 3 3 0 0 1 3-3h1" /><path d="M13 20h-1a3 3 0 0 1-3-3 3 3 0 0 1-3 3H5" /><path d="M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1" /><path d="M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7" /><path d="M9 7v10" /></g>'),
     hex: I('<g data-l24="1"><line x1="4" x2="20" y1="9" y2="9" /><line x1="4" x2="20" y1="15" y2="15" /><line x1="10" x2="8" y1="3" y2="21" /><line x1="16" x2="14" y1="3" y2="21" /></g>'),
+    frame: I('<g data-l24="1"><rect x="3" y="3" width="18" height="18" rx="3"/><rect x="7" y="7" width="10" height="10" rx="1.5" stroke-dasharray="2 2"/></g>'),
     nobg: I('<g data-l24="1"><circle cx="12" cy="8.5" r="3.5"/><path d="M5.5 20.5a6.5 6.5 0 0 1 13 0"/><path d="M3.5 3.5l1.6 1.6M20.5 3.5l-1.6 1.6M2.5 12h2.2M19.3 12h2.2M3.5 20.5l1.6-1.6" stroke-dasharray="1.5 2.2"/></g>'),
     crop: I('<g data-l24="1"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></g>'),
     open: I('<g data-l24="1"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></g>'),
@@ -4275,7 +4276,7 @@ ${proseCSS()}
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
-    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
+    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
@@ -4566,6 +4567,8 @@ ${proseCSS()}
     const fz = e.target.closest('[data-fs]'); if (fz) { cs.filter(c => SIZED.includes(c.type)).forEach(c => { if (fz.dataset.fs === 'm') delete c.fs; else c.fs = fz.dataset.fs; fitNote(c); }); redraw(); }
     if (a === 'crop') return startCrop(one);
     if (a === 'nobg') return removeBg(one);
+    if (a === 'frame') { remember(); const d = one.noframe ? -1 : 1; one.x += 8 * d; one.y += 8 * d; one.w = Math.max(24, one.w - 16 * d); one.h = Math.max(24, one.h - 16 * d);   // the picture itself stays put: only the mat comes and goes
+      if (one.noframe) delete one.noframe; else one.noframe = true; renderCard(one); selectOnly([one.id]); renderWires(); $('selbar').dataset.key = ''; save(); return; }
     const cr = e.target.closest('[data-crop]')?.dataset.crop; if (cr) return endCrop(cr);
     if (e.target.closest('[data-fill]')) return offerFill(spotsIn(cs));
     if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
