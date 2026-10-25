@@ -2227,7 +2227,7 @@
   }
   // without AI (switched off, or Claude Code not installed) Mochi still helps with the simple stuff, right here on the Mac
   function offlineMochi(q, why) {
-    if (learnAnswer(q)) return;
+    if (offlineRecipe(q) || learnAnswer(q)) return;   // building beats explaining: "make a sitemap" builds one, "what is a sitemap" explains it
     const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
     if (/group|sort|organi[sz]e|tidy|line up/i.test(q) && notes.length) {
       const x0 = Math.min(...notes.map(c => c.x)), y0 = Math.min(...notes.map(c => c.y));
@@ -2243,7 +2243,7 @@
   const getApp = () => MB.openURL(MB.getURL || 'https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip');
   const DL = [{ label: 'Download Mochiboard ✦', run: getApp }, { label: 'Keep playing', ghost: true, run: () => {} }];
   function webMochi(q) {
-    if (learnAnswer(q)) return;
+    if (offlineRecipe(q) || learnAnswer(q)) return;   // building beats explaining: "make a sitemap" builds one, "what is a sitemap" explains it
     const notes = board.cards.filter(c => c.type === 'note' && !parentOf(c.id));
     if (/group|sort|organi[sz]e|tidy|line up/i.test(q) && notes.length) return offlineMochi(q, 'In the Mac app I can sort them by theme too, with Claude.');
     const what = /mobbin/i.test(q) ? 'Mobbin lives in your Claude account, and I can only reach it from the Mac app.' : /higgsfield|photo|picture|image/i.test(q) ? 'Making pictures with Higgsfield happens in the Mac app, where I can check the price with you first.' : 'I think with Claude Code, and that lives in the Mac app.';
@@ -3375,10 +3375,63 @@
   $('libClose').onclick = closeLibrary;
   addEventListener('keydown', e => { if (e.key === 'Escape' && $('library').classList.contains('on')) { e.stopImmediatePropagation(); closeLibrary(); } }, true);
   document.querySelector('.box[data-box="learn"]')?.addEventListener('click', e => { const b = e.target.closest('[data-lib]'); if (b) openLibrary(b.dataset.lib); });
+  // ---------- offline recipes: structure Mochi can see, she can build without Claude. Your selection first, otherwise the notes on the board, in reading order ----------
+  const RECIPE_TYPES = ['note', 'text', 'title', 'todo'];
+  function recipeSource() {
+    const pick = c => RECIPE_TYPES.includes(c.type) && !c.hidden, sel = selCards().filter(pick), all = board.cards.filter(c => pick(c) && !parentOf(c.id));
+    return (sel.length >= 2 ? sel : all).slice().sort((a, b) => (Math.abs(a.y - b.y) > 40 ? a.y - b.y : a.x - b.x));
+  }
+  const wordsOf = c => ((c.text || c.name || '').trim().split('\n')[0] || (c.items && c.items[0]?.t) || 'Untitled').slice(0, 60);
+  const besideAll = () => { const cs = board.cards.filter(c => !c.hidden); return cs.length ? { x: Math.max(...cs.map(c => c.x + c.w)) + 200, y: Math.min(...cs.map(c => c.y)) } : centerWorld(); };
+  function removeCards(cs) { remember(); const ids = new Set(cs.map(c => c.id)); board.cards = board.cards.filter(c => !ids.has(c.id)); board.links = board.links.filter(l => !ids.has(l.a) && !ids.has(l.b)); ids.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove()); selectOnly([]); renderWires(); layersSoon(); save(); }
+  const RECIPES = {
+    sitemap: { re: /site ?map|page tree|site structure|pages/i, name: 'sitemap', build(src, at) {
+      const title = src.find(c => c.type === 'title'), root = title || src[0], kids = src.filter(c => c !== root), made = [], links = [];
+      const colls = board.cards.filter(c => c.type === 'coll' && !c.hidden), W = 150, GX = 40, GY = 90;
+      const tree = { name: wordsOf(root), kids: [...kids.map(c => ({ name: wordsOf(c), kids: [] })), ...colls.map(c => ({ name: c.text || 'Pages', kids: (c.kids || []).map(byId).filter(Boolean).map(n => ({ name: wordsOf(n), kids: [] })) }))] };
+      const width = n => n.kids.length ? Math.max(W, n.kids.reduce((s, k) => s + width(k), 0) + GX * (n.kids.length - 1)) : W;
+      const lay = (n, x, y, parent) => { const w = width(n), c = kitCard('site', { ...PAGE, text: n.name }, { x: x + w / 2, y: y + 48 }); made.push(c); if (parent) links.push(kitLink(parent, c, SIDE.b, SIDE.t));
+        let cx = x; n.kids.forEach(kd => { lay(kd, cx, y + 96 + GY, c); cx += width(kd) + GX; }); };
+      lay(tree, at.x, at.y, null); return { made, links }; } },
+    flow: { re: /flow ?chart|user flow|\bflow\b|steps|process|in order/i, name: 'flowchart', build(src, at) {
+      const made = [], links = []; let prev = null;
+      src.forEach((c, i) => { const s = i === 0 || i === src.length - 1 ? { ...FLOW['Start / end'], text: wordsOf(c) } : { ...FLOW['Process'], text: wordsOf(c) }, n = kitCard('flow', s, { x: at.x + 110, y: at.y + 45 + i * 150 });
+        made.push(n); if (prev) links.push(kitLink(prev, n, SIDE.b, SIDE.t)); prev = n; }); return { made, links }; } },
+    journey: { re: /journey|customer path|experience map/i, name: 'journey map', build(src, at) {
+      const cols = ['sky', 'lilac', 'butter', 'mint', 'peach', 'pink'];
+      const F0 = { name: 'Journey map', emoji: '🗺️', items: [{ t: 'title', x: 0, y: 0, text: 'Journey map' }, ...src.map((c, i) => ({ t: 'coll', x: i * 300, y: 90, name: `${i + 1} · ${wordsOf(c)}`, color: cols[i % cols.length], notes: [{ text: 'What they do', color: 'white' }, { text: '😊 How they feel', color: 'mint' }] })),
+        { t: 'how', x: src.length * 300, y: 90, text: 'One column per step, from your notes. In each, add what they do (white), how they feel (green = good, pink = rough) and what gets in the way.\n\nThe pink notes are your opportunities.' }] };
+      placeFramework(null, at, F0); return null; } },
+    mind: { re: /mind ?map|branches|brainstorm map/i, name: 'mind map', build(src, at) {
+      const title = src.find(c => c.type === 'title'), rootC = title || src[0], kids = src.filter(c => c !== rootC), made = [], links = [];
+      const cx = at.x + 420, cy = at.y + 260, root = kitCard('mind', { ...ROOT, text: wordsOf(rootC) }, { x: cx, y: cy }, { root: true }); made.push(root);
+      kids.forEach((c, i) => { const a = -Math.PI / 2 + (i + .5) * Math.PI * 2 / Math.max(1, kids.length), n = kitCard('mind', { ...BRANCH, text: wordsOf(c), fill: MIND_COLORS[i % MIND_COLORS.length] }, { x: cx + Math.cos(a) * 340, y: cy + Math.sin(a) * 210 }); made.push(n); links.push(kitLink(root, n)); });
+      return { made, links }; } },
+    checklist: { re: /check ?list|to-?do|tasks|action items/i, name: 'checklist', build(src, at) {
+      const items = src.flatMap(c => c.type === 'todo' ? (c.items || []) : [{ t: wordsOf(c), done: false }]);
+      const c = card('todo', { x: Math.round(at.x), y: Math.round(at.y), w: 300, h: 60 + items.length * 30, text: 'To do', items, color: 'white', r: 0 }); return { made: [c], links: [] }; } },
+  };
+  function runRecipe(key, src) {
+    const R = RECIPES[key], at = besideAll(); remember();
+    const out = R.build(src, at); if (out) { out.made.forEach(c => { board.cards.push(c); renderCard(c, true); }); board.links.push(...out.links); selectOnly(out.made.map(c => c.id)); renderWires(); layoutAll(); save(); fit(out.made); }
+    say(`Here’s a ${R.name} from your ${src.length} ${src.length === 1 ? 'note' : 'notes'} ✦ I left the originals where they were.`, 0, [{ label: 'Remove the original notes', run: () => removeCards(src) }, { label: 'Keep both', ghost: true, run: () => {} }]);
+  }
+  // true if Mochi built something (or asked which thing to build)
+  function offlineRecipe(q) {
+    const s = String(q); const hit = Object.keys(RECIPES).find(k => RECIPES[k].re.test(s));
+    const wants = /\b(make|build|turn|create|put|lay ?out|arrange|organi[sz]e|structure|map out|draw|convert)\b/i.test(s) || hit;
+    if (!wants) return false;
+    const src = recipeSource();
+    if (hit) { if (src.length < 2 && hit !== 'checklist') { say(`Write a few notes first, one per ${hit === 'sitemap' ? 'page' : hit === 'journey' ? 'step' : 'idea'}, then ask me again and I’ll build the ${RECIPES[hit].name} from them ✦`, 7000); return true; } if (!src.length) { say('Write a note or two first and I’ll turn them into a checklist ✦', 6000); return true; } runRecipe(hit, src); return true; }
+    if (!/\b(this|these|them|my notes|the notes|board)\b/i.test(s) || src.length < 2) return false;   // "organize this" with nothing to organize: not ours
+    say(`I can build a few things from your ${src.length} notes without thinking too hard. Which one?`, 0, ['sitemap', 'flow', 'journey', 'mind', 'checklist'].map(k => ({ label: RECIPES[k].name[0].toUpperCase() + RECIPES[k].name.slice(1), run: () => runRecipe(k, recipeSource()) })));
+    return true;
+  }
   // Mochi answers from the dictionary when she can't think (no Claude, offline, the web demo). Returns true if she did.
   function learnAnswer(q) {
     const s = String(q).toLowerCase().replace(/[?.!,’']/g, ' ').replace(/\s+/g, ' ').trim();
     if (s.split(' ').length > 12) return false;   // long asks aren't dictionary questions
+    if (/\b(make|build|turn|create|put|lay ?out|arrange|organi[sz]e|structure|map out|draw|convert|add|these|this|them)\b/.test(s)) return false;   // a doing-word means they want something made, not explained
     const hits = LDB.terms.filter(t => { const n = t.t.toLowerCase(); return (' ' + s + ' ').includes(' ' + n + ' ') || s === n || s.endsWith(' ' + n) || (n.length > 4 && s.includes(n)); }).sort((a, b) => b.t.length - a.t.length);
     const t = hits[0]; if (!t) return false;
     const asks = /^(what|whats|what s|define|explain|meaning|tell me about|describe|who|how)\b/.test(s) || s === t.t.toLowerCase() || s.split(' ').length <= 3; if (!asks) return false;
