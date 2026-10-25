@@ -36,8 +36,7 @@ Mochiboard is a free, open-source Mac and Windows app for the messy part before 
 **[⬇ Download Mochiboard for Mac](https://github.com/jessawolfe-ux/mochiboard/releases/latest/download/Mochiboard.zip)** (macOS 13 or newer, Apple chip or Intel)
 
 1. Unzip it and drag **Mochiboard** into your Applications folder.
-2. Open it. The first time, your Mac says it can't check it, because it isn't from the App Store.
-3. Go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. You only do this once.
+2. Open it. It's signed and notarized with Apple, so it opens on the first double-click.
 
 Mochiboard updates itself from Settings after that. For Mochi's thinking, add [Claude Code](https://claude.com/claude-code).
 
