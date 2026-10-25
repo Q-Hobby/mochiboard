@@ -2214,8 +2214,8 @@
     log.push(m); if (log.length > max) log.splice(0, log.length - max); if (settings.chatKeep === 'board') save();
     const list = $('mcList'); list.querySelector('.mc-empty')?.remove(); list.appendChild(msgEl({ ...m, acts })); list.scrollTop = list.scrollHeight;
   }
-  function typing(on) { $('mcList').querySelector('.typing')?.remove(); $('mcStatus').textContent = on ? 'thinking…' : '';
-    if (on) { const d = document.createElement('div'); d.className = 'mc-msg mochi typing'; d.innerHTML = '<i></i><i></i><i></i>'; $('mcList').appendChild(d); $('mcList').scrollTop = 1e9; } }
+  function typing(on, label) { $('mcList').querySelector('.typing')?.remove(); clearTimeout(doingTimer); $('mcStatus').textContent = on ? (label || 'thinking') + '…' : '';
+    if (on) { const d = document.createElement('div'); d.className = 'mc-msg mochi typing'; d.innerHTML = '<i></i><i></i><i></i><span></span>'; $('mcList').appendChild(d); $('mcList').scrollTop = 1e9; showDoing(label || 'thinking'); } }
   $('mcForm').onsubmit = e => { e.preventDefault(); const q = $('mcInput').value.trim(); if (!q) return; $('mcInput').value = ''; $('mcInput').style.height = ''; $('mcInput').placeholder = 'Ask Mochi… “group these by theme”'; ask(q); };
   $('mcInput').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('mcForm').requestSubmit(); } if (e.key === 'Escape') { mochiOpen(false); e.stopPropagation(); } };
   $('mcInput').oninput = () => { const t = $('mcInput'); t.style.height = 'auto'; t.style.height = Math.min(120, t.scrollHeight) + 'px'; };
@@ -2262,7 +2262,7 @@
     if (!navigator.onLine) { if (!chatOpen()) mochiOpen(true); addMsg('me', q); return offlineMochi(q, "You're offline, so I can't think with Claude right now. I'll be back when the internet is."); }
     if (!chatOpen()) mochiOpen(true);
     if (!confirmed) addMsg('me', q); else addMsg('mochi', 'Making it… this can take a minute ✦');
-    $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true); typing(true);
+    $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true); typing(true, confirmed ? 'making it' : doingLabel(q));
     try { const raw = await MB.ask((window.mochiName && window.mochiName !== 'Mochi' ? `(The person named you ${window.mochiName}. That's your name now; sign off and refer to yourself that way.) ` : '') + q, snapshot(), confirmed, { mobbin: settings.mobbin, higgs: settings.higgs }); await applyMochi(parse(raw), q); }
     catch (err) { if (/Claude Code/.test(err.message)) { haveClaude = false; return offlineMochi(q, "I need Claude Code on this Mac to think. It's a one-time setup with your Claude account."); }
       if (SIGNIN.test(err.message)) { offlineMochi.signin = true; return offlineMochi(q, "Claude Code is here, but it isn't signed in yet. Open Terminal, type claude, and sign in with a Claude Pro or Max account."); }
@@ -3567,6 +3567,30 @@
       [...(alt ? [{ label: `Try the ${flowBy(alt).platform === 'web' ? 'web' : alt.includes('quiz') ? 'quiz' : 'mobile'} one instead`, run: () => { undo(); placeFlow(alt); } }] : []), { label: 'Undo', ghost: true, run: () => undo() }]);
     return true;
   }
+
+  // ---- what Mochi is doing while she thinks: a line made from the ask itself ("finding font ideas…"), and little check-ins when it runs long ----
+  const DOING = [
+    [/\bfonts?\b|typeface|typography|type ideas/i, 'finding font ideas'],
+    [/\b(organi[sz]e|group|sort|cluster|tidy|arrange|by theme)\b/i, 'sorting your notes'],
+    [/\b(mobbin|inspiration|references?|examples? of|real apps?|how do other)\b/i, 'looking through real apps'],
+    [/\b(wireframes?|screens?|mockups?|app layout|landing page|website|user flow|log ?in|sign ?up|onboarding|checkout|dashboard)\b/i, 'sketching screens'],
+    [/\b(pictures?|photos?|images?|illustrations?|fill the)\b/i, 'picking pictures'],
+    [/\b(site ?map|flow ?chart|journey|mind ?map|persona|affinity|impact|effort|retro|storyboard|template|framework)\b/i, 'mapping it out'],
+    [/\b(colou?rs?|palette|swatch|hex)\b/i, 'mixing colors'],
+    [/\b(rename|move|file|folder|project|archive|boards?)\b/i, 'tidying your boards'],
+    [/\b(summari[sz]e|sum up|tl;?dr|recap|what did)\b/i, 'reading the board'],
+    [/\b(write|draft|copy|headline|tagline|name for|names for|caption)\b/i, 'finding the words'],
+    [/\b(plan|schedule|week|checklist|to-?do|steps)\b/i, 'planning it out'],
+    [/^(what|why|how|is|are|should|can|could|does|do)\b/i, 'thinking it over'],
+  ];
+  function doingLabel(q) { const s = String(q || ''); const hit = DOING.find(([re]) => re.test(s)); return hit ? hit[1] : 'thinking'; }
+  const LATER = ['still on it', 'nearly there ✦', 'this one’s a thinker', 'ok, really nearly there'];
+  let doingTimer = 0;
+  function showDoing(label) {
+    clearTimeout(doingTimer); const put = t => { const b = $('mcList').querySelector('.typing span'); if (b) b.textContent = t + '…'; $('mcStatus').textContent = t + '…'; };
+    put(label); let i = 0; const tick = () => { if (!$('mcList').querySelector('.typing')) return; put(LATER[Math.min(i, LATER.length - 1)]); i++; doingTimer = setTimeout(tick, i === 1 ? 10000 : 14000); };
+    doingTimer = setTimeout(tick, 9000);
+  }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -3667,7 +3691,7 @@
     say(`There ${n === 1 ? 'is 1 image spot' : `are ${n} image spots`} waiting for pictures. ${settings.higgs ? 'Higgsfield makes real photos (that uses credits, and I check the price with you first), or I can draw simple illustrations for free.' : 'I can draw simple illustrations for them, free.'}`, 0, [...acts, { label: 'Leave them empty', ghost: true, run: () => {} }]);
   }
   async function quoteFill(spots) {
-    if (!chatOpen()) mochiOpen(true); addMsg('mochi', 'Checking your Higgsfield balance and the price per image…'); typing(true);
+    if (!chatOpen()) mochiOpen(true); addMsg('mochi', 'Checking your Higgsfield balance and the price per image…'); typing(true, 'checking prices');
     try {
       const q = parse(await MB.higgsQuote({ model: 'nano_banana_2' })); typing(false);
       const per = +q.perImage, bal = +q.balance, total = Number.isFinite(per) ? Math.ceil(per * spots.length) : null;
@@ -3685,14 +3709,14 @@
     save(); return n;
   }
   async function makeFill(spots) {
-    addMsg('mochi', `Making ${spots.length} image${spots.length > 1 ? 's' : ''} with Higgsfield… this can take a minute or two ✦`); typing(true); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
+    addMsg('mochi', `Making ${spots.length} image${spots.length > 1 ? 's' : ''} with Higgsfield… this can take a minute or two ✦`); typing(true, 'making pictures'); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
     try { const r = parse(await MB.higgsMake({ model: 'nano_banana_2', style: styleHint(spots), images: spots.map(c => ({ id: c.id, label: c.img, aspect: aspect(c) })) }));
       const n = await placeImages(spots, r.images, 'url'); typing(false); say(n ? `Done! ${n} image${n > 1 ? 's are' : ' is'} in place ✦` : "Hmm, the images didn't come back. Nothing was placed."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
     catch (e) { typing(false); say("Something went wrong making those: " + e.message); }
     finally { $('mochi').classList.remove('thinking'); goo.think(false); favGoo?.think(false); }
   }
   async function drawFill(spots) {
-    if (!chatOpen()) mochiOpen(true); addMsg('mochi', `Drawing ${spots.length} little illustration${spots.length > 1 ? 's' : ''}…`); typing(true); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
+    if (!chatOpen()) mochiOpen(true); addMsg('mochi', `Drawing ${spots.length} little illustration${spots.length > 1 ? 's' : ''}…`); typing(true, 'drawing'); $('mochi').classList.add('thinking'); goo.think(true); favGoo?.think(true);
     try { const r = parse(await MB.drawFill({ style: 'soft pastel, rounded, friendly, minimal', images: spots.map(c => ({ id: c.id, label: c.img, w: Math.round(c.w), h: Math.round(c.h) })) }));
       const n = await placeImages(spots, r.images, 'svg'); typing(false); say(n ? `Drew ${n} ✦ (want real photos later? that's Higgsfield)` : "I couldn't draw those this time."); if (n) showWhatMochiMade(spots.filter(c => c.src)); }
     catch (e) { typing(false); say("I couldn't draw those: " + e.message); }

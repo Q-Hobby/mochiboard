@@ -2468,6 +2468,11 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 #setDzList .tbe-row { grid-template-columns: 16px 1fr auto; }
 #setDzList .tbe-name { min-width: 0; }
 
+/* the typing bubble: dots, then what Mochi is doing */
+.mc-msg.typing { align-items: center; }
+.mc-msg.typing span { margin-left: 5px; font: 600 12px/1 var(--font); color: var(--ink-soft); white-space: nowrap; }
+.mc-msg.typing span:empty { display: none; }
+
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }
 .dz-flows > .label { margin: 0 2px 4px; } .dz-flows > .label small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-left: 4px; }
