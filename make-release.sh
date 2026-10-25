@@ -52,7 +52,8 @@ echo "  ✓ $OUT/Mochiboard.zip ($(du -h "$OUT/Mochiboard.zip" | cut -f1))"
 [ "${1:-}" = "--dry" ] && exit 0
 # release notes: the newest section of WHATSNEW.md
 NOTES="$(awk '/^## /{n++} n==1 && /^- /' WHATSNEW.md)"
-gh release create "v$V" "$OUT/Mochiboard.zip" --title "Mochiboard $V" --notes "$NOTES
+git push -q origin "$(git branch --show-current)" 2>/dev/null || true   # the tag must point at this branch's commit (stable for a fix, main for a new version), not whatever the default branch has
+gh release create "v$V" "$OUT/Mochiboard.zip" --target "$(git branch --show-current)" --title "Mochiboard $V" --notes "$NOTES
 
 $( [ -n "$SIGNED" ] && echo "**Mac:** Mochiboard.zip below. Unzip it, drag Mochiboard into Applications, and open it. It’s signed and notarized with Apple, so it opens like any Mac app." || echo "**Mac:** Mochiboard.zip below. Unzip it and drag Mochiboard into Applications. The first time, your Mac says it “could not verify Mochiboard is free of malware”: that’s because this build isn’t notarized by Apple. On macOS 15: double-click it once, click Done, then System Settings → Privacy & Security → scroll to Security → **Open Anyway**. On macOS 13/14: right-click → **Open**. Once." )
 
