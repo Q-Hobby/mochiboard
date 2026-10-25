@@ -871,7 +871,8 @@
       d.innerHTML = c.type === 'image' ? `<img src="${esc(c.src)}">` : esc(c.type === 'link' ? (c.title || c.url) : c.text); list.appendChild(d); });
   }
   // (the stage gets a 'multi' class when more than one thing is selected: tilt handles only show for one thing at a time)
-  function selectOnly(ids) { if (ids.length && selWires.size) { selWire = null; selWires.clear(); renderWires(); } sel = new Set(ids); stage.classList.toggle('multi', sel.size > 1); LY.reveal = true; layersSoon(); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); }
+  function selectOnly(ids) { if (ids.length && selWires.size) { selWire = null; selWires.clear(); renderWires(); } sel = new Set(ids); stage.classList.toggle('multi', sel.size > 1); LY.reveal = true; layersSoon(); board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el && el.classList.toggle('sel', sel.has(c.id)); }); syncPorts();   // the dots follow the selection
+  }
 
   // ---------- adding things ----------
   // ---------- the Pen: click to drop points (straight lines), click-and-drag for a smooth curve, click the first point to close a shape;
@@ -1290,7 +1291,7 @@
   }
   // any words on a card can be edited: double-click the bit you want (text, list heading, a list item, the little label, a link's title or note)
   function editField(el, t, set, done) {
-    editing = el.dataset.id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus(); showPorts(null);   // the connect dots step aside while you type
+    editing = el.dataset.id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus(); syncPorts();   // the connect dots step aside while you type
     const r = document.createRange(); r.selectNodeContents(t); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
     const oneLine = !t.matches('.body > .text');   // notes and titles can wrap; labels, headings and list items are one line
     const fc = byId(el.dataset.id); if (fc && fc.userH == null && ['note', 'todo'].includes(fc.type)) fc.userH = fc.h;
@@ -1332,7 +1333,7 @@
     if (c.type === 'swatch') return openColor(c);
     if (c.type === 'todo') return editField(el, el.querySelector('.head'), v => c.text = v);
     const t = el.querySelector(c.type === 'todo' ? '.head' : '.text'); if (!t) return;
-    editing = id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus(); if (c.userH == null && ['note', 'todo'].includes(c.type)) c.userH = c.h;
+    editing = id; el.classList.add('editing'); t.contentEditable = 'true'; t.focus(); syncPorts(); if (c.userH == null && ['note', 'todo'].includes(c.type)) c.userH = c.h;
     const r = document.createRange(); r.selectNodeContents(t); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
     t.oninput = () => { c.text = t.innerText.replace(/\n$/, '');
       fitText(c);
@@ -1342,7 +1343,7 @@
   function endEdit() { if (!editing) return; { const c0 = byId(editing), e0 = cardsEl.querySelector(`[data-id="${editing}"]`); if (c0 && e0 && ['title', 'text'].includes(c0.type)) setTimeout(() => textStrokeSVG(c0, e0), 0); }
     const el = cardsEl.querySelector(`[data-id="${editing}"]`); if (el) { el.classList.remove('editing'); el.querySelectorAll('[contenteditable]').forEach(n => n.contentEditable = 'false');
       const c1 = byId(editing); if (c1 && c1.type === 'title') { if (!c1.fixedW && el.offsetWidth) c1.w = el.offsetWidth; if (el.offsetHeight) c1.h = el.offsetHeight; renderWires(); }
-      const was = editing; editing = null; if (c1 && sel.size === 1 && sel.has(was)) requestAnimationFrame(() => { if (!editing && sel.has(was)) showPorts(c1); }); return; } editing = null; }
+      editing = null; requestAnimationFrame(syncPorts); return; } editing = null; }
 
   // ---------- pointer: drag cards, resize, connect, marquee, pan ----------
   let drag = null;
@@ -3119,7 +3120,8 @@
     const cur = kpFor && byId(kpFor), w = toWorld(e.clientX, e.clientY), m = 44 / view.z;   // near the shape still counts, so you can reach its dots
     if (!(cur && w.x > cur.x - m && w.x < cur.x + cur.w + m && w.y > cur.y - m && w.y < cur.y + cur.h + m)) kpLater();
   });
-  new MutationObserver(() => { if (drag || placing) return; const s = sel.size === 1 && byId([...sel][0]); if (PORTABLE(s) && (kpFor !== s.id || !kp.classList.contains('on'))) showPorts(s); else if (s && !PORTABLE(s) && kpFor) showPorts(null); else if (!s && kpFor && !sel.size) kpLater(); })   // typing into a card: its dots step out of the way until you're done.observe(cardsEl, { attributes: true, attributeFilter: ['class'], subtree: true });   // selection changes show up as class changes on the cards
+  // one rule for the dots, read from the board's state: typing hides them, one selected card shows them (measured fresh), several selected hides them
+  function syncPorts() { const s = sel.size === 1 && byId([...sel][0]); if (editing || drag || placing) { if (kpFor) showPorts(null); return; } if (PORTABLE(s)) showPorts(s); else if (kpFor && sel.size > 1) showPorts(null); else if (kpFor) kpLater(); }   // (nothing selected: a short grace, in case the pointer is still over a card)
   const sideOf = p => p.u <= 0 ? 'l' : p.u >= 1 ? 'r' : p.v <= 0 ? 't' : 'b';
   const sideNear = (c, w) => sideOf(pinAt(c, w));
   const wireLab = {};   // where each line's label sits, for typing into it
@@ -5225,5 +5227,5 @@ ${proseCSS()}
     setTimeout(maybeNews, 700);
     setTimeout(() => checkUpdate(), 4000);
   })();
-  window.__mb = { ask, selectOnly, restack, music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
+  window.__mb = { ask, get kpFor() { return kpFor; }, get editingId() { return editing; }, selectOnly, restack, music, openSetup, startTour, get board() { return board; }, applyMochi, fit, lib: () => snapshot().library, openHome, get editing() { return editing; }, get sel() { return [...sel]; }, placeSelbar, renderAll, get view() { return view; }, applyView };   // handy for testing
 })();
