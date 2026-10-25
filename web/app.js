@@ -1873,7 +1873,7 @@
   // ---------- settings: Mochi's color and greeting, her helpers, how the board looks ----------
   const MOCHI_COLORS = { blue: { B: '#33c7ff', S: '#ccf5ff', D: '#1480db' }, pink: { B: '#ff8fc2', S: '#ffe0ee', D: '#e0559a' }, mint: { B: '#5fdba0', S: '#d9fbe9', D: '#2fae73' },
     lilac: { B: '#b49bff', S: '#ece5ff', D: '#7e5ee6' }, butter: { B: '#ffd54f', S: '#fff4c4', D: '#e0a800' }, peach: { B: '#ffa978', S: '#ffe6d6', D: '#e57841' }, night: { B: '#4a4f7a', S: '#8d93c9', D: '#2b2e4f' } };
-  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true, imgFrame: true, wLearn: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
+  const settings = Object.assign({ panelH: {}, mochiName: '', mochiCalm: 'lively', mochiChar: true, tbSize: 'm', dblNote: true, wLayers: true, wColors: true, wDressup: false, wMusic: false,   /* the playful widgets wait until someone switches them on */ wDesign: true, wTray: true, autoLink: true, imgFrame: true, wLearn: true, ports: true,  mochi: 'blue', greet: true, grid: true, tilt: true, motion: true, keys: true, theme: 'system', chat: 'normal', emoji: true, noteColor: 'random', snap: false, ai: true, mobbin: true, higgs: true, chatKeep: 'board', chatMax: '60', cursor: '#ff9ec4', fancyCursor: true, colors: { light: {}, dark: {} } }, (() => { try { return JSON.parse(localStorage.getItem('mochiboard:settings') || '{}'); } catch (e) { return {}; } })());
   try { if (localStorage.getItem('mochiboard:keys') === 'hide') settings.keys = false; } catch (e) {}
   // ---------- widgets snap into the left and right sidebars. Drag one by its title: little drop boxes show where it can go ----------
   // the Boards panel is pinned at the top left (it's home to your boards and Settings), everything else can move
@@ -3110,7 +3110,7 @@
     const o = 20 / view.z, h = el && c.type !== 'section' && el.offsetHeight ? el.offsetHeight : (c.type === 'title' ? 50 : c.h), at = { t: [c.x + W / 2, c.y - o], r: [c.x + W + o, c.y + h / 2], b: [c.x + W / 2, c.y + h + o], l: [c.x - o, c.y + h / 2] };
     kp.style.setProperty('--iz', (1 / view.z).toFixed(4)); kp.querySelectorAll('.kport').forEach(d => { const [x, y] = at[d.dataset.side]; d.style.left = x + 'px'; d.style.top = y + 'px'; });
   }
-  const PORTABLE = c => !!c && !c.hidden && c.type !== 'section' && c.type !== 'ink' && editing !== c.id;
+  const PORTABLE = c => !!c && !c.hidden && c.type !== 'section' && c.type !== 'ink' && editing !== c.id && (settings.ports !== false || !!c.kit);   // the dots setting hides them on ordinary cards; diagram pieces always keep theirs
   let kpHide = 0;
   const kpLater = () => { clearTimeout(kpHide); kpHide = setTimeout(() => { const s = sel.size === 1 && byId([...sel][0]); if (PORTABLE(s)) showPorts(s); else showPorts(null); }, 300); };   // a little grace before they go, and a selected shape keeps its dots
   stage.addEventListener('pointermove', e => {
@@ -3429,7 +3429,8 @@
   }
   // true if Mochi built something (or asked which thing to build)
   function offlineRecipe(q) {
-    const s = String(q); const hit = Object.keys(RECIPES).find(k => RECIPES[k].re.test(s));
+    const s = String(q); if (flowAsk(s)) return true;
+    const hit = Object.keys(RECIPES).find(k => RECIPES[k].re.test(s));
     const wants = /\b(make|build|turn|create|put|lay ?out|arrange|organi[sz]e|structure|map out|draw|convert)\b/i.test(s) || hit;
     if (!wants) return false;
     const src = recipeSource();
@@ -3518,6 +3519,53 @@
     ['pointerdown', 'mousedown', 'dblclick'].forEach(t => $('webBar').addEventListener(t, e => e.stopPropagation()));
     $('wbGet').onclick = () => MB.openURL('https://mochiboard.app/#download');
     $('wbX').onclick = () => { $('webBar').hidden = true; try { localStorage.setItem('mochiboard:webbar', 'off'); } catch (e) {} };
+  }
+
+  // ---- the flow library (web/flows.js): whole flows as wireframes, placed by a click in the Wireframing pane or by Mochi offline ----
+  const FLOWS = window.FLOWS || [], flowBy = key => FLOWS.find(f => f.key === key);
+  function placeFlow(key, quiet) {
+    const F = flowBy(key); if (!F) return null;
+    remember(); const at = besideAll(), made = [], frames = []; let sx = at.x + 360, prev = null;
+    const why = card('note', { x: at.x, y: at.y, w: 300, h: 60 + F.why.length * 90, text: F.why.join('\n\n'), name: 'Why it works', color: 'white', r: 0 }); board.cards.push(why); renderCard(why, true); made.push(why);
+    const title = card('title', { x: at.x, y: at.y - 70, w: 700, h: 50, text: F.name }); board.cards.push(title); renderCard(title, true); made.push(title);
+    F.screens.forEach(sp => {
+      const pw = sp.panel ? (sp.panel.w || Math.round((sp.w || DEVICES[sp.device][0]) * 0.46)) : 0, spec = { ...sp, w: (sp.w || DEVICES[sp.device][0]) - pw };
+      const { f, made: m } = buildScreen(spec, sx, at.y); frames.push(f); m.forEach(c => made.push(c));
+      if (pw) {   // a side panel (brand image, order summary, sidebar) the stacker can't do: widen the screen and drop a labeled placeholder beside the stack
+        const left = sp.panel.side === 'left'; f.w += pw; renderCard(f);
+        if (left) m.filter(c => c !== f).forEach(c => { c.x += pw; renderCard(c); });
+        const p = PH(0, 0, pw, f.h, sp.panel.img, { radius: 0, fill: '#f4f4f5' }), c = card(p.type, { ...p, x: left ? f.x : f.x + f.w - pw, y: f.y, r: 0, onFrame: f.id }); board.cards.push(c); renderCard(c, true); made.push(c);
+      }
+      m.filter(c => c.type === 'note' && c.w > 420).forEach(n => { n.w = 420; renderCard(n); });   // a desktop screen's note needn't be as wide as the screen
+      if (prev) board.links.push({ id: uid(), a: prev.id, b: f.id, arrow: true }); prev = f; sx += f.w + 140;
+    });
+    layoutAll(); renderWires(); save(); selectOnly([]); fit(made);
+    if (!quiet) chirp(`${F.name} is on the board: ${F.screens.length} screen${F.screens.length === 1 ? '' : 's'} and the why. Every piece is editable ✦`, 5000);
+    return made;
+  }
+  const FLOW_CATS = [...new Set(FLOWS.map(f => f.cat))];
+  function renderDzFlows() {
+    const L = $('dzFlows'); if (!L) return;
+    L.innerHTML = FLOW_CATS.map(cat => `<div class="label dz-sub">${esc(cat)}</div>` + FLOWS.filter(f => f.cat === cat).map(f => `<button data-flow="${f.key}" title="${esc(f.line)}"><b>${esc(f.name.replace(/^[^·]+·\s*/, ''))}</b><small>${f.platform} · ${f.screens.length} screen${f.screens.length === 1 ? '' : 's'}</small></button>`).join('')).join('');
+    L.onclick = e => { const b = e.target.closest('[data-flow]'); if (!b) return; if (placing) stopPlacing(); pickWF(null); placeFlow(b.dataset.flow); };
+  }
+  renderDzFlows();
+  window.__flows = { ask: s => flowAsk(s), place: placeFlow, n: () => FLOWS.length };   // for the test harness
+  // Mochi offline: "make me a login flow" places one from the library (web words pick the web version)
+  const FLOW_ASKS = [[/forgot|reset (my )?password|password reset/i, ['forgot-mobile']], [/\blog ?in|sign ?in|login\b/i, ['login-mobile', 'login-web']], [/sign ?up|regist|create account/i, ['signup-mobile', 'signup-web']],
+    [/onboard|welcome|first[- ]run|first time/i, ['onboard-carousel', 'onboard-quiz']], [/check ?out|\bcart\b|payment|purchase/i, ['checkout-mobile', 'checkout-web']], [/dashboard/i, ['dashboard-web']], [/settings|profile (page|screen)/i, ['settings-mobile']], [/empty state/i, ['empty-states']]];
+  function flowAsk(s) {
+    if (!FLOWS.length) return false;
+    const hit = FLOW_ASKS.find(([re]) => re.test(s)); if (!hit) return false;
+    if (!/\b(make|build|create|draw|put|place|add|give|show|wireframe|wireframes|screens?|flow|mockups?|layout|design)\b/i.test(s)) return false;   // "what is onboarding" is the dictionary's
+    if (/\b(what|why|explain|mean|define)\b/i.test(s) && !/\b(make|build|create|draw|put|place|add)\b/i.test(s)) return false;
+    let keys = hit[1]; const web = /\b(web|desktop|website|browser|laptop)\b/i.test(s), quiz = /quiz|question|personali/i.test(s);
+    let key = keys.length === 1 ? keys[0] : keys[0].startsWith('onboard') ? (quiz ? keys[1] : keys[0]) : (web ? keys[1] : keys[0]);
+    const F = flowBy(key), alt = keys.find(k => k !== key); if (!F) return false;
+    placeFlow(key, true);
+    say(`Here’s ${F.name} from the library: ${F.screens.length} screens with the why beside them. Change anything; it’s yours now ✦`, 0,
+      [...(alt ? [{ label: `Try the ${flowBy(alt).platform === 'web' ? 'web' : alt.includes('quiz') ? 'quiz' : 'mobile'} one instead`, run: () => { undo(); placeFlow(alt); } }] : []), { label: 'Undo', ghost: true, run: () => undo() }]);
+    return true;
   }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;

@@ -208,6 +208,7 @@
       <div class="dz-presets" id="dzPresets"></div>
       <div class="dz-icons" id="dzIcons"><input id="iconSearch" placeholder="Search icons… home, heart, settings" spellcheck="false" autocomplete="off"><div class="dz-icon-grid" id="iconGrid"></div></div>
       <div class="dz-pieces"><div class="label">Pieces</div><div class="dz-piece-grid" id="dzPieces"></div></div>
+      <div class="dz-flows"><div class="label">Flows <small>from the library</small></div><div class="dz-flow-list" id="dzFlows"></div></div>
       <div class="dz-props" id="dzProps"></div>
       </div>
       <div class="dz-pane" data-pane="flow" id="kit-flow" hidden></div>
@@ -375,6 +376,7 @@
         <div class="tbe-list set-tblist" id="setDzList"></div>
         <label class="set-row"><div><b>Auto-connect</b><small>Set a flowchart, sitemap or mind map shape down next to another and a line joins them</small></div><input type="checkbox" class="tgl" data-set="autoLink"></label>
         <label class="set-row"><div><b>Picture borders</b><small>New pictures get a little white border. Each picture’s bar can switch its own on or off.</small></div><input type="checkbox" class="tgl" data-set="imgFrame"></label>
+        <label class="set-row"><div><b>Connector dots</b><small>The four little dots around a selected card, for drawing lines. Off keeps them only on flowchart, sitemap and mind-map pieces.</small></div><input type="checkbox" class="tgl" data-set="ports"></label>
         <label class="set-row"><div><b>Unsorted</b><small>Ideas waiting for a spot. ⌘K still saves there when it's off</small></div><input type="checkbox" class="tgl" data-set="wTray"></label>
         <div class="set-row"><div><b>Arrange them</b><small>Drag a widget by its title into any spot on either side</small></div><button class="set-btn" id="wgReset">Reset layout</button></div>
       </section>
@@ -421,6 +423,7 @@
 <script src="bridge.js"></script>
 <script src="goo.js"></script>
 <script src="learn.js"></script>
+<script src="flows.js"></script>
 <script src="starter.js"></script>
 <script src="vendor/editor.js"></script>
 <script src="app.js"></script>
