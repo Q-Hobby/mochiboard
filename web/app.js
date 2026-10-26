@@ -685,7 +685,7 @@
     if (!el) { el = document.createElement('div'); el.dataset.id = c.id; cardsEl.appendChild(el); if (pop) el.classList.add('pop'); }
     el.className = `card ${c.type}` + (sel.has(c.id) ? ' sel' : '') + (focusSet && !focusSet.has(c.id) ? ' dim' : '') + (pop ? ' pop' : '');
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' });
-    el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el);
+    el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el); if (c.shadow) el.dataset.sh = c.shadow; else delete el.dataset.sh;
     if (c.type === 'title' || c.type === 'text') el.classList.toggle('no-fill', (c.type === 'title' ? c.tc : c.color) === 'none'); if (SIZED_T.includes(c.type)) { el.style.setProperty('--ta', c.align || 'left');
       el.style.setProperty('--tt', { upper: 'uppercase', lower: 'lowercase', title: 'capitalize' }[c.tcase] || 'none');   // Case: how the words show (what you typed stays as typed)
       if (c.lh != null) el.style.setProperty('--lh', c.lh); else el.style.removeProperty('--lh'); el.classList.toggle('has-lh', c.lh != null);
@@ -2863,7 +2863,7 @@
     if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill === 'none' ? 'transparent' : c.fill || '#ffffff'); el.classList.toggle('no-fill', c.fill === 'none'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
     if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? 'transparent' : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
-      boxShadow: 'none', border: '0' });
+      boxShadow: shadowCss(c), border: '0' });
     if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
       color: c.color && c.color !== 'none' ? c.color : '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
     applyStroke(c, el);
@@ -3733,6 +3733,17 @@
   cardsEl.addEventListener('click', e => { const b = e.target.closest('.bx-fr'); if (!b) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); const c = byId(b.closest('.card').dataset.id); if (c) startFrame(c); }, true);
   cardsEl.addEventListener('pointerdown', e => { if (e.target.closest('.bx-fr')) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-frame2]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (c?.type === 'box' && c.src) startFrame(c); }, true);
+
+  function shadowCss(c) { return ({ soft: '0 3px 8px rgba(30, 20, 40, .14)', medium: '0 8px 20px rgba(30, 20, 40, .18)', strong: '0 16px 36px rgba(30, 20, 40, .26)', hard: '5px 5px 0 rgba(30, 20, 40, .85)' })[c.shadow] || 'none'; }   // boxes set their shadow inline (the app already writes box-shadow there)
+  // ---- drop shadows: none · soft · medium · strong · hard, on boxes, pictures, shapes, screens and pen shapes ----
+  const SHADOWABLE = ['box', 'image', 'shape', 'frame', 'path', 'canvas'], SHADOWS = [['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']];
+  function shadowPop(cs) {
+    const cur = cs.every(c => (c.shadow || '') === (cs[0].shadow || '')) ? (cs[0].shadow || '') : null;
+    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-txt" data-pop="shadow" title="Drop shadow">Shadow${CARET_W}</button><div class="sb-pop sb-pop-shadow">${SHADOWS.map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></span>`;
+  }
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd]'); if (!b) return; e.stopImmediatePropagation(); remember();
+    selCards().forEach(c => { if (!SHADOWABLE.includes(c.type)) return; if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
+    closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4641,6 +4652,7 @@ ${proseCSS()}
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
     if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-txt" data-pic="1" title="Swap this picture for another">Replace…</button>`;
     if (one?.type === 'box' && one.src) h += `<button class="sb-txt" data-frame2="1" title="Adjust how the picture is cropped">Crop</button>`;
+    if (cs.length && cs.every(c => SHADOWABLE.includes(c.type))) h += shadowPop(cs);
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
