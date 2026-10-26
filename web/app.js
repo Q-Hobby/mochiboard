@@ -3608,7 +3608,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot ? `<button data-m="label">Change what goes here…</button>` : '') + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+      (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3620,6 +3620,9 @@
       if (a === 'mochi') { if (spot) { if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'label') { const v = prompt('What picture goes here?', c.img); if (v && v.trim()) { remember(); c.img = v.trim(); renderCard(c); save(); offerFill([c]); } }
       if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
+      if (a === 'frame') { remember(); const d = c.noframe ? -1 : 1; c.x += 8 * d; c.y += 8 * d; c.w = Math.max(24, c.w - 16 * d); c.h = Math.max(24, c.h - 16 * d);   // the picture stays put: only the mat comes and goes (same as the bar's button)
+        if (c.noframe) delete c.noframe; else c.noframe = true; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); }
+      if (a === 'nobg') removeBg(c);
     };
   }
   cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
