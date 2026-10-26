@@ -78,7 +78,9 @@ def _(im): cell(im, 0, 0, '#f6f2ff', GW, GH); mochi(im, 10, 8); emoji(im, 'headp
 def _(im): mochi(im, 10, 7); sparkles(im, [(5, 6), (26, 5), (24, 16), (7, 17)])
 
 # black and white: the scenes are drawn in colour, then snapped to the wireframes' own grey ramp so they read as placeholders, not pictures
-RAMP = [hx(c) for c in ['#fafafa', '#ececee', '#d4d4d8', '#a1a1aa', '#71717a', '#3f3f46', '#18181b']]
+# washed out on purpose: the darkest grey here is a mid-grey, so the scene sits quietly behind the label
+LEVELS = [250, 236, 212, 161, 113, 63, 24]   # the luminance bands of a full ramp…
+RAMP = [hx(c) for c in ['#fcfcfc', '#f4f4f6', '#ececef', '#e0e0e4', '#d2d2d7', '#c0c0c6', '#aeaeb5']]   # …mapped onto a ramp that only goes down to #aeaeb5
 def mono(im):
     out = Image.new('RGBA', im.size); s, d = im.load(), out.load()
     for y in range(im.size[1]):
@@ -86,7 +88,7 @@ def mono(im):
             r, g, b, a = s[x, y]
             if not a: continue
             l = .2126 * r + .7152 * g + .0722 * b
-            d[x, y] = RAMP[min(range(len(RAMP)), key=lambda i: abs(RAMP[i][0] - l))]
+            d[x, y] = RAMP[min(range(len(LEVELS)), key=lambda i: abs(LEVELS[i] - l))]
     return out
 def main():
     sheet = Image.new('RGBA', (3 * (GW * C + 16) + 16, 3 * (GH * C + 16) + 16), (250, 246, 251, 255)); i = 0
