@@ -2490,6 +2490,7 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.box .bx-fr { display: none; position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 5px 9px; border: 0; border-radius: 999px; background: rgba(36, 31, 40, .86); color: #fff; font: 700 11px/1 var(--font); cursor: pointer; }
 .card.box.sel .bx-fr { display: block; } .card.box.framing .bx-fr { display: none; }
 .card.box .bx { overflow: hidden; }
+.card.box.cutout .bx { overflow: visible; }   /* a cut-out already fits inside; nothing to clip, and its shadow must be free to fall outside */
 .card.box .bx-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .card.box .bx-ghost { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; pointer-events: none; z-index: -1; }
 .card.box.framing { cursor: grab; z-index: 50; } .card.box.framing:active { cursor: grabbing; }
@@ -2504,15 +2505,19 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.frame[data-sh] > .frame, .card.image[data-sh]:not(.nobg) > .frame, .card.canvas[data-sh] > .frame { box-shadow: var(--shb); }
 .card.shape[data-sh] svg.sh.is-line, .card.path[data-sh] svg.pth, .card.image.nobg[data-sh] img { filter: var(--shf) !important; }
 .card.shape[data-sh] svg.sh:not(.is-line) { filter: url(#wob) var(--shf) !important; }
-.sb-pop-shadow { display: flex; flex-direction: column; gap: 9px; padding: 14px 18px 12px; width: 352px; box-sizing: border-box; }
-.sb-pop-shadow .sb-sqrow > span, .sb-pop-shadow .sb-shcolor > span { width: 60px; color: var(--ink-soft); font-weight: 600; }
-.sb-pop-shadow input[type=number] { width: 56px; padding: 6px 7px; border: 0; border-radius: 8px; background: #f4f0f5; font: 600 12px/1 var(--font); color: var(--ink); text-align: right; }
-.sb-pop-shadow .sb-unit { width: 20px; font: 600 11px/1 var(--font); color: var(--ink-faint); }
-.sb-shcolor .sb-shsw { width: 30px; height: 26px; padding: 0; border: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; }
-.sb-shcolor .sb-shhex { width: 92px; padding: 6px 8px; border: 0; border-radius: 8px; background: #f4f0f5; font: 600 12px/1 var(--font); color: var(--ink); letter-spacing: .04em; text-transform: uppercase; }
-.sb-pop-shadow .sb-shpre { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(0, 0, 0, .06); }
-.sb-pop-shadow .sb-shpre > span { width: 60px; font: 600 11.5px/1 var(--font); color: var(--ink-faint); }
-.sb-pop-shadow .sb-shpre button { flex: 1; padding: 7px 4px; border: 0; border-radius: 9px; background: #f7f3f8; font: 600 11.5px/1 var(--font); color: var(--ink); cursor: pointer; } .sb-pop-shadow .sb-shpre button.on { background: var(--blush); }
+.sb-pop-shadow { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 16px; width: 372px; box-sizing: border-box; }
+.sb-pop-shadow .sb-shtitle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; font: 700 13px/1 var(--font); color: var(--ink); }
+.sb-pop-shadow .sb-shtitle small { font: 600 11px/1 var(--font); color: var(--ink-faint); }
+.sb-pop-shadow .sb-sqrow, .sb-pop-shadow .sb-shcolor { gap: 12px; min-height: 30px; }
+.sb-pop-shadow .sb-sqrow > span, .sb-pop-shadow .sb-shcolor > span { width: 64px; flex: none; color: var(--ink-soft); font-weight: 600; }
+.sb-pop-shadow input[type=range] { margin: 0; }
+.sb-pop-shadow input[type=number] { width: 60px; flex: none; padding: 7px 8px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); text-align: right; }
+.sb-pop-shadow .sb-unit { width: 22px; flex: none; font: 600 11px/1 var(--font); color: var(--ink-faint); }
+.sb-shcolor .sb-shsw { width: 34px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; }
+.sb-shcolor .sb-shhex { width: 110px; flex: none; padding: 7px 10px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); letter-spacing: .04em; text-transform: uppercase; }
+.sb-pop-shadow .sb-shpre { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 14px; border-top: 1px solid rgba(0, 0, 0, .06); }
+.sb-pop-shadow .sb-shpre > span { width: 64px; flex: none; font: 600 11.5px/1 var(--font); color: var(--ink-faint); }
+.sb-pop-shadow .sb-shpre button { flex: 1; padding: 8px 4px; border: 0; border-radius: 9px; background: #f7f3f8; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; } .sb-pop-shadow .sb-shpre button.on { background: var(--blush); }
 .card.framing > :first-child { filter: none; }
 .sb-pop-shadow { display: flex; gap: 4px; padding: 6px; }
 .sb-pop-shadow button { padding: 7px 10px; border: 0; border-radius: 9px; background: #f7f3f8; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; white-space: nowrap; }
