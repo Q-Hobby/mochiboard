@@ -3671,7 +3671,7 @@
     renderCard(c); closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
 
   // ---- framing: double-click a filled image spot to move and zoom the picture inside its mask (focus fx, fy in 0..1; zoom fz ≥ 1). Non-destructive. ----
-  function frameStyle(c) { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%${c.nobg ? ';object-fit:contain' : ''}`; }
+  function frameStyle(c) { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%${c.nobg ? ';object-fit:contain' + (shadowOf(c) ? ';filter:' + shadowFilter(c) : '') : ''}`; }   // a cut-out's shadow follows what's visible of it, clipped by the spot like the picture is
   // background removal for a picture in a spot: same lift as a picture card, but the spot keeps its size (it's part of a layout); the cut-out sits inside it
   async function removeBgSpot(c) {
     if (c.nobg) { if (c.srcBg) { remember(); c.src = c.srcBg; delete c.srcBg; delete c.nobg; renderCard(c); selectOnly([c.id]); save(); } return; }
@@ -3739,7 +3739,7 @@
   const SHADOWABLE = ['box', 'image', 'shape', 'frame', 'path', 'canvas'];
   const shadowOf = c => !c.shadow ? null : typeof c.shadow === 'string' ? SHADOW_PRESETS[c.shadow] || null : c.shadow;
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
-  function shadowCss(c) { const s = shadowOf(c); return s ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // boxes write this inline (the app already sets box-shadow there)
+  function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // boxes write this inline (the app already sets box-shadow there); a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
   function shadowVars(c, el) { if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); } else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); } }
   const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
