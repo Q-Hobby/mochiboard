@@ -707,7 +707,7 @@
     if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
     el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg); el.classList.toggle('noframe', !!c.noframe);
-    if (c.type === 'video') setupVideo(c, el); maskVars(c, el); el.style.setProperty('--cw', Math.max(1, c.w) + 'px');
+    if (c.type === 'video') setupVideo(c, el); maskVars(c, el); el.style.setProperty('--cw', Math.max(1, c.w) + 'px'); el.classList.toggle('tiny', c.w < 140 || c.h < 90);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
     if (c.type === 'image') el.style.setProperty('--img-r', (c.radius ?? 12) + 'px');
@@ -1170,7 +1170,7 @@
       else { const ids = lyAll(mv), moving = board.cards.filter(c => ids.includes(c.id)), rest = board.cards.filter(c => !ids.includes(c.id)), tIdx = lyAll(tg).map(i => rest.findIndex(c => c.id === i)).filter(i => i >= 0);
         // the list is top-first, so "above" in the list means higher in the stack: after the target in the cards
         const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest;
-        const pt = parentKey(tg.key); if (pt !== parentKey(mv.key)) { if (String(pt).startsWith('g:')) moving.forEach(c => { c.group = pt.slice(2); }); else moving.forEach(c => { delete c.group; delete c.maskLayer; }); }   // dropped into a group, or out of one
+        const pt = parentKey(tg.key); if (pt !== parentKey(mv.key)) { if (String(pt).startsWith('g:')) { const g = pt.slice(2), hasMask = board.cards.some(x => x.group === g && x.maskLayer && !moving.includes(x)); moving.forEach(c => { c.group = g; if (hasMask) delete c.maskLayer; }); } else moving.forEach(c => { delete c.group; delete c.maskLayer; }); }   // dropped into a group (one mask per group), or out of one
         renderAll(); }
       save(); renderLayers();
     });
@@ -1456,7 +1456,7 @@
       if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h;
       el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); return;
     }
-    if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h; el.style.width = c.w + 'px'; el.style.setProperty('--cw', c.w + 'px'); if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); }
+    if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h; el.style.width = c.w + 'px'; el.style.setProperty('--cw', c.w + 'px'); el.classList.toggle('tiny', c.w < 140 || c.h < 90); if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); }
     if (drag.mode === 'gresize' && drag.multi && e.shiftKey) { const d = drag, kx = (d.bw + w.x - d.sx) / d.bw, ky = (d.bh + w.y - d.sy) / d.bh, k = Math.max(.15, Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky);
       d.items.forEach(it => { const c = it.c; c.x = d.bx + (it.x - d.bx) * k; c.y = d.by + (it.y - d.by) * k; c.w = Math.max(8, it.w * k); c.h = Math.max(8, it.h * k);
         if (SIZED.includes(c.type)) { const m = +(it.fs0 * k).toFixed(4), hit = Object.keys(FS).find(z => Math.abs(FS[z] - m) < .001); if (hit === 'm') delete c.fs; else c.fs = hit || m; }
@@ -3439,6 +3439,7 @@
   // true if Mochi built something (or asked which thing to build)
   function offlineRecipe(q) {
     const s = String(q); if (flowTplAsk(s)) return true; if (flowAsk(s)) return true;
+    if (/\b(what|why|explain|mean|define|how do(es)?)\b/i.test(s) && !/\b(make|build|turn|create|put|draw|convert)\b/i.test(s)) return false;   // a question is the dictionary's, not a recipe
     const hit = Object.keys(RECIPES).find(k => RECIPES[k].re.test(s));
     const wants = /\b(make|build|turn|create|put|lay ?out|arrange|organi[sz]e|structure|map out|draw|convert)\b/i.test(s) || hit;
     if (!wants) return false;
@@ -3566,7 +3567,7 @@
   function flowAsk(s) {
     if (!FLOWS.length) return false;
     const hit = FLOW_ASKS.find(([re]) => re.test(s)); if (!hit) return false;
-    if (!/\b(make|build|create|draw|put|place|add|give|show|wireframe|wireframes|screens?|flow|mockups?|layout|design)\b/i.test(s)) return false;   // "what is onboarding" is the dictionary's
+    if (!/\b(make|build|create|draw|put|place|add|give|show|wireframe|wireframes|screens?|flow|mockups?|layout|design)\b/i.test(s) && s.trim().split(/\s+/).length > 4) return false;   // "what is onboarding" is the dictionary's; a bare "forgot password" is fine
     if (/\b(what|why|explain|mean|define)\b/i.test(s) && !/\b(make|build|create|draw|put|place|add)\b/i.test(s)) return false;
     let keys = hit[1]; const web = /\b(web|desktop|website|browser|laptop)\b/i.test(s), quiz = /quiz|question|personali/i.test(s);
     let key = keys.length === 1 ? keys[0] : keys[0].startsWith('onboard') ? (quiz ? keys[1] : keys[0]) : (web ? keys[1] : keys[0]);
@@ -3631,12 +3632,12 @@
   function pictureMenu(c, x, y, above) {
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
-    m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot && c.src ? `<button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+    const mkl = maskLayerOf(c); m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}${mkl ? ` · masked with the ${esc(shapeWord(mkl))}` : ''}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
+      (c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot && c.src ? `<button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + ((isMasked(c) || c.maskLayer) ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
     const subs = { mask: () => maskSub([c]), arr: arrangeSub };
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
-    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); };
-    const away = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
+    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); removeEventListener('keydown', escP, true); };
+    const away = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }, escP = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } }; setTimeout(() => addEventListener('pointerdown', away, true), 0); addEventListener('keydown', escP, true);
     m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-m]'); if (!b) return; if (subs[b.dataset.m]) openSub(b, subs[b.dataset.m](), close); else { $('rowSub')?.remove(); m.querySelectorAll('.sub-open').forEach(x => x.classList.remove('sub-open')); } });
     m.onclick = async ev => {
       const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; if (subs[a]) { openSub(ev.target.closest('[data-m]'), subs[a](), close); return; } close();
@@ -3720,7 +3721,7 @@
   function startFrame(c) {
     if (framing) endFrame(); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
     remember(); selectOnly([c.id]); framing = { c, el, was: { fx: c.fx, fy: c.fy, fz: c.fz } }; el.classList.add('framing');
-    const bar = document.createElement('div'); bar.className = 'frame-bar'; bar.innerHTML = `<span>Drag the picture to reposition it · scroll to zoom in or out</span><button data-f="reset">Reset</button><button data-f="done" class="pri">Done</button>`; refreshCropTip(); document.body.appendChild(bar); framing.bar = bar;
+    const bar = document.createElement('div'); bar.className = 'frame-bar'; bar.innerHTML = `<span>Drag the picture to reposition it · scroll to zoom in or out · Esc cancels</span><button data-f="reset">Reset</button><button data-f="done" class="pri">Done</button>`; refreshCropTip(); document.body.appendChild(bar); framing.bar = bar;
     bar.onclick = e => { const a = e.target.closest('[data-f]')?.dataset.f; if (a === 'reset') { delete c.fx; delete c.fy; delete c.fz; applyFrame(c); } if (a === 'done') endFrame(); };
     ['pointerdown', 'mousedown', 'dblclick'].forEach(t => bar.addEventListener(t, e => e.stopPropagation()));
   }
@@ -3736,7 +3737,7 @@
   let tipRaf = 0;
   addEventListener('pointermove', e => { if (tipRaf) return; tipRaf = requestAnimationFrame(() => { tipRaf = 0;
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.card'); const c = el && cardsEl.contains(el) && byId(el.dataset.id);
-    hoverPic = c && c.type === 'box' && (c.src || c.img) && !drag ? c : null; refreshCropTip(); }); }, true);
+    hoverPic = c && isPic(c) && (c.src || c.img) && !drag ? c : null; refreshCropTip(); }); }, true);
   document.addEventListener('mouseleave', () => { hoverPic = null; refreshCropTip(); });
   addEventListener('pointerdown', () => { hoverPic = null; refreshCropTip(); }, true);   // it steps aside the moment you do anything
   const frameImg = () => framing && framing.el.querySelector('.bx-img');
@@ -3964,15 +3965,16 @@
     const s = document.createElement('div'); s.id = 'rowSub'; s.className = 'row-menu row-sub'; s.dataset.for = key;
     s.innerHTML = items.map((it, i) => it === '-' ? '<span class="rm-sep"></span>' : `<button data-i="${i}">${it.icon ? `<i class="rm-ic">${it.icon}</i>` : ''}${it.label}</button>`).join('');
     document.body.appendChild(s); const b = btn.getBoundingClientRect(), r = s.getBoundingClientRect(); let x = b.right + 4, y = b.top - 5;
-    if (x + r.width > innerWidth - 10) x = b.left - r.width - 4; if (y + r.height > innerHeight - 10) y = innerHeight - r.height - 10; s.style.left = x + 'px'; s.style.top = y + 'px';
+    if (x + r.width > innerWidth - 10) x = b.left - r.width - 4; x = Math.max(10, Math.min(x, innerWidth - r.width - 10)); if (y + r.height > innerHeight - 10) y = innerHeight - r.height - 10; y = Math.max(10, y); s.style.left = x + 'px'; s.style.top = y + 'px';
     s.onclick = ev => { const i = ev.target.closest('[data-i]'); if (!i) return; done(); items[+i.dataset.i].run(); }; btn.classList.add('sub-open');
   }
   boardMenu = function (e, items) {
     $('rowMenu')?.remove(); $('rowSub')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
     m.innerHTML = items.map((it, i) => it === '-' ? '<span class="rm-sep"></span>' : `<button data-i="${i}" class="${it.danger ? 'danger' : ''}${it.sub ? ' has-sub' : ''}">${it.label}</button>`).join('');
     document.body.appendChild(m); const rr = m.getBoundingClientRect(); if (rr.bottom > innerHeight - 10) m.style.top = innerHeight - rr.height - 10 + 'px'; if (rr.right > innerWidth - 10) m.style.left = innerWidth - rr.width - 10 + 'px';
-    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', off, true); };
-    const off = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); };
+    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', off, true); removeEventListener('keydown', esc, true); };
+    const off = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }, esc = ev => { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } };
+    addEventListener('keydown', esc, true);
     m.onclick = ev => { const b = ev.target.closest('[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.sub) { openSub(b, it.sub, close); return; } close(); it.run(); };
     m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.sub) openSub(b, it.sub, close); else { $('rowSub')?.remove(); m.querySelectorAll('.sub-open').forEach(x => x.classList.remove('sub-open')); } });
     setTimeout(() => addEventListener('pointerdown', off, true));
@@ -3997,11 +3999,12 @@
   function makeMaskGroup(s, ts) {
     ts = ts.filter(c => c !== s && maskable(c)); if (!ts.length) return; remember();
     const g = (ts.find(t => t.group) || {}).group || uid();
-    board.cards.forEach(c => { if (c.group === g && c.maskLayer) delete c.maskLayer; });   // one mask per group
+    retireMask(g, s);   // one mask per group
     s.group = g; s.maskLayer = true; ts.forEach(t => { t.group = g; delete t.mask; delete t.maskPrev; }); sinkMask(s);
     renderAll(); selectOnly(groupMembers(g).map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
     chirp(`Masked with the ${shapeWord(s)} ✦ It's a mask group now: in Layers, drag things in or out of it.`, 5500);
   }
+  function retireMask(g, keep) { board.cards.slice().forEach(c => { if (c.group !== g || !c.maskLayer || c === keep) return; if (c.ln && MASKS[Object.keys(MASKS).find(k => MASKS[k][0] === c.ln)]) { board.cards = board.cards.filter(x => x !== c); board.links = board.links.filter(l => l.a !== c.id && l.b !== c.id); cardsEl.querySelector(`[data-id="${c.id}"]`)?.remove(); } else { delete c.maskLayer; delete c.group; } }); }
   const maskWithShape = (s, t) => makeMaskGroup(s, [t]);
   const maskManyWithShape = (s, ts) => makeMaskGroup(s, ts);
   // a ready-made shape: a real shape is made over the thing and becomes its mask (pull it out of the group and it's an ordinary shape)
@@ -4010,7 +4013,7 @@
     const real = { circle: 'circle', tri: 'tri', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill' };
     const made = cs.map(t => { const W = Math.max(1, t.w), H = Math.max(1, t.h), s = { id: uid(), type: 'shape', shape: real[key] || 'rect', fill: 'pink', x: t.x, y: t.y, w: W, h: H, r: 0, ln: MASKS[key][0] };
       if (key === 'rounded') s.radius = Math.round(.2 * Math.min(W, H)); else if (!real[key]) s.mgeo = { el: MASKS[key][1](W, H) };
-      board.cards.push(s); const g = t.group || uid(); board.cards.forEach(c => { if (c.group === g && c.maskLayer) delete c.maskLayer; }); s.group = g; s.maskLayer = true; t.group = g; delete t.mask; delete t.maskPrev; sinkMask(s); return s; });
+      board.cards.push(s); const g = t.group || uid(); retireMask(g, s); s.group = g; s.maskLayer = true; t.group = g; delete t.mask; delete t.maskPrev; sinkMask(s); return s; });
     renderAll(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
   }
   // Remove mask: on a mask (or its whole group) the mask becomes a plain shape and the group stays; on masked members, they leave the group
@@ -4023,7 +4026,9 @@
     renderAll(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
   }
   // after anything moves or resizes, members whose mask shifted relative to them are drawn again
-  function refreshMaskGroups() { if (!board) return; board.cards.forEach(c => { if (!c.group) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const mk = c.maskLayer ? null : liveMask(c); const sig = mk ? maskSig(c, mk) : ''; if ((el.dataset.mk || '') !== sig || !!mk !== el.classList.contains('masked')) renderCard(c); }); }
+  function dissolveLonely() { const n = {}; board.cards.forEach(c => { if (c.group) n[c.group] = (n[c.group] || 0) + 1; }); board.cards.forEach(c => { if (c.group && n[c.group] === 1) { delete c.group; delete c.maskLayer; } }); }
+  function applyGsel() { try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && (c.maskLayer || maskLayerOf(c)) ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!whole); }); } catch (e) {} }
+  function refreshMaskGroups() { if (!board) return; dissolveLonely(); board.cards.forEach(c => { if (!c.group) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const mk = c.maskLayer ? null : liveMask(c); const sig = mk ? maskSig(c, mk) : ''; if ((el.dataset.mk || '') !== sig || !!mk !== el.classList.contains('masked')) renderCard(c); }); }
   const _save0 = save; save = function () { try { refreshMaskGroups(); } catch (e) {} return _save0.apply(this, arguments); };
   LICON.mask = LI('<g data-l24="1"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></g>');
   Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask, __liveMask: liveMask, __save: () => save() });
@@ -4040,9 +4045,9 @@
     });
     if (did) layersSoon();
   }
-  const _renderAll0 = renderAll; renderAll = function () { try { migrateMasks(); } catch (e) {} return _renderAll0.apply(this, arguments); };
+  const _renderAll0 = renderAll; renderAll = function () { try { migrateMasks(); } catch (e) {} const r = _renderAll0.apply(this, arguments); applyGsel(); return r; };
   // when a whole mask group is selected, the mask's box is the group's box (like Figma); members show their own box only when picked on their own
-  const _selectOnly0 = selectOnly; selectOnly = function (ids) { const r = _selectOnly0.apply(this, arguments); try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && maskLayerOf(c) !== null | c.maskLayer ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!(c.group && whole && (c.maskLayer || maskLayerOf(c)))); }); } catch (e) {} return r; };
+  const _selectOnly0 = selectOnly; selectOnly = function (ids) { const r = _selectOnly0.apply(this, arguments); applyGsel(); return r; };
   window.__autoLink = autoLink;
 
   // ---- the flowchart library (web/flowtpl.js): whole flows in the flowchart shapes, each with its why. Listed under the shapes in the Flowchart tab. ----
@@ -4071,20 +4076,60 @@
   }
   const FT_CATS = [...new Set(FT.map(t => t.cat))];
   function renderFlowTpl() {
-    const pane = $('kit-flow'); if (!pane || !FT.length) return; pane.querySelector('.dz-flows')?.remove();
-    const box = document.createElement('div'); box.className = 'dz-flows';
-    box.innerHTML = `<div class="label">Templates <small>from the library</small></div><div class="dz-flow-list" id="dzFlowTpl">${FT_CATS.map(cat => `<div class="label dz-sub">${esc(cat)}</div>` + FT.filter(t => t.cat === cat).map(t => `<button data-ftpl="${t.key}" title="${esc(t.line)}"><b>${esc(t.name)}</b><small>${t.lanes ? 'swimlanes · ' : ''}${t.nodes.length} steps</small></button>`).join('')).join('')}</div>`;
-    pane.appendChild(box); box.onclick = e => { const b = e.target.closest('[data-ftpl]'); if (!b) return; pickWF(null); placeFlowTpl(b.dataset.ftpl); };
+    const grid = $('kit-flow')?.querySelector('.kit-grid'); if (!grid || !FT.length || grid.querySelector('[data-ftpl-open]')) return;
+    const b = document.createElement('button'); b.dataset.ftplOpen = '1'; b.title = 'Whole flowcharts from the library'; b.innerHTML = `<svg class="kp-ic" viewBox="0 0 20 20"><rect x="2.5" y="3" width="6" height="4" rx="1.3"/><rect x="11.5" y="3" width="6" height="4" rx="1.3"/><rect x="7" y="13" width="6" height="4" rx="1.3"/><path d="M5.5 7v2.5h9V7M10 9.5V13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>Templates</span>`;
+    grid.appendChild(b); b.onclick = e => { e.stopPropagation(); pickWF(null); if (placing) stopPlacing(); openFlowTpl(); };
+  }
+  // ---- the Templates window: categories on the left, the list in the middle, a drawn preview + the why on the right, Add to the board ----
+  const FTM = { cat: null, pick: null };
+  const FT_FILL = { start: '#a8e6c3', end: '#ffc8a6', step: '#aed3ff', q: '#f8e08a', io: '#ffb8d2', doc: '#cdb8ff', db: '#ffc8a6' };
+  function ftPreview(T) {
+    const lanesOn = !!T.lanes, CW = 300, RH = lanesOn ? 200 : 170, cols = Math.max(...T.nodes.map(n => n[3])) + 1, rows = lanesOn ? T.lanes.length : Math.max(...T.nodes.map(n => n[4])) + 1;
+    const W = cols * CW + (lanesOn ? 180 : 40), H = rows * RH + 40, size = { start: [160, 64], end: [160, 64], step: [170, 90], q: [160, 120], io: [180, 84], doc: [160, 104], db: [140, 116] };
+    const cx = c => (lanesOn ? 150 : 20) + 85 + c * CW, cy = r => 20 + RH / 2 + r * RH, P = {};
+    let g = '';
+    if (lanesOn) T.lanes.forEach((n, i) => { g += `<rect x="8" y="${20 + i * RH + 4}" width="${W - 16}" height="${RH - 8}" rx="18" fill="${['#eaf3ff', '#f1eaff', '#e8f8ef'][i % 3]}"/><text x="26" y="${20 + i * RH + 34}" font-size="22" font-weight="700" fill="#6b6370">${esc(n)}</text>`; });
+    T.nodes.forEach(([id, kind, text, col, row]) => { const [w, h] = size[kind] || size.step, x = cx(col), y = cy(row); P[id] = { x, y, w, h }; const f = FT_FILL[kind] || FT_FILL.step;
+      const shape = kind === 'q' ? `<path d="M${x} ${y - h / 2}L${x + w / 2} ${y}L${x} ${y + h / 2}L${x - w / 2} ${y}Z" fill="${f}"/>` : kind === 'io' ? `<path d="M${x - w / 2 + 18} ${y - h / 2}H${x + w / 2}L${x + w / 2 - 18} ${y + h / 2}H${x - w / 2}Z" fill="${f}"/>` : kind === 'db' ? `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="40" fill="${f}"/>` : kind === 'doc' ? `<path d="M${x - w / 2} ${y - h / 2}H${x + w / 2}V${y + h / 2 - 16}C${x + w / 4} ${y + h / 2 - 28} ${x} ${y + h / 2 + 6} ${x - w / 2} ${y + h / 2 - 6}Z" fill="${f}"/>` : `<rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="${kind === 'start' || kind === 'end' ? 32 : 12}" fill="${f}"/>`;
+      const words = text.split(' '), lines = []; let cur = ''; words.forEach(wd => { if ((cur + ' ' + wd).trim().length > (kind === 'q' ? 12 : 16)) { lines.push(cur.trim()); cur = wd; } else cur += ' ' + wd; }); lines.push(cur.trim());
+      const tx = lines.slice(0, 3).map((l, i) => `<tspan x="${x}" dy="${i ? 19 : -(Math.min(lines.length, 3) - 1) * 9.5}">${esc(l)}</tspan>`).join('');
+      g += shape + `<text x="${x}" y="${y + 6}" text-anchor="middle" font-size="16" font-weight="600" fill="#2b2630">${tx}</text>`; });
+    const side = (n, s) => s === 'r' ? [n.x + n.w / 2, n.y] : s === 'l' ? [n.x - n.w / 2, n.y] : s === 't' ? [n.x, n.y - n.h / 2] : [n.x, n.y + n.h / 2];
+    T.links.forEach(([a, b, label, sa, sb]) => { const A = P[a], B = P[b]; if (!A || !B) return;
+      if (!sa) { const dx = B.x - A.x, dy = B.y - A.y; if (Math.abs(dx) > Math.abs(dy)) { sa = dx > 0 ? 'r' : 'l'; sb = dx > 0 ? 'l' : 'r'; } else { sa = dy > 0 ? 'b' : 't'; sb = dy > 0 ? 't' : 'b'; } } sb = sb || { r: 'l', l: 'r', t: 'b', b: 't' }[sa];
+      const [x1, y1] = side(A, sa), [x2, y2] = side(B, sb), mid = (sa === 'l' || sa === 'r') ? `L${(x1 + x2) / 2} ${y1}L${(x1 + x2) / 2} ${y2}` : `L${x1} ${(y1 + y2) / 2}L${x2} ${(y1 + y2) / 2}`;
+      g += `<path d="M${x1} ${y1}${mid}L${x2} ${y2}" fill="none" stroke="#8c8494" stroke-width="2.2" marker-end="url(#ftarrow)"/>`;
+      if (label) { const lx = (sa === 'l' || sa === 'r') ? (x1 + x2) / 2 : x1, ly = (sa === 'l' || sa === 'r') ? y1 : (y1 + y2) / 2; g += `<rect x="${lx - 20}" y="${ly - 11}" width="40" height="22" rx="8" fill="#fdf7fa"/><text x="${lx}" y="${ly + 5}" text-anchor="middle" font-size="13" font-weight="600" fill="#6b6370">${esc(label)}</text>`; } });
+    return `<svg class="ft-prev" viewBox="0 0 ${W} ${H}" font-family="var(--font)"><defs><marker id="ftarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c8494"/></marker></defs>${g}</svg>`;
+  }
+  function openFlowTpl(pick) { if (!$('ftModal')) buildFlowTplModal(); FTM.cat = FTM.cat || FT_CATS[0]; if (pick) { FTM.pick = pick; FTM.cat = ftBy(pick).cat; } $('ftModal').classList.add('on'); renderFlowTplModal(); }
+  const closeFlowTpl = () => $('ftModal')?.classList.remove('on');
+  function buildFlowTplModal() {
+    const m = document.createElement('div'); m.className = 'settings library ft-modal'; m.id = 'ftModal';
+    m.innerHTML = `<div class="set-panel lib-panel"><div class="set-head"><h2>Flowchart templates</h2><button class="dv-btn" id="ftClose" title="Close">×</button></div><div class="lib-body"><nav class="lib-nav" id="ftNav"></nav><div class="lib-list" id="ftList"></div><div class="lib-detail" id="ftDetail"></div></div></div>`;
+    document.body.appendChild(m); $('ftClose').onclick = closeFlowTpl; m.addEventListener('click', e => { if (e.target === m) closeFlowTpl(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.classList.contains('on')) { e.stopPropagation(); closeFlowTpl(); } }, true);
+    m.addEventListener('click', e => { const n = e.target.closest('[data-ftcat]'); if (n) { FTM.cat = n.dataset.ftcat; renderFlowTplModal(); return; }
+      const i = e.target.closest('[data-ftkey]'); if (i) { FTM.pick = i.dataset.ftkey; renderFlowTplModal(); return; }
+      const add = e.target.closest('[data-ftadd]'); if (add) { closeFlowTpl(); placeFlowTpl(add.dataset.ftadd); } });
+  }
+  function renderFlowTplModal() {
+    $('ftNav').innerHTML = FT_CATS.map(c => `<button data-ftcat="${esc(c)}" class="lib-part ${FTM.cat === c ? 'on' : ''}">${esc(c)} <small>${FT.filter(t => t.cat === c).length}</small></button>`).join('');
+    const list = FT.filter(t => t.cat === FTM.cat);
+    $('ftList').innerHTML = `<div class="lib-h">${esc(FTM.cat)}</div>` + list.map(t => `<button class="lib-item ${FTM.pick === t.key ? 'on' : ''}" data-ftkey="${t.key}"><b>${esc(t.name)}</b><span>${esc(t.line)}</span><small class="ft-meta">${t.lanes ? 'swimlanes · ' : ''}${t.nodes.length} steps</small></button>`).join('');
+    const T = FTM.pick && ftBy(FTM.pick), D = $('ftDetail');
+    D.innerHTML = T ? `<div class="lib-kicker">${esc(T.cat)}${T.lanes ? ' · swimlanes: ' + esc(T.lanes.join(', ')) : ''}</div><h3>${esc(T.name)}</h3><p class="lib-why">${esc(T.line)}</p><div class="ft-prevbox">${ftPreview(T)}</div><ul class="ft-why">${T.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul><div class="lib-acts"><button class="solid" data-ftadd="${T.key}">Add to the board</button></div>`
+      : `<div class="lib-empty"><p>Pick a template to see it drawn out, with the thinking behind it.</p></div>`;
   }
   const _renderKits0 = renderKits; renderKits = function () { const r = _renderKits0.apply(this, arguments); renderFlowTpl(); return r; }; renderFlowTpl();
-  window.__ftpl = { place: placeFlowTpl, n: () => FT.length, keys: () => FT.map(t => t.key) };
+  window.__ftpl = { place: placeFlowTpl, n: () => FT.length, keys: () => FT.map(t => t.key), open: openFlowTpl };
   // Mochi offline: "make a flowchart for checkout" / "draw the bug triage process" places one from the flowchart library (plain "login flow" still means the wireframes)
   const FT_ASKS = [[/\blog ?in|sign ?in\b/i, 'login'], [/sign ?up|regist|create (an )?account/i, 'signup'], [/forgot|reset (my )?password|password reset/i, 'forgot'], [/onboard/i, 'onboarding'], [/checkout|purchase|buy/i, 'checkout'], [/search|filter/i, 'search'],
     [/cancel|delete (my |an )?account|churn/i, 'cancel'], [/approv/i, 'approval'], [/\bbug|triage/i, 'triage'], [/support|escalat|ticket|help ?desk/i, 'support'], [/publish|content|blog|editorial/i, 'publish'], [/hir(e|ing)|recruit|candidate|interview/i, 'hiring'], [/incident|outage|on-?call|postmortem/i, 'incident'], [/feature request|request/i, 'feature']];
   function flowTplAsk(s) {
     if (!FT.length || !/\bflow ?charts?\b|\bdiagram\b|\bprocess\b|\bworkflow\b|\bswim ?lanes?\b/i.test(s)) return false;
-    if (!/\b(make|build|create|draw|put|place|add|give|show|map|chart|diagram)\b/i.test(s)) return false;
     if (/\b(what|why|explain|mean|define)\b/i.test(s) && !/\b(make|build|create|draw|put|place|add)\b/i.test(s)) return false;
+    if (!/\b(make|build|create|draw|put|place|add|give|show|map|chart|diagram)\b/i.test(s) && s.trim().split(/\s+/).length > 5) return false;
     const hit = FT_ASKS.find(([re]) => re.test(s)); if (!hit) return false; const T = ftBy(hit[1]); if (!T) return false;
     placeFlowTpl(hit[1], true);
     say(`Here’s ${T.name} from the flowchart library: ${T.nodes.length} steps${T.lanes ? ' in swimlanes' : ''}, with the why beside it. Change anything; it’s yours now ✦`, 0, [{ label: 'Undo', ghost: true, run: () => undo() }]);
@@ -4122,6 +4167,18 @@
   };
   // new pictures start square when the Pictures setting says so (every way a picture is made goes through card())
   const _card0 = card; card = function (type, o) { const c = _card0.apply(this, arguments); if (type === 'image' && settings.imgRadius === false && c.radius == null) c.radius = 0; return c; };
+
+  // ---- arrow keys nudge whatever is selected: 1px, or 10px with Shift ----
+  let nudgeMark = 0;
+  addEventListener('keydown', e => {
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!d || !sel.size || e.metaKey || e.ctrlKey || e.altKey) return;
+    const a = document.activeElement; if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    if (document.querySelector('.settings.on, #onboard.on, #library.on, #ftModal.on') || framing || vec || penT) return;
+    const cs = selCards().filter(c => !c.locked); if (!cs.length) return; e.preventDefault();
+    const step = e.shiftKey ? 10 : 1, now = Date.now(); if (now - nudgeMark > 800) remember(); nudgeMark = now;
+    cs.forEach(c => { c.x += d[0] * step; c.y += d[1] * step; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; } });
+    renderWires(); placeSelbar(); clearTimeout(nudgeMark.t); nudgeMark.t = setTimeout(save, 250);
+  });
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -5223,7 +5280,7 @@ ${proseCSS()}
     const rg = bar.querySelector('[data-skw]'), nb = bar.querySelector('[data-skn]'); if (rg && document.activeElement !== nb) { rg.value = nb.value = f.sw || 0; rg.style.setProperty('--p', Math.min(100, (f.sw || 0) / rg.max * 100) + '%'); }
   }
   $('selbar').addEventListener('input', e => { const r = e.target.closest('[data-skw], [data-skn]'); if (!r || r.value === '') return; if (!skMark) { remember(); skMark = true; }
-    const row = r.parentElement, rg = row.querySelector('[data-skw]'), nb = row.querySelector('[data-skn]'); if (r === rg) nb.value = rg.value; else rg.value = nb.value;
+    const row = r.parentElement, rg = row.querySelector('[data-skw]'), nb = row.querySelector('[data-skn]'); if (r === rg) nb.value = rg.value; else { nb.value = Math.max(0, Math.min(24, +nb.value || 0)); rg.value = nb.value; }
     rg.style.setProperty('--p', Math.min(100, rg.value / rg.max * 100) + '%'); setStroke({ w: Math.max(0, +r.value) }); });
   $('selbar').addEventListener('input', e => { const r = e.target.closest('[data-skr], [data-skrn]'); if (!r || r.value === '') return; if (!skMark) { remember(); skMark = true; }
     const k = r.dataset.skr || r.dataset.skrn, row = r.parentElement, rg = row.querySelector('[data-skr]'), nb = row.querySelector('[data-skrn]'); if (r === rg) nb.value = rg.value; else rg.value = nb.value;
