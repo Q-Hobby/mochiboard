@@ -3604,12 +3604,12 @@
   // ---- replacing a picture: click a placeholder spot (or right-click any picture) for a little menu: upload one, ask Mochi, change the label, or go back to the placeholder ----
   const isPic = c => c && ((c.type === 'box' && c.img) || c.type === 'image');
   const picPick = document.createElement('input'); picPick.type = 'file'; picPick.accept = 'image/*'; picPick.hidden = true; picPick.id = 'picPick'; document.body.appendChild(picPick);
-  function pictureMenu(c, x, y) {
+  function pictureMenu(c, x, y, above) {
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
       (spot ? `<button data-m="label">Change what goes here…</button>` : '') + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
-    document.body.appendChild(m); const r = m.getBoundingClientRect(); if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
+    document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
     m.onclick = async ev => {
@@ -3629,7 +3629,7 @@
   addEventListener('pointerup', e => {
     if (!picDown || e.button !== 0) return; const [x0, y0, id] = picDown; picDown = null; if (Math.hypot(e.clientX - x0, e.clientY - y0) > 4) return;
     const c = byId(id); if (!c || c.src || c.type !== 'box') return; setTimeout(() => pictureMenu(c, e.clientX + 6, e.clientY + 6), 30); }, true);
-  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.bottom + 8); }, true);
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.top, true); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
