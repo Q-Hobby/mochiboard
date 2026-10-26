@@ -3748,9 +3748,9 @@
     const row = (key, label, v, min, max, unit = 'px') => `<div class="sbc-top sb-sqrow" data-shk="${key}"><span>${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${v}" style="--p:${(v - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" min="${min}" max="${max}" value="${v}" data-shn="${key}" aria-label="${label}"><b class="sb-unit">${unit}</b></div>`;
     const v = s || SHADOW_PRESETS.medium;
     return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow">
-      <div class="sbc-chips sb-shpre">${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div>
       ${row('x', 'X', v.x, -60, 60)}${row('y', 'Y', v.y, -60, 60)}${row('blur', 'Blur', v.blur, 0, 100)}${row('spread', 'Spread', v.spread, -30, 60)}${row('a', 'Opacity', v.a, 0, 100, '%')}
-      <div class="sbc-top sb-shcolor"><span>Color</span><input type="color" value="${v.color}" data-shc="1" aria-label="Shadow color"><code>${v.color.replace('#', '').toUpperCase()}</code></div></div></span>`;
+      <div class="sbc-top sb-shcolor"><span>Color</span><button class="sb-shsw" data-shsw="1" style="background:${v.color}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${v.color.replace('#', '').toUpperCase()}" data-shhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
+      <div class="sb-shpre"><span>Start from</span>${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></div></span>`;
   }
   const shTargets = () => selCards().filter(c => SHADOWABLE.includes(c.type));
   let shMark = false;
@@ -3760,12 +3760,17 @@
     shTargets().forEach(c => { if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
     shMark = false; $('selbar').dataset.key = ''; save(); }, true);
   $('selbar').addEventListener('input', e => {
-    const r = e.target.closest('[data-shr], [data-shn], [data-shc]'); if (!r) return; e.stopImmediatePropagation();
-    if (r.dataset.shc) { setShadow(s => { s.color = r.value; }); r.parentElement.querySelector('code').textContent = r.value.replace('#', '').toUpperCase(); return; }
+    const r = e.target.closest('[data-shr], [data-shn], [data-shhex]'); if (!r) return; e.stopImmediatePropagation();
+    if (r.dataset.shhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; const hex = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); setShadow(s => { s.color = hex; }); r.parentElement.querySelector('.sb-shsw').style.background = hex; return; }
     const key = r.dataset.shr || r.dataset.shn, row = r.parentElement, rg = row.querySelector('[data-shr]'), nb = row.querySelector('[data-shn]'); if (r === rg) nb.value = rg.value; else rg.value = nb.value;
     rg.style.setProperty('--p', (rg.value - rg.min) / (rg.max - rg.min) * 100 + '%'); const val = +rg.value; setShadow(s => { s[key] = val; });
     row.closest('.sb-pop').querySelectorAll('[data-shd]').forEach(b => b.classList.toggle('on', false)); }, true);
-  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-shr], [data-shn], [data-shc]')) { shMark = false; save(); } }, true);
+  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-shr], [data-shn], [data-shhex]')) { shMark = false; save(); } }, true);
+  // the swatch opens the app's own colour wheel; what it picks lands on the shadow live and in the hex field
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shsw]'); if (!b) return; e.stopImmediatePropagation(); const cs = shTargets(); if (!cs.length) return; const r = b.getBoundingClientRect(), s = shadowOf(cs[0]) || SHADOW_PRESETS.medium;
+    openColor({ tint: true, fromBar: true, title: 'Shadow color', hex: s.color, presets: ['#1e1428', '#000000', '#5b4a66', '#e2649a', '#4f9dff', '#5fc795', '#f7b955', '#ffffff'], at: { x: r.left - 110, y: r.top - 480 },
+      apply: hex => { setShadow(x => { x.color = hex; }); b.style.background = hex; const hx = b.parentElement.querySelector('.sb-shhex'); if (hx) hx.value = hex.replace('#', '').toUpperCase(); } }); }, true);
+  $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-shhex]')) e.stopPropagation(); }, true);   // typing a hex mustn't trigger board shortcuts
 
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
