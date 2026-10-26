@@ -3438,7 +3438,7 @@
   }
   // true if Mochi built something (or asked which thing to build)
   function offlineRecipe(q) {
-    const s = String(q); if (flowAsk(s)) return true;
+    const s = String(q); if (flowTplAsk(s)) return true; if (flowAsk(s)) return true;
     const hit = Object.keys(RECIPES).find(k => RECIPES[k].re.test(s));
     const wants = /\b(make|build|turn|create|put|lay ?out|arrange|organi[sz]e|structure|map out|draw|convert)\b/i.test(s) || hit;
     if (!wants) return false;
@@ -4044,6 +4044,53 @@
   // when a whole mask group is selected, the mask's box is the group's box (like Figma); members show their own box only when picked on their own
   const _selectOnly0 = selectOnly; selectOnly = function (ids) { const r = _selectOnly0.apply(this, arguments); try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && maskLayerOf(c) !== null | c.maskLayer ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!(c.group && whole && (c.maskLayer || maskLayerOf(c)))); }); } catch (e) {} return r; };
   window.__autoLink = autoLink;
+
+  // ---- the flowchart library (web/flowtpl.js): whole flows in the flowchart shapes, each with its why. Listed under the shapes in the Flowchart tab. ----
+  const FT = window.FLOW_TPL || [], FT_COLW = 300, FT_ROWH = 170, FT_LANEH = 190, ftBy = key => FT.find(t => t.key === key);
+  const FT_KIND = { start: ['Start / end', {}], end: ['Start / end', { fill: 'peach' }], step: ['Process', {}], q: ['Decision', {}], io: ['Input / output', {}], doc: ['Document', {}], db: ['Database', {}] };
+  function buildFlowTpl(T, at) {
+    const cards = [], links = [], byId = {}, cols = Math.max(...T.nodes.map(n => n[3])) + 1, lanesOn = !!T.lanes;
+    const ox = at.x + (lanesOn ? 60 : 0) + 90, oy = at.y + (lanesOn ? FT_LANEH / 2 : 70);
+    if (lanesOn) cards.push(...lanes({ x: at.x, y: at.y }, T.lanes, cols * FT_COLW + 120, FT_LANEH));
+    T.nodes.forEach(([id, kind, text, col, row]) => { const [name, extra] = FT_KIND[kind] || FT_KIND.step; const c = kitCard('flow', { ...FLOW[name], ...extra, text }, { x: ox + col * FT_COLW, y: oy + row * (lanesOn ? FT_LANEH + 10 : FT_ROWH) }); byId[id] = c; cards.push(c); });
+    T.links.forEach(([a, b, label, sa, sb]) => { const A = byId[a], B = byId[b]; if (!A || !B) return;
+      if (!sa) { const dx = (B.x + B.w / 2) - (A.x + A.w / 2), dy = (B.y + B.h / 2) - (A.y + A.h / 2); if (Math.abs(dx) > Math.abs(dy)) { sa = dx > 0 ? 'r' : 'l'; sb = OPP[sa]; } else { sa = dy > 0 ? 'b' : 't'; sb = OPP[sa]; } }
+      links.push(kitLink(A, B, SIDE[sa], SIDE[sb || OPP[sa]], label ? { label } : {})); });
+    return { cards, links };
+  }
+  function placeFlowTpl(key, quiet) {
+    const T = ftBy(key); if (!T) return null; remember(); if (placing) stopPlacing();
+    const at = besideAll(), made = [];
+    const why = card('note', { x: at.x, y: at.y, w: 300, h: 60 + T.why.length * 96, text: T.why.join('\n\n'), name: 'Why it works', color: 'white', r: 0 }); board.cards.push(why); renderCard(why, true); made.push(why);
+    const title = card('title', { x: at.x, y: at.y - 70, w: 700, h: 50, text: T.name }); board.cards.push(title); renderCard(title, true); made.push(title);
+    const { cards, links } = buildFlowTpl(T, { x: at.x + 360, y: at.y });
+    cards.forEach(c => { board.cards.push(c); renderCard(c, true); made.push(c); }); board.links.push(...links);
+    layoutAll(); renderWires(); layersSoon(); save(); selectOnly([]); fit(made);
+    if (!quiet) chirp(`${T.name} is on the board: ${T.nodes.length} steps and the why. Every piece is editable ✦`, 5000);
+    return made;
+  }
+  const FT_CATS = [...new Set(FT.map(t => t.cat))];
+  function renderFlowTpl() {
+    const pane = $('kit-flow'); if (!pane || !FT.length) return; pane.querySelector('.dz-flows')?.remove();
+    const box = document.createElement('div'); box.className = 'dz-flows';
+    box.innerHTML = `<div class="label">Templates <small>from the library</small></div><div class="dz-flow-list" id="dzFlowTpl">${FT_CATS.map(cat => `<div class="label dz-sub">${esc(cat)}</div>` + FT.filter(t => t.cat === cat).map(t => `<button data-ftpl="${t.key}" title="${esc(t.line)}"><b>${esc(t.name)}</b><small>${t.lanes ? 'swimlanes · ' : ''}${t.nodes.length} steps</small></button>`).join('')).join('')}</div>`;
+    pane.appendChild(box); box.onclick = e => { const b = e.target.closest('[data-ftpl]'); if (!b) return; pickWF(null); placeFlowTpl(b.dataset.ftpl); };
+  }
+  const _renderKits0 = renderKits; renderKits = function () { const r = _renderKits0.apply(this, arguments); renderFlowTpl(); return r; }; renderFlowTpl();
+  window.__ftpl = { place: placeFlowTpl, n: () => FT.length, keys: () => FT.map(t => t.key) };
+  // Mochi offline: "make a flowchart for checkout" / "draw the bug triage process" places one from the flowchart library (plain "login flow" still means the wireframes)
+  const FT_ASKS = [[/\blog ?in|sign ?in\b/i, 'login'], [/sign ?up|regist|create (an )?account/i, 'signup'], [/forgot|reset (my )?password|password reset/i, 'forgot'], [/onboard/i, 'onboarding'], [/checkout|purchase|buy/i, 'checkout'], [/search|filter/i, 'search'],
+    [/cancel|delete (my |an )?account|churn/i, 'cancel'], [/approv/i, 'approval'], [/\bbug|triage/i, 'triage'], [/support|escalat|ticket|help ?desk/i, 'support'], [/publish|content|blog|editorial/i, 'publish'], [/hir(e|ing)|recruit|candidate|interview/i, 'hiring'], [/incident|outage|on-?call|postmortem/i, 'incident'], [/feature request|request/i, 'feature']];
+  function flowTplAsk(s) {
+    if (!FT.length || !/\bflow ?charts?\b|\bdiagram\b|\bprocess\b|\bworkflow\b|\bswim ?lanes?\b/i.test(s)) return false;
+    if (!/\b(make|build|create|draw|put|place|add|give|show|map|chart|diagram)\b/i.test(s)) return false;
+    if (/\b(what|why|explain|mean|define)\b/i.test(s) && !/\b(make|build|create|draw|put|place|add)\b/i.test(s)) return false;
+    const hit = FT_ASKS.find(([re]) => re.test(s)); if (!hit) return false; const T = ftBy(hit[1]); if (!T) return false;
+    placeFlowTpl(hit[1], true);
+    say(`Here’s ${T.name} from the flowchart library: ${T.nodes.length} steps${T.lanes ? ' in swimlanes' : ''}, with the why beside it. Change anything; it’s yours now ✦`, 0, [{ label: 'Undo', ghost: true, run: () => undo() }]);
+    return true;
+  }
+  window.__ftpl.ask = flowTplAsk;
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
