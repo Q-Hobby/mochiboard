@@ -3627,13 +3627,14 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '');
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button>`;
+    const subs = { mask: () => maskSub([c]), arr: () => [{ label: 'Bring to front  ⇧⌘]', run: () => restack('front') }, { label: 'Bring forward  ⌘]', run: () => restack('forward') }, { label: 'Send backward  ⌘[', run: () => restack('backward') }, { label: 'Send to back  ⇧⌘[', run: () => restack('back') }] };
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
-    m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-m]'); if (!b) return; if (b.dataset.m === 'mask') openSub(b, maskSub([c]), close); else $('rowSub')?.remove(); });
+    m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-m]'); if (!b) return; if (subs[b.dataset.m]) openSub(b, subs[b.dataset.m](), close); else { $('rowSub')?.remove(); m.querySelectorAll('.sub-open').forEach(x => x.classList.remove('sub-open')); } });
     m.onclick = async ev => {
-      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; if (a === 'mask') { openSub(ev.target.closest('[data-m]'), maskSub([c]), close); return; } close();
+      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; if (subs[a]) { openSub(ev.target.closest('[data-m]'), subs[a](), close); return; } close();
       if (a === 'unmask') unmask([c]);
       if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (f) putPicture(c, await imageFromFile(f)); }; picPick.click(); }
       if (a === 'mochi') { if (spot) { const v = prompt('What picture should go here?', c.img); if (v == null) return; if (v.trim() && v.trim() !== c.img) { remember(); c.img = v.trim(); renderCard(c); save(); } if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } /* the label is the brief Mochi works from */ else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
@@ -3868,23 +3869,26 @@
     blob: ['Blob', () => '<path d="M52 3C72 1 95 15 97 40C99 63 88 92 60 97C35 101 8 86 3 60C-2 33 25 6 52 3Z"/>'],
   };
   const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);
-  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && c.closed);
+  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && c.closed || isPic(c) && !!c.src);
   const SHAPE_WORDS = { rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
-  const shapeWord = s => s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
+  const shapeWord = s => isPic(s) ? (s.nobg ? 'cut-out' : 'picture') : s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
   function maskGeo(m, W, H) { if (m.el) return m.el; const d = MASKS[m.shape]; return d ? d[1](Math.max(1, W), Math.max(1, H)) : MASKS.circle[1](); }
   function sourceMask(s) {
+    if (isPic(s)) return { shape: 'pic', src: s.src };
     if (s.type === 'path') return { shape: 'path', el: `<path d="${pathD(s.pts, true, s.radius || 0, s.ow / Math.max(1, s.w))}"/>`, vw: s.ow, vh: s.oh };
     const svg = shapeSVG({ ...s, stroke: null, sw: 0, fill: 'none' }), mt = svg.match(/<(path|rect|ellipse)\b[^>]*>/); if (!mt) return null;
     return { shape: s.shape || 'rect', el: mt[0].replace(/\s(?:style|stroke|stroke-width|stroke-linejoin|vector-effect|fill)="[^"]*"/g, '') + (mt[1] === 'path' ? '' : '') };
   }
-  const maskIcon = (m, W = 100, H = 100) => `<svg viewBox="-2 -2 104 104" width="14" height="14" fill="currentColor">${maskGeo(m, W, H)}</svg>`;
+  const maskIcon = (m, W = 100, H = 100) => m.src ? `<img src="${m.src}" alt="" style="width:14px;height:14px;object-fit:contain">` : `<svg viewBox="-2 -2 104 104" width="14" height="14" fill="currentColor">${maskGeo(m, W, H)}</svg>`;
   function maskVars(c, el) {
     const on = !!c.mask; el.classList.toggle('masked', on); el.querySelector(':scope > svg.mk')?.remove();
     const wrap = el.querySelector(':scope > .mkw'); if (!on) { el.style.removeProperty('--mask'); return; }
     const m = c.mask, bx = m.bx ?? 0, by = m.by ?? 0, bw = m.bw ?? 1, bh = m.bh ?? 1, vw = m.vw || 100, vh = m.vh || 100, id = 'mk-' + c.id;
-    el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="objectBoundingBox">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${bx} ${by}) scale(${bw / vw} ${bh / vh})"`)}</clipPath></svg>`);
-    el.style.setProperty('--mask', `url(#${id})`);
+    if (m.src) { el.style.removeProperty('--mask'); el.style.setProperty('--imask', `url("${m.src}") ${bx * c.w}px ${by * c.h}px / ${bw * c.w}px ${bh * c.h}px no-repeat`); }   // a picture mask: CSS alpha mask, placed where the picture was
+    else el.style.removeProperty('--imask');
+    if (!m.src) el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="objectBoundingBox">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${bx} ${by}) scale(${bw / vw} ${bh / vh})"`)}</clipPath></svg>`);
+    if (!m.src) el.style.setProperty('--mask', `url(#${id})`);
     if (!wrap) { const fr = el.querySelector(':scope > .frame'), bd = el.querySelector(':scope > .body'); if (fr && bd) { const w = document.createElement('div'); w.className = 'mkw'; el.insertBefore(w, fr); w.append(fr, bd); } }
   }
   const freshMat = c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) delete el.dataset.mat; };

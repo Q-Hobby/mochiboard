@@ -2572,7 +2572,7 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 .row-sub .rm-ic { display: inline-flex; width: 14px; height: 14px; color: var(--ink); opacity: .7; flex: none; }
 .row-sub .rm-ic svg { width: 14px; height: 14px; display: block; }
 .card.masked .mkw { position: absolute; inset: 0; overflow: visible; }
-.card.masked .mkw .frame, .card.masked .mkw .body { clip-path: var(--mask); }
+.card.masked .mkw .frame, .card.masked .mkw .body { clip-path: var(--mask, none); -webkit-mask: var(--imask, none); mask: var(--imask, none); }
 .card.masked .frame { box-shadow: none; }
 .card.masked .body, .card.masked .imgwrap { border-radius: 0 !important; }
 .card.masked[data-sh]::before { display: none; }
