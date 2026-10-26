@@ -3629,6 +3629,7 @@
   addEventListener('pointerup', e => {
     if (!picDown || e.button !== 0) return; const [x0, y0, id] = picDown; picDown = null; if (Math.hypot(e.clientX - x0, e.clientY - y0) > 4) return;
     const c = byId(id); if (!c || c.src || c.type !== 'box') return; setTimeout(() => pictureMenu(c, e.clientX + 6, e.clientY + 6), 30); }, true);
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.bottom + 8); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4535,6 +4536,7 @@ ${proseCSS()}
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
+    if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-txt" data-pic="1" title="Swap this picture for another">Replace…</button>`;
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
