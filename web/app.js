@@ -3600,6 +3600,35 @@
     [/\b(product|item|shoe|bag|food|dish|coffee|cake|bottle|box|packag|merch|shirt|plate|meal|drink)\b/i, 'product'], [/\b(photo|camera|gallery|snapshot|picture of)\b/i, 'photo'],
     [/\b(chart|graph|stats?|data|dashboard|analytics|report|number)\b/i, 'chart'], [/\b(map|location|route|trip|travel|place|address|pin)\b/i, 'map'], [/\b(music|song|audio|podcast|video|film|movie|playlist|headphones)\b/i, 'music']];
   function phScene(label) { const s = String(label || ''); const hit = PH_SCENES.find(([re]) => re.test(s)); return hit ? hit[1] : 'any'; }
+
+  // ---- replacing a picture: click a placeholder spot (or right-click any picture) for a little menu: upload one, ask Mochi, change the label, or go back to the placeholder ----
+  const isPic = c => c && ((c.type === 'box' && c.img) || c.type === 'image');
+  const picPick = document.createElement('input'); picPick.type = 'file'; picPick.accept = 'image/*'; picPick.hidden = true; picPick.id = 'picPick'; document.body.appendChild(picPick);
+  function pictureMenu(c, x, y) {
+    $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
+    const spot = c.type === 'box';
+    m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
+      (spot ? `<button data-m="label">Change what goes here…</button>` : '') + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+    document.body.appendChild(m); const r = m.getBoundingClientRect(); if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
+    const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
+    const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
+    m.onclick = async ev => {
+      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; close();
+      if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (!f) return; const im = await imageFromFile(f); remember();
+          if (spot) { c.src = im.src; } else { const nf = c.noframe; c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (nf ? 0 : 16); }
+          renderCard(c); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it any time to swap it ✦' : 'Swapped ✦', 3000); }; picPick.click(); }
+      if (a === 'mochi') { if (spot) { if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+      if (a === 'label') { const v = prompt('What picture goes here?', c.img); if (v && v.trim()) { remember(); c.img = v.trim(); renderCard(c); save(); offerFill([c]); } }
+      if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
+    };
+  }
+  cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
+  let picDown = null;
+  cardsEl.addEventListener('pointerdown', e => { const ph = e.target.closest('.bx-ph'); picDown = ph ? [e.clientX, e.clientY, ph.closest('.card')?.dataset.id] : null; }, true);
+  // a plain click on a placeholder (not a drag) opens the menu right there. The card captures the pointer, so the click's target may be the card, not the label: we remember who was pressed
+  addEventListener('pointerup', e => {
+    if (!picDown || e.button !== 0) return; const [x0, y0, id] = picDown; picDown = null; if (Math.hypot(e.clientX - x0, e.clientY - y0) > 4) return;
+    const c = byId(id); if (!c || c.src || c.type !== 'box') return; setTimeout(() => pictureMenu(c, e.clientX + 6, e.clientY + 6), 30); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
