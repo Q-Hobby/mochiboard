@@ -686,7 +686,7 @@
     el.className = `card ${c.type}` + (sel.has(c.id) ? ' sel' : '') + (focusSet && !focusSet.has(c.id) ? ' dim' : '') + (pop ? ' pop' : '');
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' });
     el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el); shadowVars(c, el);
-    if (c.type === 'title' || c.type === 'text') el.classList.toggle('no-fill', (c.type === 'title' ? c.tc : c.color) === 'none'); if (SIZED_T.includes(c.type)) { el.style.setProperty('--ta', c.align || 'left');
+    if (c.type === 'title' || c.type === 'text') el.classList.toggle('no-fill', (c.type === 'title' ? c.tc : c.color) === 'none'); if (SIZED_T.includes(c.type)) { el.style.setProperty('--ta', c.align || (c.type === 'shape' ? 'center' : 'left'));
       el.style.setProperty('--tt', { upper: 'uppercase', lower: 'lowercase', title: 'capitalize' }[c.tcase] || 'none');   // Case: how the words show (what you typed stays as typed)
       if (c.lh != null) el.style.setProperty('--lh', c.lh); else el.style.removeProperty('--lh'); el.classList.toggle('has-lh', c.lh != null);
       if (c.ls != null) el.style.setProperty('--ls', c.ls / 100 + 'em'); else el.style.removeProperty('--ls'); el.classList.toggle('has-ls', c.ls != null); }
