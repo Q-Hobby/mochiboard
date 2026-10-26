@@ -3867,8 +3867,8 @@
     heart: ['Heart', () => '<path d="M50 92C20 72 3 55 3 33C3 15 17 4 31 4C40 4 47 9 50 16C53 9 60 4 69 4C83 4 97 15 97 33C97 55 80 72 50 92Z"/>'],
     blob: ['Blob', () => '<path d="M52 3C72 1 95 15 97 40C99 63 88 92 60 97C35 101 8 86 3 60C-2 33 25 6 52 3Z"/>'],
   };
-  const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);
-  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && c.closed || isPic(c) && !!c.src);
+  const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);   // an open pen line can't be masked itself (nothing inside it)
+  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && (c.pts || []).length >= 3 || isPic(c) && !!c.src);   // a pen line with three or more points is closed up and used as the mask
   const SHAPE_WORDS = { rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
   const shapeWord = s => isPic(s) ? (s.nobg ? 'cut-out' : 'picture') : s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
