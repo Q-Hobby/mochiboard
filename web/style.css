@@ -2486,6 +2486,9 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.pic-over { outline: 3px solid var(--pink-deep, #e8467c); outline-offset: 3px; border-radius: 12px; }
 .card.pic-over .bx-ph .bx-l { background: var(--pink-deep, #e8467c); color: #fff; }
 
+/* a cut-out picture card has nothing to clip: its shadow may fall outside */
+.card.image.nobg .body, .card.image.nobg .imgwrap { overflow: visible; }
+
 /* framing a picture inside its spot */
 .card.box .bx-fr { display: none; position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 5px 9px; border: 0; border-radius: 999px; background: rgba(36, 31, 40, .86); color: #fff; font: 700 11px/1 var(--font); cursor: pointer; }
 .card.box.sel .bx-fr { display: block; } .card.box.framing .bx-fr { display: none; }
