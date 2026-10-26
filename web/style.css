@@ -2630,3 +2630,9 @@ body.dark .card.image.c-white > .frame { background: var(--matc, #fff) !importan
 .sp-moves { position: absolute; right: 4px; bottom: 4px; padding: 2px 6px; border-radius: 999px; background: #ff8fc2; color: #fff; font: 700 8.5px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
 #spGrid button { position: relative; }
 .stage.far .card.image.nobg img, .stage.far .card.box.cutout .bx-img { filter: none !important; }
+
+/* a mask picked on its own comes to the front for clicks and right-clicks (it normally sits under its member) */
+.card.maskl.sel:not(.gsel) { z-index: 60; }
+.ft-prevbox.scroll { overflow-x: auto; padding-bottom: 10px; }
+.ft-prev.wide { max-height: none; height: auto; }
+.ft-scroll { display: block; margin: -6px 0 12px; font: 600 11px/1 var(--font); color: var(--ink-faint); }

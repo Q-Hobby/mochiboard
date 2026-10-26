@@ -1724,7 +1724,7 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectOnly(board.cards.map(c => c.id)); }
     if ((e.metaKey || e.ctrlKey) && ['c', 'x'].includes(e.key.toLowerCase()) && sel.size && !homeAt) { const r = copyCards(); if (r) { navigator.clipboard?.writeText(r.text).catch(() => {}); if (e.key.toLowerCase() === 'x') { e.preventDefault(); removeSelected(); } } return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v' && !homeAt) { pendingPaste = true; setTimeout(() => { if (pendingPaste && lastClip) pasteCards(); pendingPaste = false; }, 150); return; }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); const gm = {}, copies = [...sel].map(id => Object.assign(JSON.parse(JSON.stringify(byId(id))), { id: uid(), r: tilt() })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); const gm = {}, copies = withMaskGroups([...sel].map(byId).filter(Boolean)).map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt() })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'f') setFocus(!focusSet);
@@ -3644,7 +3644,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     const mkl = maskLayerOf(c); m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}${mkl ? ` · masked with the ${esc(shapeWord(mkl))}` : ''}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot && c.src ? `<button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + ((isMasked(c) || c.maskLayer) ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+      (c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot && c.src ? `<button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + ((isMasked(c) || c.maskLayer) ? `<button data-m="unmask">${isMasked(c) ? 'Take it out of the mask' : 'Turn the mask back into a shape'}</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
     const subs = { mask: () => maskSub([c]), arr: arrangeSub };
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); removeEventListener('keydown', escP, true); };
@@ -4017,10 +4017,10 @@
     retireMask(g, s);   // one mask per group
     s.group = g; s.maskLayer = true; ts.forEach(t => { t.group = g; delete t.mask; delete t.maskPrev; }); sinkMask(s);
     renderAll(); selectOnly(groupMembers(g).map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
-    const first = !localStorage.getItem('mbMaskHint'); if (first) localStorage.setItem('mbMaskHint', '1');
-    chirp(first ? `Masked ✦ The ${shapeWord(s)} is the group’s mask now: find it in Layers, and drag things in or out of the group to mask or unmask them.` : `Masked with the ${shapeWord(s)} ✦`, first ? 8000 : 4000);
+    maskChirp(shapeWord(s));
   }
   function retireMask(g, keep) { board.cards.slice().forEach(c => { if (c.group !== g || !c.maskLayer || c === keep) return; if (c.ln && MASKS[Object.keys(MASKS).find(k => MASKS[k][0] === c.ln)]) { board.cards = board.cards.filter(x => x !== c); board.links = board.links.filter(l => l.a !== c.id && l.b !== c.id); cardsEl.querySelector(`[data-id="${c.id}"]`)?.remove(); } else { delete c.maskLayer; delete c.group; } }); }
+  function maskChirp(word) { const first = !localStorage.getItem('mbMaskHint'); if (first) localStorage.setItem('mbMaskHint', '1'); chirp(first ? `Masked ✦ The ${word} is the group’s mask now: find it in Layers, and drag things in or out of the group to mask or unmask them.` : `Masked with the ${word} ✦`, first ? 8000 : 4000); }
   const maskWithShape = (s, t) => makeMaskGroup(s, [t]);
   const maskManyWithShape = (s, ts) => makeMaskGroup(s, ts);
   // a ready-made shape: a real shape is made over the thing and becomes its mask (pull it out of the group and it's an ordinary shape)
@@ -4030,7 +4030,7 @@
     const made = cs.map(t => { const W = Math.max(1, t.w), H = Math.max(1, t.h), s = { id: uid(), type: 'shape', shape: real[key] || 'rect', fill: 'pink', x: t.x, y: t.y, w: W, h: H, r: 0, ln: MASKS[key][0] };
       if (key === 'rounded') s.radius = Math.round(.2 * Math.min(W, H)); else if (!real[key]) s.mgeo = { el: MASKS[key][1](W, H) };
       board.cards.push(s); const g = t.group || uid(); retireMask(g, s); s.group = g; s.maskLayer = true; t.group = g; delete t.mask; delete t.maskPrev; sinkMask(s); return s; });
-    renderAll(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
+    renderAll(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save(); maskChirp(MASKS[key][0].toLowerCase());
   }
   // Remove mask: on a mask (or its whole group) the mask becomes a plain shape and the group stays; on masked members, they leave the group
   function unmask(cs) {
@@ -4117,9 +4117,9 @@
       const [x1, y1] = side(A, sa), [x2, y2] = side(B, sb), mid = (sa === 'l' || sa === 'r') ? `L${(x1 + x2) / 2} ${y1}L${(x1 + x2) / 2} ${y2}` : `L${x1} ${(y1 + y2) / 2}L${x2} ${(y1 + y2) / 2}`;
       g += `<path d="M${x1} ${y1}${mid}L${x2} ${y2}" fill="none" stroke="#8c8494" stroke-width="2.2" marker-end="url(#ftarrow)"/>`;
       if (label) { const lx = (sa === 'l' || sa === 'r') ? (x1 + x2) / 2 : x1, ly = (sa === 'l' || sa === 'r') ? y1 : (y1 + y2) / 2; g += `<rect x="${lx - 20}" y="${ly - 11}" width="40" height="22" rx="8" fill="#fdf7fa"/><text x="${lx}" y="${ly + 5}" text-anchor="middle" font-size="13" font-weight="600" fill="#6b6370">${esc(label)}</text>`; } });
-    return `<svg class="ft-prev" viewBox="0 0 ${W} ${H}" font-family="var(--font)"><defs><marker id="ftarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c8494"/></marker></defs>${g}</svg>`;
+    return `<svg class="ft-prev${lanesOn ? ' wide' : ''}" viewBox="0 0 ${W} ${H}" font-family="var(--font)"${lanesOn ? ` style="min-width:${Math.round(W * .62)}px"` : ''}><defs><marker id="ftarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c8494"/></marker></defs>${g}</svg>`;
   }
-  function openFlowTpl(pick) { if (!$('ftModal')) buildFlowTplModal(); FTM.cat = FTM.cat || FT_CATS[0]; if (pick) { FTM.pick = pick; FTM.cat = ftBy(pick).cat; } $('ftModal').classList.add('on'); renderFlowTplModal(); }
+  function openFlowTpl(pick) { if (!$('ftModal')) buildFlowTplModal(); FTM.cat = FTM.cat || FT_CATS[0]; if (pick) { FTM.pick = pick; FTM.cat = ftBy(pick).cat; } $('ftModal').classList.add('on'); renderFlowTplModal(); setTimeout(() => ($('ftList').querySelector('.lib-item.on') || $('ftList').querySelector('.lib-item') || $('ftClose'))?.focus(), 50); }
   const closeFlowTpl = () => $('ftModal')?.classList.remove('on');
   function buildFlowTplModal() {
     const m = document.createElement('div'); m.className = 'settings library ft-modal'; m.id = 'ftModal';
@@ -4135,7 +4135,7 @@
     const list = FT.filter(t => t.cat === FTM.cat);
     $('ftList').innerHTML = `<div class="lib-h">${esc(FTM.cat)}</div>` + list.map(t => `<button class="lib-item ${FTM.pick === t.key ? 'on' : ''}" data-ftkey="${t.key}"><b>${esc(t.name)}</b><span>${esc(t.line)}</span><small class="ft-meta">${t.lanes ? 'swimlanes · ' : ''}${t.nodes.length} steps</small></button>`).join('');
     const T = FTM.pick && ftBy(FTM.pick), D = $('ftDetail');
-    D.innerHTML = T ? `<div class="lib-kicker">${esc(T.cat)}${T.lanes ? ' · swimlanes: ' + esc(T.lanes.join(', ')) : ''}</div><h3>${esc(T.name)}</h3><p class="lib-why">${esc(T.line)}</p><div class="ft-prevbox">${ftPreview(T)}</div><ul class="ft-why">${T.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul><div class="lib-acts"><button class="solid" data-ftadd="${T.key}">Add to the board</button></div>`
+    D.innerHTML = T ? `<div class="lib-kicker">${esc(T.cat)}${T.lanes ? ' · swimlanes: ' + esc(T.lanes.join(', ')) : ''}</div><h3>${esc(T.name)}</h3><p class="lib-why">${esc(T.line)}</p><div class="ft-prevbox${T.lanes ? ' scroll' : ''}">${ftPreview(T)}</div>${T.lanes ? '<small class="ft-scroll">Scroll sideways to see the whole thing →</small>' : ''}<ul class="ft-why">${T.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul><div class="lib-acts"><button class="solid" data-ftadd="${T.key}">Add to the board</button></div>`
       : `<div class="lib-empty"><p>Pick a template to see it drawn out, with the thinking behind it.</p></div>`;
   }
   const _renderKits0 = renderKits; renderKits = function () { const r = _renderKits0.apply(this, arguments); renderFlowTpl(); return r; }; renderFlowTpl();
@@ -4144,10 +4144,11 @@
   const FT_ASKS = [[/\blog ?in|sign ?in\b/i, 'login'], [/sign ?up|regist|create (an )?account/i, 'signup'], [/forgot|reset (my )?password|password reset/i, 'forgot'], [/onboard/i, 'onboarding'], [/checkout|purchase|buy/i, 'checkout'], [/search|filter/i, 'search'],
     [/cancel|delete (my |an )?account|churn/i, 'cancel'], [/approv/i, 'approval'], [/\bbug|triage/i, 'triage'], [/support|escalat|ticket|help ?desk/i, 'support'], [/publish|content|blog|editorial/i, 'publish'], [/hir(e|ing)|recruit|candidate|interview/i, 'hiring'], [/incident|outage|on-?call|postmortem/i, 'incident'], [/feature request|request/i, 'feature']];
   function flowTplAsk(s) {
-    if (!FT.length || !/\bflow ?charts?\b|\bdiagram\b|\bprocess\b|\bworkflow\b|\bswim ?lanes?\b/i.test(s)) return false;
+    if (!FT.length) return false;
     if (/\b(what|why|explain|mean|define)\b/i.test(s) && !/\b(make|build|create|draw|put|place|add)\b/i.test(s)) return false;
     if (!/\b(make|build|create|draw|put|place|add|give|show|map|chart|diagram)\b/i.test(s) && s.trim().split(/\s+/).length > 5) return false;
     const hit = FT_ASKS.find(([re]) => re.test(s)); if (!hit) return false; const T = ftBy(hit[1]); if (!T) return false;
+    if (!/\bflow ?charts?\b|\bdiagram\b|\bprocess\b|\bworkflow\b|\bswim ?lanes?\b/i.test(s) && (s.trim().split(/\s+/).length > 5 || FLOW_ASKS.some(([re]) => re.test(s)))) return false;   // "checkout" alone means the wireframes; "bug triage" alone has no wireframe twin, so it's the flowchart
     placeFlowTpl(hit[1], true);
     say(`Here’s ${T.name} from the flowchart library: ${T.nodes.length} steps${T.lanes ? ' in swimlanes' : ''}, with the why beside it. Change anything; it’s yours now ✦`, 0, [{ label: 'Undo', ghost: true, run: () => undo() }]);
     return true;
@@ -4212,11 +4213,11 @@
   }, true);
 
   // ---- the new Mochis together in one stamps tab; the ones that move say so ----
-  const _renderPick0 = renderPick; renderPick = function (tab = 'mochi') { if (!STAMPS.fresh) STAMPS.fresh = [...STAMPS.mochi.filter(st => /^(Double|Wings|Devil)/.test(st.n)), ...STAMPS.moving.filter(st => /^Fly/.test(st.n))]; const r = _renderPick0.apply(this, arguments); $('spGrid')?.querySelectorAll('[data-p]').forEach(b => { const [t, i] = b.dataset.p.split(':'), st = STAMPS[t]?.[+i]; if (st && (st.mv || /\.gif$/i.test(st.src || '')) && !b.querySelector('.sp-moves')) b.insertAdjacentHTML('beforeend', '<i class="sp-moves">moves</i>'); }); return r; };
+  const _renderPick0 = renderPick; renderPick = function (tab = 'mochi') { if (!STAMPS.fresh) STAMPS.fresh = [...STAMPS.mochi.filter(st => /^(Double|Wings|Devil)/.test(st.n)), ...STAMPS.moving.filter(st => /^Fly/.test(st.n))]; const r = _renderPick0.apply(this, arguments); if (tab === 'fresh') $('spGrid')?.querySelectorAll('[data-p]').forEach(b => { const [t, i] = b.dataset.p.split(':'), st = STAMPS[t]?.[+i]; if (st && (st.mv || /\.gif$/i.test(st.src || '')) && !b.querySelector('.sp-moves')) b.insertAdjacentHTML('beforeend', '<i class="sp-moves">moves</i>'); }); return r; };
   Object.assign(window, { __placeholderOnto: placeholderOnto, __phScene: phScene });
   Object.assign(window, { __maskMenu: cs => maskMenuItems(cs).map(i => i.label), __dupCards: duplicateCards });
   const _removeCards0 = removeCards; removeCards = function (cs) { const r = _removeCards0.apply(this, arguments); try { dissolveLonely(); renderAll(); } catch (e) {} return r; };
-  const _removeSelected0 = removeSelected; removeSelected = function () { const r = _removeSelected0.apply(this, arguments); try { if (board.cards.some(c => c.group)) { const before = JSON.stringify(board.cards.map(c => c.group || '')); dissolveLonely(); if (JSON.stringify(board.cards.map(c => c.group || '')) !== before) renderAll(); } } catch (e) {} return r; };
+  const _removeSelected0 = removeSelected; removeSelected = function () { if (sel.size) remember(); const r = _removeSelected0.apply(this, arguments); try { if (board.cards.some(c => c.group)) { const before = JSON.stringify(board.cards.map(c => c.group || '')); dissolveLonely(); if (JSON.stringify(board.cards.map(c => c.group || '')) !== before) renderAll(); } } catch (e) {} return r; };
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
