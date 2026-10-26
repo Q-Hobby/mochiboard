@@ -1125,7 +1125,7 @@
     list.addEventListener('contextmenu', e => {
       const r = e.target.closest('.ly'); if (!r) return; const n = lyFind(r.dataset.key); if (!n) return; e.preventDefault(); e.stopPropagation();
       const ids = n.ids.filter(i => byId(i)); if (!ids.length) return;
-      if (!ids.every(i => sel.has(i))) { endEdit(); selectOnly(ids); renderLayers(); }
+      if (!(ids.length === sel.size && ids.every(i => sel.has(i)))) { endEdit(); selectOnly(ids); renderLayers(); }   // the row you right-clicked, not whatever happened to be selected
       stage.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
     });
     list.addEventListener('click', e => {
@@ -1170,7 +1170,7 @@
       else { const ids = lyAll(mv), moving = board.cards.filter(c => ids.includes(c.id)), rest = board.cards.filter(c => !ids.includes(c.id)), tIdx = lyAll(tg).map(i => rest.findIndex(c => c.id === i)).filter(i => i >= 0);
         // the list is top-first, so "above" in the list means higher in the stack: after the target in the cards
         const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest;
-        const pt = parentKey(tg.key); if (pt !== parentKey(mv.key)) { if (String(pt).startsWith('g:')) { const g = pt.slice(2), hasMask = board.cards.some(x => x.group === g && x.maskLayer && !moving.includes(x)); moving.forEach(c => { c.group = g; if (hasMask) delete c.maskLayer; }); } else moving.forEach(c => { delete c.group; delete c.maskLayer; }); }   // dropped into a group (one mask per group), or out of one
+        const pt = parentKey(tg.key); if (pt !== parentKey(mv.key)) { if (String(pt).startsWith('g:')) { const g = pt.slice(2), hasMask = board.cards.some(x => x.group === g && x.maskLayer && !moving.includes(x)); moving.forEach(c => { c.group = g; if (hasMask) delete c.maskLayer; }); } else moving.forEach(c => { delete c.group; delete c.maskLayer; }); dissolveLonely(); }   // dropped into a group (one mask per group), or out of one
         renderAll(); }
       save(); renderLayers();
     });
@@ -2525,6 +2525,7 @@
   const STARTERS = {
     'Moodboard': ['References, colors and type for a feeling', '<path d="M10 2.8a7.2 7.2 0 1 0 0 14.4c1.2 0 1.8-.9 1.4-1.9-.5-1.1.2-2.3 1.4-2.3h1.7a2.7 2.7 0 0 0 2.7-2.7c0-4.2-3.2-7.5-7.2-7.5z"/><circle cx="6.6" cy="9" r=".9" fill="currentColor"/><circle cx="9" cy="6.2" r=".9" fill="currentColor"/><circle cx="12.6" cy="6.8" r=".9" fill="currentColor"/>'],
     'App plan': ['Who it\'s for, the problem, the screens', '<rect x="6" y="2.5" width="8" height="15" rx="2"/><path d="M8.5 6h3M8.5 9h3M8.5 12h2"/>'],
+    'Dream it': ['The poster: you can literally do anything', '<path d="M10 2.5l1.9 4.2 4.6.5-3.4 3.1 1 4.5-4.1-2.3-4.1 2.3 1-4.5-3.4-3.1 4.6-.5z"/>'],
     'Brain dump': ['Empty your head, then let Mochi sort it', '<path d="M10 3.5c-3.6 0-6.5 2.4-6.5 5.5 0 1.9 1.1 3.5 2.8 4.5l-.6 3 3-1.8c.4.1.9.1 1.3.1 3.6 0 6.5-2.4 6.5-5.8S13.6 3.5 10 3.5z"/><path d="M7.5 8.5h5M7.5 11h3"/>'],
   };
   $('tplPick').innerHTML = '<div class="tp-h">Add to this board</div>' + Object.entries(FRAMEWORKS).map(([k, F]) => `<button data-tpl="${k}"><span class="tp-e"><svg viewBox="0 0 20 20">${TPL_IC[k]}</svg></span><span class="tp-t"><b>${esc(F.name)}</b><small>${esc(F.line)}</small></span></button>`).join('')
@@ -2581,7 +2582,7 @@
         ...(cs.length > 1 ? [{ label: 'Save each as its own image', run: () => exportEach(cs) }] : []),
         ...(cs.length > 1 && cs.every(c => c.src && (c.type === 'image' || c.type === 'box')) ? [{ label: `Save ${cs.length} pictures as PNG…`, run: () => savePictures(cs, 'png') }, { label: `Save ${cs.length} pictures as JPEG…`, run: () => savePictures(cs, 'jpg') }] : []),
         ...(spotsIn(cs).length ? [{ label: `Fill ${spotsIn(cs).length} image spot${spotsIn(cs).length > 1 ? 's' : ''}…`, run: () => offerFill(spotsIn(cs)) }] : []), '-',
-        { label: 'Duplicate', run: () => { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
+        { label: 'Duplicate', run: () => { const gm = {}, copies = withMaskGroups(cs).filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
         { label: 'Delete', danger: true, run: () => removeSelected() }]);
     } else boardMenu(e, [
       { label: 'Background color…', run: () => tintPicker('bg', { x: e.clientX + 12, y: e.clientY - 40 }, true) },
@@ -3322,10 +3323,10 @@
     const dx = (c.x + c.w / 2) - (best.x + best.w / 2), dy = (c.y + c.h / 2) - (best.y + best.h / 2), s = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');   // the sides that face each other
     // and line it up with its neighbour, so the arrow runs straight across (or straight down); only when it's nearly there already
     const was = { x: c.x, y: c.y }, el = cardsEl.querySelector(`[data-id="${c.id}"]`);
-    if (s === 'r' || s === 'l') { if (Math.abs(dy) <= Math.max(60, c.h)) c.y = Math.round(best.y + best.h / 2 - c.h / 2); } else if (Math.abs(dx) <= Math.max(60, c.w)) c.x = Math.round(best.x + best.w / 2 - c.w / 2);
-    const moved = c.x !== was.x || c.y !== was.y; if (moved && el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
+    if (c.kit !== 'mind') { if (s === 'r' || s === 'l') { if (Math.abs(dy) <= Math.max(60, c.h)) c.y = Math.round(best.y + best.h / 2 - c.h / 2); } else if (Math.abs(dx) <= Math.max(60, c.w)) c.x = Math.round(best.x + best.w / 2 - c.w / 2); }   // mind-map branches fan out on purpose
+    const moved = c.x !== was.x || c.y !== was.y; if (moved && el) { el.style.transition = 'left .16s ease, top .16s ease'; el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; setTimeout(() => { el.style.transition = ''; }, 220); }
     const l = kitLink(best, c, SIDE[s], SIDE[OPP[s]]); board.links.push(l); renderWires(); save();
-    chirp(moved ? 'Connected and lined up ✦' : 'Connected ✦', 2200, [{ label: 'Undo', run: () => { board.links = board.links.filter(x => x !== l); if (moved) { c.x = was.x; c.y = was.y; const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`); if (e2) { e2.style.left = c.x + 'px'; e2.style.top = c.y + 'px'; } } renderWires(); save(); } }]);
+    const nb = String(best.text || '').replace(/\s+/g, ' ').trim().slice(0, 22); chirp(moved ? `Lined up with ${nb || 'its neighbour'} ✦` : 'Connected ✦', 2200, [{ label: 'Undo', run: () => { board.links = board.links.filter(x => x !== l); if (moved) { c.x = was.x; c.y = was.y; const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`); if (e2) { e2.style.left = c.x + 'px'; e2.style.top = c.y + 'px'; } } renderWires(); save(); } }]);
   }
   function placeKit(kit, name, w) {
     const P = KITS[kit]?.pieces[name]; if (!P) return;
@@ -3533,10 +3534,19 @@
 
   // ---- the flow library (web/flows.js): whole flows as wireframes, placed by a click in the Wireframing pane or by Mochi offline ----
   const FLOWS = window.FLOWS || [], flowBy = key => FLOWS.find(f => f.key === key);
+  function freeSpot(w, h) {   // the first empty spot near the view: where you're looking, else below everything, else to the right
+    const vx = (300 - view.x) / view.z, vy = (120 - view.y) / view.z, boxes = board.cards.filter(c => !c.hidden).map(c => [c.x, c.y, c.x + c.w, c.y + c.h]);
+    const free = (x, y) => !boxes.some(b => x < b[2] + 60 && x + w > b[0] - 60 && y < b[3] + 60 && y + h > b[1] - 60);
+    const cands = [[vx, vy]]; if (boxes.length) { cands.push([vx, Math.max(...boxes.map(b => b[3])) + 200]); cands.push([Math.min(...boxes.map(b => b[0])), Math.max(...boxes.map(b => b[3])) + 200]); }
+    for (const [x, y] of cands) if (free(x, y)) return { x: Math.round(x), y: Math.round(y) }; return besideAll();
+  }
+  // the why, as a few small notes instead of one wall of text
+  function whyNotes(lines, x, y, made) { let yy = y; lines.forEach((t, i) => { const h = 54 + Math.ceil(t.length / 40) * 19; const n = card('note', { x, y: yy, w: 300, h, text: t, name: i ? '' : 'Why it works', color: 'white', fs: 's', r: i % 2 ? 1.2 : -1 }); board.cards.push(n); renderCard(n, true); made.push(n); yy += h + 12; }); return yy; }
   function placeFlow(key, quiet) {
     const F = flowBy(key); if (!F) return null;
-    remember(); const at = besideAll(), made = [], frames = []; let sx = at.x + 360, prev = null;
-    const why = card('note', { x: at.x, y: at.y, w: 300, h: 60 + F.why.length * 90, text: F.why.join('\n\n'), name: 'Why it works', color: 'white', r: 0 }); board.cards.push(why); renderCard(why, true); made.push(why);
+    const estW = 360 + F.screens.reduce((a, sp) => a + (sp.w || DEVICES[sp.device][0]) + (sp.panel ? (sp.panel.w || 300) : 0) + 140, 0), estH = Math.max(...F.screens.map(sp => DEVICES[sp.device][1])) + 260;
+    remember(); const at = freeSpot(estW, estH), made = [], frames = []; let sx = at.x + 360, prev = null;
+    whyNotes(F.why, at.x, at.y, made);
     const title = card('title', { x: at.x, y: at.y - 70, w: 700, h: 50, text: F.name }); board.cards.push(title); renderCard(title, true); made.push(title);
     F.screens.forEach(sp => {
       const pw = sp.panel ? (sp.panel.w || Math.round((sp.w || DEVICES[sp.device][0]) * 0.46)) : 0, spec = { ...sp, w: (sp.w || DEVICES[sp.device][0]) - pw };
@@ -3604,7 +3614,8 @@
   }
 
   // ---- pixel-Mochi placeholder pictures (stamps/ph, drawn by tools/placeholders.py): the empty image spot shows a little scene that matches its label ----
-  const PH_SCENES = [[/\b(hero|landscape|banner|cover|outdoor|park|city|street|sky|beach|mountain|garden|sunny|nature|view)\b/i, 'landscape'],
+  const PH_SCENES = [[/\b(album|song|podcast|audio|music|playlist|headphones|spotify|track|record)\b/i, 'music'], [/\b(screenshot|screen ?shot|ui|interface|app screen)\b/i, 'photo'], [/\b(logo|icon|brand|badge|emblem|mark)\b/i, 'product'],
+    [/\b(hero|landscape|banner|cover|outdoor|park|city|street|sky|beach|mountain|garden|sunny|nature|view)\b/i, 'landscape'],
     [/\b(portrait|avatar|profile|face|person|woman|man|user|customer|headshot|selfie|founder)\b/i, 'portrait'], [/\b(team|people|friends|group|family|crowd|together|community)\b/i, 'team'],
     [/\b(product|item|shoe|bag|food|dish|coffee|cake|bottle|box|packag|merch|shirt|plate|meal|drink)\b/i, 'product'], [/\b(photo|camera|gallery|snapshot|picture of)\b/i, 'photo'],
     [/\b(chart|graph|stats?|data|dashboard|analytics|report|number)\b/i, 'chart'], [/\b(map|location|route|trip|travel|place|address|pin)\b/i, 'map'], [/\b(music|song|audio|podcast|video|film|movie|playlist|headphones)\b/i, 'music']];
@@ -3622,7 +3633,7 @@
   function placeholderOnto(c, scene) {   // a placeholder dropped on a picture: the picture goes, the placeholder takes its spot
     remember();
     if (c.type === 'box') { delete c.src; delete c.srcBg; delete c.nobg; delete c.fx; delete c.fy; delete c.fz; c.ph = scene; if (!c.img) c.img = PH_LIST.find(p => p[0] === scene)?.[1] || 'a picture'; }
-    else { c.src = `stamps/ph/${scene}.png`; delete c.crop; delete c.nobg; delete c.srcBg; }
+    else { c.type = 'box'; c.ph = scene; c.img = PH_LIST.find(p => p[0] === scene)?.[1] || 'a picture'; ['src', 'crop', 'nobg', 'srcBg', 'fx', 'fy', 'fz', 'sw', 'stroke', 'noframe', 'tagText', 'radius'].forEach(key => delete c[key]); c.r = 0; c.fill = '#e4e4e7'; }   // the photo becomes a real spot
     renderCard(c); renderWires(); save(); selectOnly([c.id]);
   }
   renderDzPh();
@@ -3785,10 +3796,10 @@
     else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); el.style.removeProperty('--shr'); } }
   const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
   function shadowPop(cs) {
-    const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '', v = s || SHADOW_PRESETS.medium;
+    const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '', v = s || SHADOW_PRESETS.medium, missing = cs.some(c => !shadowOf(c));
     const row = (key, label, val, min, max, unit = 'px') => `<div class="sh-row" data-shk="${key}"><span class="sh-l" data-scrub="${key}" title="Drag to change">${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${val}" style="--p:${(val - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" value="${val}" data-shn="${key}" aria-label="${label}"><i>${unit}</i></div>`;
     return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow ${s ? '' : 'off'}"><div class="shbody">
-      <div class="sh-head"><b class="sh-title">Drop shadow</b>${s ? `<button class="sh-clear" data-shd="" title="Remove the shadow">Clear</button>` : `<button class="sh-clear sh-add" data-shadd="1" title="Add a shadow">Add</button>`}</div>
+      <div class="sh-head"><b class="sh-title">Drop shadow</b><span class="sh-btns">${missing ? `<button class="sh-clear sh-add" data-shadd="1" title="${s ? 'Give the rest a shadow too' : 'Add a shadow'}">Add${s ? ' to all' : ''}</button>` : ''}${s ? `<button class="sh-clear" data-shd="" title="Remove the shadow">Clear</button>` : ''}</span></div>
       ${row('x', 'X', v.x, -60, 60)}${row('y', 'Y', v.y, -60, 60)}${row('blur', 'Blur', v.blur, 0, 100)}${row('spread', 'Spread', v.spread, -30, 60)}${row('a', 'Opacity', v.a, 0, 100, '%')}
       <div class="sh-row sh-color"><span class="sh-l">Color</span><button class="sb-shsw" data-shsw="1" style="background:${v.color}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${v.color.replace('#', '').toUpperCase()}" data-shhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
       <div class="sh-pre"><span class="sh-l">Start from</span><div class="sb-shpre">${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
@@ -3806,7 +3817,7 @@
     requestAnimationFrame(() => { const w = document.querySelector('#selbar [data-popw="shadow"]'); if (w) w.classList.add('open'); }); };
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd], [data-shadd]'); if (!b) return; e.stopImmediatePropagation(); remember();
     const kind = b.dataset.shadd ? 'medium' : b.dataset.shd;   // Add starts you on Medium, so the shadow is plainly there
-    shTargets().forEach(c => { if (kind) c.shadow = kind; else delete c.shadow; renderCard(c); });
+    shTargets().forEach(c => { if (b.dataset.shadd) { if (!shadowOf(c)) c.shadow = 'medium'; } else if (kind) c.shadow = kind; else delete c.shadow; renderCard(c); });
     shMark = false; save(); reopenShadow(); }, true);
   $('selbar').addEventListener('input', e => {
     const r = e.target.closest('[data-shn], [data-shr], [data-shhex]'); if (!r) return; e.stopImmediatePropagation(); const pop = r.closest('.sb-pop');
@@ -3922,7 +3933,10 @@
       ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
   }
   function maskMenuItems(cs) {
-    const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => isMasked(c) || c.maskLayer)) out.push({ label: cs.filter(c => isMasked(c)).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) });
+    const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub });
+    const mk = cs.find(c => c.maskLayer) || (cs[0] && maskLayerOf(cs[0])), whole = mk && groupMembers(mk.group).every(c => cs.includes(c));
+    if (whole && !cs.includes(mk)) out.push({ label: `Select the ${shapeWord(mk)} (the mask)`, run: () => selectOnly([mk.id]) }); else if (whole) out.push({ label: 'Select the mask', run: () => selectOnly([mk.id]) });
+    if (cs.some(c => isMasked(c) || c.maskLayer)) out.push({ label: whole || cs.includes(mk) ? 'Turn the mask back into a shape' : (cs.filter(c => isMasked(c)).length > 1 ? 'Take these out of the mask' : 'Take it out of the mask'), run: () => unmask(cs) });
     if (cs.length >= 2 && cs.every(vectorish)) out.push({ label: 'Combine shapes', sub: Object.keys(BOOL).map(op => ({ label: BOOL[op], icon: boolIcon(op), run: () => combine(cs, op) })) });
     if (cs.some(c => c.type === 'shape' && c.shape === 'bool')) out.push({ label: cs.filter(c => c.shape === 'bool').length > 1 ? 'Separate the shapes' : 'Separate the shapes', run: () => separate(cs.filter(c => c.type === 'shape' && c.shape === 'bool')) });
     return out;
@@ -3982,7 +3996,8 @@
 
   // ---- the stacking rows live under one Arrange ▸ arrow in every right-click menu ----
   const arrangeSub = () => [{ label: 'Bring to front  ⇧⌘]', run: () => restack('front') }, { label: 'Bring forward  ⌘]', run: () => restack('forward') }, { label: 'Send backward  ⌘[', run: () => restack('backward') }, { label: 'Send to back  ⇧⌘[', run: () => restack('back') }];
-  function duplicateCards(cs) { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); }
+  const withMaskGroups = cs => { const out = new Set(cs); cs.forEach(c => { if (c.group && (c.maskLayer || maskLayerOf(c))) groupMembers(c.group).forEach(m => out.add(m)); }); return [...out]; };
+  function duplicateCards(cs) { const gm = {}, copies = withMaskGroups(cs).filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); }
 
   // ---- mask groups, the Figma way: the mask is a layer at the bottom of a group; everything in the group shows only where the mask is.
   //      Pull a layer out of the group (in Layers) and it's unmasked; drop one in and it's masked. Remove mask turns the mask back into a plain shape. ----
@@ -4002,7 +4017,8 @@
     retireMask(g, s);   // one mask per group
     s.group = g; s.maskLayer = true; ts.forEach(t => { t.group = g; delete t.mask; delete t.maskPrev; }); sinkMask(s);
     renderAll(); selectOnly(groupMembers(g).map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
-    chirp(`Masked with the ${shapeWord(s)} ✦ It's a mask group now: in Layers, drag things in or out of it.`, 5500);
+    const first = !localStorage.getItem('mbMaskHint'); if (first) localStorage.setItem('mbMaskHint', '1');
+    chirp(first ? `Masked ✦ The ${shapeWord(s)} is the group’s mask now: find it in Layers, and drag things in or out of the group to mask or unmask them.` : `Masked with the ${shapeWord(s)} ✦`, first ? 8000 : 4000);
   }
   function retireMask(g, keep) { board.cards.slice().forEach(c => { if (c.group !== g || !c.maskLayer || c === keep) return; if (c.ln && MASKS[Object.keys(MASKS).find(k => MASKS[k][0] === c.ln)]) { board.cards = board.cards.filter(x => x !== c); board.links = board.links.filter(l => l.a !== c.id && l.b !== c.id); cardsEl.querySelector(`[data-id="${c.id}"]`)?.remove(); } else { delete c.maskLayer; delete c.group; } }); }
   const maskWithShape = (s, t) => makeMaskGroup(s, [t]);
@@ -4023,12 +4039,12 @@
       if (from && !byId(from.id)) { board.cards.push(from); back.push(from); } delete c.mask; delete c.maskPrev; });
     const groups = new Set(live.map(c => c.group)); groups.forEach(g => { const m = board.cards.find(c => c.group === g && c.maskLayer), members = groupMembers(g);
       if (!m || cs.includes(m) || members.every(c => cs.includes(c))) { if (m) delete m.maskLayer; } else live.filter(c => c.group === g).forEach(c => { delete c.group; }); });
-    renderAll(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
+    dissolveLonely(); renderAll(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
   }
   // after anything moves or resizes, members whose mask shifted relative to them are drawn again
   function dissolveLonely() { const n = {}; board.cards.forEach(c => { if (c.group) n[c.group] = (n[c.group] || 0) + 1; }); board.cards.forEach(c => { if (c.group && n[c.group] === 1) { delete c.group; delete c.maskLayer; } }); }
   function applyGsel() { try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && (c.maskLayer || maskLayerOf(c)) ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!whole); }); } catch (e) {} }
-  function refreshMaskGroups() { if (!board) return; dissolveLonely(); board.cards.forEach(c => { if (!c.group) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const mk = c.maskLayer ? null : liveMask(c); const sig = mk ? maskSig(c, mk) : ''; if ((el.dataset.mk || '') !== sig || !!mk !== el.classList.contains('masked')) renderCard(c); }); }
+  function refreshMaskGroups() { if (!board) return; board.cards.forEach(c => { if (!c.group) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const mk = c.maskLayer ? null : liveMask(c); const sig = mk ? maskSig(c, mk) : ''; if ((el.dataset.mk || '') !== sig || !!mk !== el.classList.contains('masked')) renderCard(c); }); }
   const _save0 = save; save = function () { try { refreshMaskGroups(); } catch (e) {} return _save0.apply(this, arguments); };
   LICON.mask = LI('<g data-l24="1"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></g>');
   Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask, __liveMask: liveMask, __save: () => save() });
@@ -4065,8 +4081,9 @@
   }
   function placeFlowTpl(key, quiet) {
     const T = ftBy(key); if (!T) return null; remember(); if (placing) stopPlacing();
-    const at = besideAll(), made = [];
-    const why = card('note', { x: at.x, y: at.y, w: 300, h: 60 + T.why.length * 96, text: T.why.join('\n\n'), name: 'Why it works', color: 'white', r: 0 }); board.cards.push(why); renderCard(why, true); made.push(why);
+    const cols = Math.max(...T.nodes.map(n => n[3])) + 1, rows = T.lanes ? T.lanes.length : Math.max(...T.nodes.map(n => n[4])) + 1;
+    const at = freeSpot(360 + cols * FT_COLW + (T.lanes ? 120 : 0), 120 + rows * (T.lanes ? FT_LANEH + 10 : FT_ROWH)), made = [];
+    whyNotes(T.why, at.x, at.y, made);
     const title = card('title', { x: at.x, y: at.y - 70, w: 700, h: 50, text: T.name }); board.cards.push(title); renderCard(title, true); made.push(title);
     const { cards, links } = buildFlowTpl(T, { x: at.x + 360, y: at.y });
     cards.forEach(c => { board.cards.push(c); renderCard(c, true); made.push(c); }); board.links.push(...links);
@@ -4179,6 +4196,27 @@
     cs.forEach(c => { c.x += d[0] * step; c.y += d[1] * step; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; } });
     renderWires(); placeSelbar(); clearTimeout(nudgeMark.t); nudgeMark.t = setTimeout(save, 250);
   });
+
+  // ---- a line's own right-click menu: label, ends, colour, delete ----
+  stage.addEventListener('contextmenu', e => {
+    const w = e.target.closest('[data-wire]'); if (!w || placing || penT) return; const l = linkById(w.dataset.wire); if (!l) return;
+    e.preventDefault(); e.stopImmediatePropagation(); if (!selWires.has(l.id)) selectWire(l.id);
+    const ls = () => [...selWires].map(linkById).filter(Boolean), swatch = c => `<i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${c || '#8c8494'};box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)"></i>`;
+    const endItems = which => ENDS.map(kind => ({ label: END_N[kind] || kind, run: () => { remember(); ls().forEach(x => { if (which === 'head') { delete x.arrow; if (kind === 'none') delete x.head; else x.head = kind; } else { if (kind === 'none') delete x.tail; else x.tail = kind; } }); renderWires(); save(); } }));
+    boardMenu(e, [
+      ...(selWires.size === 1 ? [{ label: 'Label', run: () => editWireLabel(l) }] : []),
+      { label: 'Arrow at the end', sub: endItems('head') }, { label: 'Arrow at the start', sub: endItems('tail') },
+      { label: 'Color', sub: WCOLORS.map(c => ({ label: c ? c.toUpperCase() : 'Default', icon: swatch(c), run: () => { remember(); ls().forEach(x => { if (c) x.color = c; else delete x.color; }); renderWires(); save(); } })) },
+      { label: l.route === 'elbow' ? 'Make it a curve' : 'Make it an elbow', run: () => { remember(); ls().forEach(x => { if (x.route === 'elbow') delete x.route; else x.route = 'elbow'; }); renderWires(); save(); } }, '-',
+      { label: selWires.size > 1 ? `Delete ${selWires.size} lines` : 'Delete', danger: true, run: () => { remember(); const ids = new Set(selWires); board.links = board.links.filter(x => !ids.has(x.id)); selectWire(null); renderWires(); save(); } }]);
+  }, true);
+
+  // ---- the new Mochis together in one stamps tab; the ones that move say so ----
+  const _renderPick0 = renderPick; renderPick = function (tab = 'mochi') { if (!STAMPS.fresh) STAMPS.fresh = [...STAMPS.mochi.filter(st => /^(Double|Wings|Devil)/.test(st.n)), ...STAMPS.moving.filter(st => /^Fly/.test(st.n))]; const r = _renderPick0.apply(this, arguments); $('spGrid')?.querySelectorAll('[data-p]').forEach(b => { const [t, i] = b.dataset.p.split(':'), st = STAMPS[t]?.[+i]; if (st && (st.mv || /\.gif$/i.test(st.src || '')) && !b.querySelector('.sp-moves')) b.insertAdjacentHTML('beforeend', '<i class="sp-moves">moves</i>'); }); return r; };
+  Object.assign(window, { __placeholderOnto: placeholderOnto, __phScene: phScene });
+  Object.assign(window, { __maskMenu: cs => maskMenuItems(cs).map(i => i.label), __dupCards: duplicateCards });
+  const _removeCards0 = removeCards; removeCards = function (cs) { const r = _removeCards0.apply(this, arguments); try { dissolveLonely(); renderAll(); } catch (e) {} return r; };
+  const _removeSelected0 = removeSelected; removeSelected = function () { const r = _removeSelected0.apply(this, arguments); try { if (board.cards.some(c => c.group)) { const before = JSON.stringify(board.cards.map(c => c.group || '')); dissolveLonely(); if (JSON.stringify(board.cards.map(c => c.group || '')) !== before) renderAll(); } } catch (e) {} return r; };
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -5134,7 +5172,7 @@ ${proseCSS()}
     if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || (f.type === 'image' ? '#ffffff' : '#27272a'), w = f.type === 'image' ? bwOf(f) : (f.sw || 0), textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => ['icon', 'title', 'text', 'image'].includes(c.type));   // dashed/dotted is for shapes, boxes and screens
       const SK = ['#000000', '#ffffff', '#71717a', '#a1a1aa', '#ff5a6e', '#ff9ec4', '#f7b955', '#5fc795', '#4f9dff', '#9b7bff', ...(board.palette || []).map(p => p.hex), ...board.cards.filter(c => c.type === 'swatch' && c.hex).map(c => c.hex)].slice(0, 18);
       h += G(2, pop('stroke', `<i class="sb-cur sb-skcur${w ? '' : ' none'}" style="--c:${col}"></i>${CARET}`,
-        `<div class="sb-corners sb-stroke"><div class="sbc-top"><span>Stroke</span><input type="range" min="0" max="${max}" step="0.5" value="${w}" style="--p:${Math.min(100, w / max * 100)}%" data-skw><input type="number" min="0" max="${max}" step="0.5" value="${w}" data-skn aria-label="Stroke width"><b class="sb-unit">px</b></div>
+        `<div class="sb-corners sb-stroke">${f.type === 'image' ? '<small class="sb-cap">The picture’s border. 0 is none; on a cut-out it’s an outline.</small>' : ''}<div class="sbc-top"><span>Stroke</span><input type="range" min="0" max="${max}" step="0.5" value="${w}" style="--p:${Math.min(100, w / max * 100)}%" data-skw><input type="number" min="0" max="${max}" step="0.5" value="${w}" data-skn aria-label="Stroke width"><b class="sb-unit">px</b></div>
           <div class="sb-dots sb-fills">${[...new Set(SK.map(v => v.toLowerCase()))].map(v => `<button data-skc="${v}" title="${v}" style="background:${v}" class="${w && col.toLowerCase() === v ? 'on' : ''}"></button>`).join('')}<button class="sb-anycolor" data-skwheel="1" title="Any color"></button></div>
           ${noDash ? '' : (() => { const st = skStyle(f), sl = (k, label, v, max) => `<div class="sbc-top sb-skrow"><span>${label}</span><input type="range" min="1" max="${max}" step="1" value="${v}" style="--p:${(v - 1) / (max - 1) * 100}%" data-skr="${k}"><input type="number" min="1" max="${max}" value="${v}" data-skrn="${k}" aria-label="${label}"><b class="sb-unit">px</b></div>`;
             return `<div class="sbc-chips sb-skstyles">${[['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted'], ['none', 'None']].map(([k, t]) => `<button data-skd="${k}" class="${(k === 'none' ? !w : w && st === k) ? 'on' : ''}"><span class="sks sks-${k}"></span>${t}</button>`).join('')}</div>`
