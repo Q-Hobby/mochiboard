@@ -707,7 +707,7 @@
     if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
     el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg); el.classList.toggle('noframe', !!c.noframe);
-    if (c.type === 'video') setupVideo(c, el); maskVars(c, el);
+    if (c.type === 'video') setupVideo(c, el); maskVars(c, el); el.style.setProperty('--cw', Math.max(1, c.w) + 'px');
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
     if (c.type === 'image') el.style.setProperty('--img-r', (c.radius ?? 12) + 'px');
@@ -1452,7 +1452,7 @@
       if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h;
       el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); return;
     }
-    if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h; el.style.width = c.w + 'px'; if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); }
+    if (drag.mode === 'resize') { const c = byId(drag.id); c.w = Math.max(80, drag.w0 + w.x - drag.sx); c.h = Math.max(50, drag.h0 + w.y - drag.sy); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (c.type === 'title' && !c.fixedW) { c.fixedW = true; el.classList.add('fixedw'); } if (c.type === 'note' || c.type === 'todo') c.userH = c.h; el.style.width = c.w + 'px'; el.style.setProperty('--cw', c.w + 'px'); if (c.type !== 'title') el.style.height = c.h + 'px'; else c.h = el.offsetHeight; renderWires(); }
     if (drag.mode === 'gresize' && drag.multi && e.shiftKey) { const d = drag, kx = (d.bw + w.x - d.sx) / d.bw, ky = (d.bh + w.y - d.sy) / d.bh, k = Math.max(.15, Math.abs(kx - 1) >= Math.abs(ky - 1) ? kx : ky);
       d.items.forEach(it => { const c = it.c; c.x = d.bx + (it.x - d.bx) * k; c.y = d.by + (it.y - d.by) * k; c.w = Math.max(8, it.w * k); c.h = Math.max(8, it.h * k);
         if (SIZED.includes(c.type)) { const m = +(it.fs0 * k).toFixed(4), hit = Object.keys(FS).find(z => Math.abs(FS[z] - m) < .001); if (hit === 'm') delete c.fs; else c.fs = hit || m; }

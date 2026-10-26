@@ -2578,3 +2578,7 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 .card.masked[data-sh]::before { display: none; }
 .card.masked[data-sh] .mkw { filter: var(--shf); }
 .card.masked.shape svg.sh { filter: none; }
+
+/* chips on pictures grow with the picture: 12px on a 260px-wide card, up to 3x on a big one */
+.card.image .chip { font-size: clamp(12px, calc(var(--cw, 260px) * .046), 36px); padding: .42em .92em; bottom: 1.15em; right: 1.15em; }
+.card.box .bx-fr { font-size: clamp(11px, calc(var(--cw, 260px) * .042), 33px); padding: .45em .82em; right: .75em; bottom: .75em; }
