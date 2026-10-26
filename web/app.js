@@ -635,7 +635,7 @@
   const SIZED_T = ['note', 'todo', 'title', 'shape', 'coll'];
   // strokes: boxes and screens get a border (solid or dashed); titles, wireframe text and icons get an outline around the letters
   const STROKABLE = ['box', 'frame', 'title', 'text', 'icon', 'path', 'shape', 'image'], STROKE_TEXT = ['title', 'text', 'icon'];
-  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && c.shape === 'line');
+  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'image' && c.mask);
   // boxes and screens: the line is drawn (an SVG rect) so it can be solid, dashed or dotted with your own dash length and gap, like Figma
   const skStyle = c => c.sdash === true ? 'dash' : c.sdash || 'solid';
   // dashed or dotted letters: the browser can only outline text solid, so the words are redrawn as an SVG on top (line by line, same font),
@@ -707,7 +707,7 @@
     if (c.type === 'spotify') { const fr = el.querySelector('.sp-frame'); if (fr && fr.dataset.src === spEmbed(c)) { const t = el.querySelector('.sp-head span'); if (t) t.textContent = c.title || 'Spotify'; const tg = el.querySelector(':scope > .tag'); if (tg) tg.textContent = c.tagText || ''; if (!!tg === !!c.tagText) return el; } }
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
     el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg); el.classList.toggle('noframe', !!c.noframe);
-    if (c.type === 'video') setupVideo(c, el);
+    if (c.type === 'video') setupVideo(c, el); maskVars(c, el);
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
     if (c.type === 'image') el.style.setProperty('--img-r', (c.radius ?? 12) + 'px');
@@ -2570,6 +2570,7 @@
         ...(cs.length === 1 && cs[0].type === 'section' ? [{ label: 'Rename section', run: () => renameSection(cs[0]) }] : []),
         ...(cs.some(c => c.type === 'section') ? [{ label: 'Remove section', run: () => removeSection(cs.filter(c => c.type === 'section')) }] : []),
         ...(cs.some(c => TILTS(c) && Math.round(c.type === 'stamp' && !c.tilted ? 0 : c.r || 0)) ? [{ label: cs.length > 1 ? 'Reset tilts' : 'Reset tilt', run: () => { remember(); cs.filter(TILTS).forEach(c => { c.r = 0; c.tilted = true; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); } }] : []),
+        ...maskMenuItems(cs),
         { label: 'Bring to front  ⇧⌘]', run: () => restack('front') },
         { label: 'Bring forward  ⌘]', run: () => restack('forward') },
         { label: 'Send backward  ⌘[', run: () => restack('backward') },
@@ -3626,12 +3627,14 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`);
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
-    const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
-    const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
+    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); };
+    const away = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
+    m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-m]'); if (!b) return; if (b.dataset.m === 'mask') openSub(b, maskSub([c]), close); else $('rowSub')?.remove(); });
     m.onclick = async ev => {
-      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; close();
+      const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; if (a === 'mask') { openSub(ev.target.closest('[data-m]'), maskSub([c]), close); return; } close();
+      if (a === 'unmask') unmask([c]);
       if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (f) putPicture(c, await imageFromFile(f)); }; picPick.click(); }
       if (a === 'mochi') { if (spot) { const v = prompt('What picture should go here?', c.img); if (v == null) return; if (v.trim() && v.trim() !== c.img) { remember(); c.img = v.trim(); renderCard(c); save(); } if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } /* the label is the brief Mochi works from */ else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'frame2') startFrame(c);
@@ -3759,7 +3762,7 @@
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
   function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // drawn by a layer behind the card (see the css), so the wobble filter can't clip it; a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
-  const bwOf = c => c.sw != null ? Math.max(0, +c.sw || 0) : (c.nobg || c.noframe ? 0 : 8), bcOf = c => c.stroke || '#ffffff';   // a fresh picture's 8px white mat is its default stroke
+  const bwOf = c => c.mask ? 0 : c.sw != null ? Math.max(0, +c.sw || 0) : (c.nobg || c.noframe ? 0 : 8), bcOf = c => c.stroke || '#ffffff';   // a fresh picture's 8px white mat is its default stroke
   const outlineFilter = (w, col) => { if (!(w > 0)) return ''; const d = +(w * .7).toFixed(2); return [[w, 0], [-w, 0], [0, w], [0, -w], [d, d], [-d, d], [d, -d], [-d, -d]].map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${col})`).join(' '); };
   function borderVars(c, el) {
     if (c.type !== 'image') return; const w = bwOf(c), prev = el.dataset.mat === undefined ? null : +el.dataset.mat;
@@ -3849,6 +3852,92 @@
   async function exportEach(cs) { const plan = exportPlan(cs); for (const p of plan) await exportCards(p.cards, p.name, false); }
   async function savePictures(cs, fmt) { for (const c of cs) await exportPicture(c, fmt); }
   window.__exportPlan = exportPlan;
+
+  // ---- masks: a shape laid over something becomes its edge. Pick a shape from the Mask menu, or draw one, put it on top, select both and use it as the mask ----
+  const MASKS = {
+    circle: ['Circle', () => '<ellipse cx="50" cy="50" rx="50" ry="50"/>'],
+    rounded: ['Rounded', (W, H) => { const r = .2 * Math.min(W, H); return `<rect x="0" y="0" width="100" height="100" rx="${r * 100 / W}" ry="${r * 100 / H}"/>`; }],
+    squircle: ['Squircle', () => '<path d="M50 0C92 0 100 8 100 50C100 92 92 100 50 100C8 100 0 92 0 50C0 8 8 0 50 0Z"/>'],
+    pill: ['Pill', (W, H) => { const r = Math.min(W, H) / 2; return `<rect x="0" y="0" width="100" height="100" rx="${r * 100 / W}" ry="${r * 100 / H}"/>`; }],
+    arch: ['Arch', (W, H) => { const ry = Math.min(100, W / 2 * 100 / H); return `<path d="M0 100V${ry}A50 ${ry} 0 0 1 100 ${ry}V100Z"/>`; }],
+    tri: ['Triangle', () => '<path d="M50 0L100 100L0 100Z"/>'],
+    diamond: ['Diamond', () => '<path d="M50 0L100 50L50 100L0 50Z"/>'],
+    hex: ['Hexagon', () => '<path d="M25 0L75 0L100 50L75 100L25 100L0 50Z"/>'],
+    star: ['Star', () => '<path d="M50 3L62 36L97 37L69 58L79 93L50 72L21 93L31 58L3 37L38 36Z"/>'],
+    heart: ['Heart', () => '<path d="M50 92C20 72 3 55 3 33C3 15 17 4 31 4C40 4 47 9 50 16C53 9 60 4 69 4C83 4 97 15 97 33C97 55 80 72 50 92Z"/>'],
+    blob: ['Blob', () => '<path d="M52 3C72 1 95 15 97 40C99 63 88 92 60 97C35 101 8 86 3 60C-2 33 25 6 52 3Z"/>'],
+  };
+  const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);
+  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' || c.type === 'path' && c.closed);
+  const SHAPE_WORDS = { rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
+  const shapeWord = s => s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
+  // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
+  function maskGeo(m, W, H) { if (m.el) return m.el; const d = MASKS[m.shape]; return d ? d[1](Math.max(1, W), Math.max(1, H)) : MASKS.circle[1](); }
+  function sourceMask(s) {
+    if (s.type === 'path') return { shape: 'path', el: `<path d="${pathD(s.pts, true, s.radius || 0, s.ow / Math.max(1, s.w))}"/>`, vw: s.ow, vh: s.oh };
+    const svg = shapeSVG({ ...s, stroke: null, sw: 0, fill: 'none' }), mt = svg.match(/<(path|rect|ellipse)\b[^>]*>/); if (!mt) return null;
+    return { shape: s.shape || 'rect', el: mt[0].replace(/\s(?:style|stroke|stroke-width|stroke-linejoin|vector-effect|fill)="[^"]*"/g, '') + (mt[1] === 'path' ? '' : '') };
+  }
+  const maskIcon = (m, W = 100, H = 100) => `<svg viewBox="-2 -2 104 104" width="14" height="14" fill="currentColor">${maskGeo(m, W, H)}</svg>`;
+  function maskVars(c, el) {
+    const on = !!c.mask; el.classList.toggle('masked', on); el.querySelector(':scope > svg.mk')?.remove();
+    const wrap = el.querySelector(':scope > .mkw'); if (!on) { el.style.removeProperty('--mask'); return; }
+    const m = c.mask, bx = m.bx ?? 0, by = m.by ?? 0, bw = m.bw ?? 1, bh = m.bh ?? 1, vw = m.vw || 100, vh = m.vh || 100, id = 'mk-' + c.id;
+    el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="objectBoundingBox">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${bx} ${by}) scale(${bw / vw} ${bh / vh})"`)}</clipPath></svg>`);
+    el.style.setProperty('--mask', `url(#${id})`);
+    if (!wrap) { const fr = el.querySelector(':scope > .frame'), bd = el.querySelector(':scope > .body'); if (fr && bd) { const w = document.createElement('div'); w.className = 'mkw'; el.insertBefore(w, fr); w.append(fr, bd); } }
+  }
+  const freshMat = c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) delete el.dataset.mat; };
+  function maskCards(cs, key) { cs = cs.filter(maskable); if (!cs.length) return; remember(); cs.forEach(c => { if (!c.maskPrev) c.maskPrev = { x: c.x, y: c.y, w: c.w, h: c.h, crop: c.crop ? { ...c.crop } : null }; c.mask = { shape: key }; renderCard(c); }); renderWires(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); save(); }
+  // a shape on top of something becomes its mask: a picture shrinks to the shape (showing just that part of itself); anything else keeps its box and is cut where the shape was
+  function maskWithShape(s, t) {
+    const src = sourceMask(s); if (!src || !maskable(t)) return; remember();
+    t.maskPrev = { x: t.x, y: t.y, w: t.w, h: t.h, crop: t.crop ? { ...t.crop } : null };
+    if (t.type === 'image' && !t.nobg) {
+      const mat = bwOf(t), ix = t.x + mat, iy = t.y + mat, iw = Math.max(1, t.w - 2 * mat), ih = Math.max(1, t.h - 2 * mat), k = t.crop || { x: 0, y: 0, w: 1, h: 1 };
+      t.crop = { x: k.x + (s.x - ix) / iw * k.w, y: k.y + (s.y - iy) / ih * k.h, w: s.w / iw * k.w, h: s.h / ih * k.h };
+      t.x = s.x; t.y = s.y; t.w = s.w; t.h = s.h; t.mask = { ...src };
+    } else t.mask = { ...src, bx: (s.x - t.x) / t.w, by: (s.y - t.y) / t.h, bw: s.w / t.w, bh: s.h / t.h };
+    t.mask.from = JSON.parse(JSON.stringify(s));
+    board.cards = board.cards.filter(c => c.id !== s.id); board.links = board.links.filter(l => l.a !== s.id && l.b !== s.id); cardsEl.querySelector(`[data-id="${s.id}"]`)?.remove();
+    freshMat(t); renderCard(t); renderWires(); layersSoon(); selectOnly([t.id]); $('selbar').dataset.key = ''; placeSelbar(); save();
+    chirp(t.type === 'image' ? `Masked with the ${shapeWord(s)} ✦ Right-click it to adjust the crop or take the mask off.` : `Masked with the ${shapeWord(s)} ✦`, 5000);
+  }
+  function unmask(cs) {
+    cs = cs.filter(c => c.mask); if (!cs.length) return; remember(); const back = [];
+    cs.forEach(c => { const p = c.maskPrev, from = c.mask.from; if (p) { Object.assign(c, { x: p.x, y: p.y, w: p.w, h: p.h }); if (p.crop) c.crop = p.crop; else delete c.crop; }
+      if (from && !byId(from.id)) { board.cards.push(from); back.push(from); } delete c.mask; delete c.maskPrev; freshMat(c); renderCard(c); });
+    back.forEach(renderCard); renderWires(); layersSoon(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); save();
+  }
+  // the Mask menu: the shape on top (if there is one) first, then the ready-made shapes
+  function maskSub(cs) {
+    let src = null, target = null;
+    if (cs.length === 2) { const [a, b] = cs, top = board.cards.indexOf(a) > board.cards.indexOf(b) ? a : b, bot = top === a ? b : a; if (maskSource(top) && maskable(bot)) { src = top; target = bot; } else if (maskSource(bot) && maskable(top) && !maskSource(top)) { src = bot; target = top; } }
+    const targets = src ? [target] : cs.filter(maskable); if (!targets.length) return null;
+    return [...(src ? [{ label: `Use the ${shapeWord(src)} as the mask`, icon: maskIcon(sourceMask(src) || { shape: 'circle' }, src.w, src.h), run: () => maskWithShape(src, target) }, '-'] : []),
+      ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
+  }
+  function maskMenuItems(cs) { const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => c.mask)) out.push({ label: cs.filter(c => c.mask).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) }); return out; }
+  // a menu row with an arrow opens a second little menu beside it
+  function openSub(btn, items, done) {
+    const key = btn.closest('.row-menu').id + ':' + (btn.dataset.i ?? btn.dataset.m); if ($('rowSub')?.dataset.for === key) return; $('rowSub')?.remove(); btn.closest('.row-menu').querySelectorAll('.sub-open').forEach(b => b.classList.remove('sub-open'));
+    const s = document.createElement('div'); s.id = 'rowSub'; s.className = 'row-menu row-sub'; s.dataset.for = key;
+    s.innerHTML = items.map((it, i) => it === '-' ? '<span class="rm-sep"></span>' : `<button data-i="${i}">${it.icon ? `<i class="rm-ic">${it.icon}</i>` : ''}${it.label}</button>`).join('');
+    document.body.appendChild(s); const b = btn.getBoundingClientRect(), r = s.getBoundingClientRect(); let x = b.right + 4, y = b.top - 5;
+    if (x + r.width > innerWidth - 10) x = b.left - r.width - 4; if (y + r.height > innerHeight - 10) y = innerHeight - r.height - 10; s.style.left = x + 'px'; s.style.top = y + 'px';
+    s.onclick = ev => { const i = ev.target.closest('[data-i]'); if (!i) return; done(); items[+i.dataset.i].run(); }; btn.classList.add('sub-open');
+  }
+  boardMenu = function (e, items) {
+    $('rowMenu')?.remove(); $('rowSub')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu'; m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px';
+    m.innerHTML = items.map((it, i) => it === '-' ? '<span class="rm-sep"></span>' : `<button data-i="${i}" class="${it.danger ? 'danger' : ''}${it.sub ? ' has-sub' : ''}">${it.label}</button>`).join('');
+    document.body.appendChild(m); const rr = m.getBoundingClientRect(); if (rr.bottom > innerHeight - 10) m.style.top = innerHeight - rr.height - 10 + 'px'; if (rr.right > innerWidth - 10) m.style.left = innerWidth - rr.width - 10 + 'px';
+    const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', off, true); };
+    const off = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); };
+    m.onclick = ev => { const b = ev.target.closest('[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.sub) { openSub(b, it.sub, close); return; } close(); it.run(); };
+    m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.sub) openSub(b, it.sub, close); else { $('rowSub')?.remove(); m.querySelectorAll('.sub-open').forEach(x => x.classList.remove('sub-open')); } });
+    setTimeout(() => addEventListener('pointerdown', off, true));
+  };
+  Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask });
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4809,7 +4898,7 @@ ${proseCSS()}
           ${noDash ? '' : (() => { const st = skStyle(f), sl = (k, label, v, max) => `<div class="sbc-top sb-skrow"><span>${label}</span><input type="range" min="1" max="${max}" step="1" value="${v}" style="--p:${(v - 1) / (max - 1) * 100}%" data-skr="${k}"><input type="number" min="1" max="${max}" value="${v}" data-skrn="${k}" aria-label="${label}"><b class="sb-unit">px</b></div>`;
             return `<div class="sbc-chips sb-skstyles">${[['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted'], ['none', 'None']].map(([k, t]) => `<button data-skd="${k}" class="${(k === 'none' ? !w : w && st === k) ? 'on' : ''}"><span class="sks sks-${k}"></span>${t}</button>`).join('')}</div>`
               + `<div class="sb-skdash${w && st !== 'solid' ? '' : ' off'}" data-skst="${st}">${sl('dl', 'Dash', f.dl ?? 8, 40)}${sl('dg', 'Gap', f.dg ?? 6, 40)}</div>`; })()}</div>`, 'Stroke')); }
-    const rnd = cs.filter(c => (['frame', 'box'].includes(c.type) || c.type === 'image' && !c.nobg || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
+    const rnd = cs.filter(c => (['frame', 'box'].includes(c.type) || c.type === 'image' && !c.nobg && !c.mask || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
     if (rnd.length === cs.length && rnd.length) { const cr = rnd[0].radius ?? (rnd[0].type === 'image' ? 20 : 0), same = rnd.every(c => (c.radius ?? (c.type === 'image' ? 20 : 0)) === cr);
       h += G(3, pop('corners', `<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /></svg><b>${same ? (cr >= 999 ? 'Pill' : cr) : '–'}</b>${CARET}`,
         `<div class="sb-corners"><div class="sbc-top"><span>Corners</span><input type="range" min="0" max="80" step="1" value="${Math.min(80, cr)}" style="--p:${Math.min(100, cr / 80 * 100)}%" data-corners-range><input type="number" min="0" max="999" value="${cr >= 999 ? 0 : cr}" data-corners-num></div>
