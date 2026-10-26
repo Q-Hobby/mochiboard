@@ -635,7 +635,7 @@
   const SIZED_T = ['note', 'todo', 'title', 'shape', 'coll'];
   // strokes: boxes and screens get a border (solid or dashed); titles, wireframe text and icons get an outline around the letters
   const STROKABLE = ['box', 'frame', 'title', 'text', 'icon', 'path', 'shape', 'image'], STROKE_TEXT = ['title', 'text', 'icon'];
-  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'image' && c.mask);
+  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && (c.shape === 'line' || c.shape === 'bool')) && !(c.type === 'image' && c.mask);
   // boxes and screens: the line is drawn (an SVG rect) so it can be solid, dashed or dotted with your own dash length and gap, like Figma
   const skStyle = c => c.sdash === true ? 'dash' : c.sdash || 'solid';
   // dashed or dotted letters: the browser can only outline text solid, so the words are redrawn as an SVG on top (line by line, same font),
@@ -745,7 +745,7 @@
     const named = SHAPE_FILL[c.fill || 'gray'], f = c.fill === 'none' ? 'none' : named ? `var(--sh-${c.fill || 'gray'})` : c.fill, sk = c.stroke && c.sw > 0 && c.shape !== 'line';
     const P = sk ? { stroke: c.stroke, 'stroke-width': c.sw, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', ...(skStyle(c) === 'dash' ? { 'stroke-dasharray': `${c.dl ?? 8} ${c.dg ?? 6}` } : skStyle(c) === 'dot' ? { 'stroke-dasharray': `0 ${(c.dg ?? 6) + c.sw}`, 'stroke-linecap': 'round' } : {}), style: `fill:${f}` } : { stroke: 'none', style: `fill:${f}` };
     const attrs = o => Object.entries(o).map(([k, v]) => `${k}="${v}"`).join(' ');
-    const body = {
+    const body = (c.shape === 'bool' ? { bool: boolSVG(c, f) } : {
       rect: `<rect x="0" y="0" width="100" height="100" rx="${c.radius != null ? Math.min(50, c.radius * 100 / Math.max(1, c.w || 160)) : 10}" ry="${c.radius != null ? Math.min(50, c.radius * 100 / Math.max(1, c.h || 160)) : 10}" ${attrs(P)}/>`,
       circle: `<ellipse cx="50" cy="50" rx="50" ry="50" ${attrs(P)}/>`,
       tri: `<path d="${c.radius ? roundedD([{ x: 50, y: 2 }, { x: 98, y: 98 }, { x: 2, y: 98 }], true, c.radius * 100 / Math.max(1, Math.min(c.w || 160, c.h || 160))) : 'M50 2 L98 98 L2 98 Z'}" stroke-linejoin="round" ${attrs(P)}/>`,
@@ -761,7 +761,7 @@
       heart: `<path d="M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z" ${attrs(P)}/>`,
       line: (c.squig || 'straight') === 'straight' ? `<line x1="0" y1="50" x2="100" y2="50" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
         : `<path d="${squigPath(c)}" fill="none" style="stroke:${(c.fill || 'gray') === 'gray' ? 'var(--pen-ink)' : f}" stroke-width="${c.lw || 4}" stroke-linecap="round" stroke-linejoin="${(c.round ?? 60) < 15 && c.squig === 'zigzag' ? 'miter' : 'round'}" vector-effect="non-scaling-stroke"/>`,
-    }[c.shape || 'rect'];
+    })[c.shape || 'rect'];
     return `<svg class="sh${(c.shape || 'rect') === 'line' ? ' is-line' : ''}" viewBox="0 0 100 100" preserveAspectRatio="none">${body}</svg>`;
   }
 
@@ -3868,7 +3868,7 @@
     blob: ['Blob', () => '<path d="M52 3C72 1 95 15 97 40C99 63 88 92 60 97C35 101 8 86 3 60C-2 33 25 6 52 3Z"/>'],
   };
   const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);
-  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' || c.type === 'path' && c.closed);
+  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && c.closed);
   const SHAPE_WORDS = { rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
   const shapeWord = s => s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
@@ -3911,13 +3911,51 @@
   }
   // the Mask menu: the shape on top (if there is one) first, then the ready-made shapes
   function maskSub(cs) {
-    let src = null, target = null;
-    if (cs.length === 2) { const [a, b] = cs, top = board.cards.indexOf(a) > board.cards.indexOf(b) ? a : b, bot = top === a ? b : a; if (maskSource(top) && maskable(bot)) { src = top; target = bot; } else if (maskSource(bot) && maskable(top) && !maskSource(top)) { src = bot; target = top; } }
-    const targets = src ? [target] : cs.filter(maskable); if (!targets.length) return null;
-    return [...(src ? [{ label: `Use the ${shapeWord(src)} as the mask`, icon: maskIcon(sourceMask(src) || { shape: 'circle' }, src.w, src.h), run: () => maskWithShape(src, target) }, '-'] : []),
+    const pairs = [];
+    if (cs.length === 2) { const [a, b] = cs, top = board.cards.indexOf(a) > board.cards.indexOf(b) ? a : b, bot = top === a ? b : a;
+      if (maskSource(top) && maskable(bot)) pairs.push([top, bot, maskSource(bot) ? ' on top' : '']); if (maskSource(bot) && maskable(top)) pairs.push([bot, top, maskSource(top) ? ' underneath' : '']); }
+    const targets = pairs.length ? [pairs[0][1]] : cs.filter(maskable); if (!targets.length) return null;
+    return [...pairs.map(([s, t, where]) => ({ label: `Use the ${shapeWord(s)}${where} as the mask`, icon: maskIcon(sourceMask(s) || { shape: 'circle' }, s.w, s.h), run: () => maskWithShape(s, t) })), ...(pairs.length ? ['-'] : []),
       ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
   }
-  function maskMenuItems(cs) { const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => c.mask)) out.push({ label: cs.filter(c => c.mask).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) }); return out; }
+  function maskMenuItems(cs) {
+    const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => c.mask)) out.push({ label: cs.filter(c => c.mask).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) });
+    if (cs.length >= 2 && cs.every(maskSource)) out.push({ label: 'Combine shapes', sub: Object.keys(BOOL).map(op => ({ label: BOOL[op], icon: boolIcon(op), run: () => combine(cs, op) })) });
+    if (cs.some(c => c.type === 'shape' && c.shape === 'bool')) out.push({ label: cs.filter(c => c.shape === 'bool').length > 1 ? 'Separate the shapes' : 'Separate the shapes', run: () => separate(cs.filter(c => c.type === 'shape' && c.shape === 'bool')) });
+    return out;
+  }
+  // ---- combining shapes, like Figma's booleans: the one underneath comes first, the ones above are added, cut out, kept where they overlap, or flipped ----
+  const BOOL = { union: 'Union', subtract: 'Subtract', intersect: 'Intersect', exclude: 'Exclude' };
+  const placed = (p, fill) => p.el.replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${(p.bx ?? 0) * 100} ${(p.by ?? 0) * 100}) scale(${(p.bw ?? 1) * 100 / (p.vw || 100)} ${(p.bh ?? 1) * 100 / (p.vh || 100)})" fill="${fill}"`);
+  function boolSVG(c, f) {
+    const P = c.parts || [], id = 'bl' + String(c.id).replace(/[^a-z0-9]/gi, ''), M = (mid, inner) => `<mask id="${mid}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">${inner}</mask>`;
+    if (!P.length) return '';
+    let defs = M(id + 'r0', `<rect width="100" height="100" fill="#000"/>${placed(P[0], '#fff')}`);
+    for (let i = 1; i < P.length; i++) {
+      const prev = `${id}r${i - 1}`, W = `<rect width="100" height="100" fill="#fff" mask="url(#${prev})"/>`;
+      if (c.op === 'exclude') defs += M(`${id}n${i}`, `<rect width="100" height="100" fill="#fff"/><rect width="100" height="100" fill="#000" mask="url(#${prev})"/>`);
+      const body = c.op === 'union' ? W + placed(P[i], '#fff') : c.op === 'subtract' ? W + placed(P[i], '#000') : c.op === 'intersect' ? `<g mask="url(#${prev})">${placed(P[i], '#fff')}</g>` : W + placed(P[i], '#000') + `<g mask="url(#${id}n${i})">${placed(P[i], '#fff')}</g>`;
+      defs += M(`${id}r${i}`, `<rect width="100" height="100" fill="#000"/>${body}`);
+    }
+    return `<defs>${defs}</defs><rect x="0" y="0" width="100" height="100" style="fill:${f}" mask="url(#${id}r${P.length - 1})"/>`;
+  }
+  const boolIcon = op => `<svg viewBox="0 0 100 100" width="14" height="14" fill="currentColor">${boolSVG({ id: 'ic' + op, op, parts: [{ el: '<rect x="0" y="0" width="100" height="100" rx="12" ry="12"/>', bw: .64, bh: .64 }, { el: '<ellipse cx="50" cy="50" rx="50" ry="50"/>', bx: .36, by: .36, bw: .64, bh: .64 }] }, 'currentColor')}</svg>`;
+  function combine(cs, op) {
+    cs = cs.filter(maskSource).sort((a, b) => board.cards.indexOf(a) - board.cards.indexOf(b)); if (cs.length < 2) return; remember();
+    const X = Math.min(...cs.map(c => c.x)), Y = Math.min(...cs.map(c => c.y)), W = Math.max(...cs.map(c => c.x + c.w)) - X, H = Math.max(...cs.map(c => c.y + c.h)) - Y;
+    const parts = cs.map(s => ({ ...sourceMask(s), bx: (s.x - X) / W, by: (s.y - Y) / H, bw: s.w / W, bh: s.h / H, from: JSON.parse(JSON.stringify(s)) }));
+    const bottom = cs[0], n = { id: uid(), type: 'shape', shape: 'bool', op, fill: bottom.fill || 'gray', x: X, y: Y, w: W, h: H, r: 0, parts, shadow: bottom.shadow };
+    const ids = new Set(cs.map(c => c.id)); board.cards = board.cards.filter(c => !ids.has(c.id)); board.links = board.links.filter(l => !ids.has(l.a) && !ids.has(l.b)); ids.forEach(id => cardsEl.querySelector(`[data-id="${id}"]`)?.remove());
+    board.cards.push(n); renderCard(n); renderWires(); layersSoon(); selectOnly([n.id]); $('selbar').dataset.key = ''; placeSelbar(); save();
+    chirp(`${BOOL[op]} ✦ Right-click it to separate the shapes again.`, 4500);
+  }
+  function separate(cs) {
+    cs = cs.filter(c => c.type === 'shape' && c.shape === 'bool' && c.parts?.some(p => p.from)); if (!cs.length) return; remember(); const back = [];
+    cs.forEach(c => { board.cards = board.cards.filter(x => x.id !== c.id); board.links = board.links.filter(l => l.a !== c.id && l.b !== c.id); cardsEl.querySelector(`[data-id="${c.id}"]`)?.remove();
+      c.parts.forEach(p => { if (!p.from || byId(p.from.id)) return; board.cards.push(p.from); back.push(p.from); }); });
+    back.forEach(renderCard); renderWires(); layersSoon(); selectOnly(back.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); save();
+  }
+  Object.assign(window, { __combine: combine, __separate: separate });
   // a menu row with an arrow opens a second little menu beside it
   function openSub(btn, items, done) {
     const key = btn.closest('.row-menu').id + ':' + (btn.dataset.i ?? btn.dataset.m); if ($('rowSub')?.dataset.for === key) return; $('rowSub')?.remove(); btn.closest('.row-menu').querySelectorAll('.sub-open').forEach(b => b.classList.remove('sub-open'));
