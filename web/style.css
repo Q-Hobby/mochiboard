@@ -2501,8 +2501,10 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .frame-bar[hidden] { display: none; }
 .frame-bar button { padding: 8px 12px; border: 0; border-radius: 999px; background: #f4eef3; font: 700 12.5px/1 var(--font); color: var(--ink); cursor: pointer; } .frame-bar button.pri { background: #241f28; color: #fff; }
 
-/* drop shadows: the card carries --shb (a box-shadow) and --shf (a drop-shadow filter). Rectangular things take the box-shadow (filters are switched off when zoomed out, for Safari); shapes, pen shapes and cut-outs take the filter, which follows their outline. */
-.card.frame[data-sh] > .frame, .card.image[data-sh]:not(.nobg) > .frame, .card.canvas[data-sh] > .frame { box-shadow: var(--shb); }
+/* drop shadows: the card carries --shb (a box-shadow), --shf (a drop-shadow filter) and --shr (its corner radius). Rectangular things get a shadow layer behind them, outside any wobble filter, so nothing clips it; shapes, pen shapes and cut-outs take the filter, which follows their outline. */
+.card.box[data-sh]:not(.cutout), .card.frame[data-sh], .card.image[data-sh]:not(.nobg), .card.canvas[data-sh] { isolation: isolate; }
+.card.box[data-sh]:not(.cutout)::before, .card.frame[data-sh]::before, .card.image[data-sh]:not(.nobg)::before, .card.canvas[data-sh]::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: var(--shr, 18px); box-shadow: var(--shb); pointer-events: none; }
+.card.image[data-sh]:not(.nobg):not(.noframe)::before { inset: 8px; }   /* the mat is the picture's edge; the shadow hugs it */
 .card.shape[data-sh] svg.sh.is-line, .card.path[data-sh] svg.pth, .card.image.nobg[data-sh] img { filter: var(--shf) !important; }
 .card.shape[data-sh] svg.sh:not(.is-line) { filter: url(#wob) var(--shf) !important; }
 /* the shadow sheet: sliders with a number beside each, spaced like the Templates panel. (Its open/closed display stays the bar's rule.) */
@@ -2510,6 +2512,8 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .sb-pop-shadow .shbody { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 22px 26px 22px; box-sizing: border-box; }
 .sb-pop-shadow .sh-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 4px; }
 .sb-pop-shadow .sh-title { font: 700 14px/1 var(--font); color: var(--ink); }
+.sb-pop-shadow.off .sh-row, .sb-pop-shadow.off .sh-pre { opacity: .35; pointer-events: none; }
+.sb-pop-shadow .sh-add { background: #241f28; color: #fff; } .sb-pop-shadow .sh-add:hover { background: #241f28; }
 .sb-pop-shadow .sh-clear { padding: 7px 12px; border: 0; border-radius: 999px; background: #f4f0f5; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; } .sb-pop-shadow .sh-clear:hover { background: var(--blush); } .sb-pop-shadow .sh-clear:disabled { opacity: .4; cursor: default; }
 .sb-pop-shadow .sh-row { display: flex; align-items: center; gap: 12px; min-height: 30px; }
 .sb-pop-shadow .sh-l { width: 66px; flex: none; font: 600 12.5px/1 var(--font); color: var(--ink-soft); }

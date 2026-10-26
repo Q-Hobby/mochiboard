@@ -2863,7 +2863,7 @@
     if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill === 'none' ? 'transparent' : c.fill || '#ffffff'); el.classList.toggle('no-fill', c.fill === 'none'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
     if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? 'transparent' : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
-      boxShadow: shadowCss(c), border: '0' });
+      boxShadow: 'none', border: '0' });
     if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
       color: c.color && c.color !== 'none' ? c.color : '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
     applyStroke(c, el);
@@ -3735,19 +3735,21 @@
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-frame2]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (c?.type === 'box' && c.src) startFrame(c); }, true);
 
   // ---- drop shadows, the Figma way: x, y, blur, spread, colour and opacity, live, with presets to start from ----
-  const SHADOW_PRESETS = { soft: { x: 0, y: 3, blur: 8, spread: 0, color: '#1e1428', a: 14 }, medium: { x: 0, y: 8, blur: 20, spread: 0, color: '#1e1428', a: 18 }, strong: { x: 0, y: 16, blur: 36, spread: 0, color: '#1e1428', a: 26 }, hard: { x: 5, y: 5, blur: 0, spread: 0, color: '#1e1428', a: 85 } };
+  const SHADOW_PRESETS = { soft: { x: 0, y: 8, blur: 18, spread: 0, color: '#1e1428', a: 18 }, medium: { x: 0, y: 14, blur: 30, spread: 0, color: '#1e1428', a: 22 }, strong: { x: 0, y: 26, blur: 52, spread: 2, color: '#1e1428', a: 28 }, hard: { x: 8, y: 8, blur: 0, spread: 0, color: '#1e1428', a: 90 } };
   const SHADOWABLE = ['box', 'image', 'shape', 'frame', 'path', 'canvas'];
   const shadowOf = c => !c.shadow ? null : typeof c.shadow === 'string' ? SHADOW_PRESETS[c.shadow] || null : c.shadow;
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
-  function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // boxes write this inline (the app already sets box-shadow there); a cut-out in a spot shadows its outline instead (see frameStyle)
+  function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // drawn by a layer behind the card (see the css), so the wobble filter can't clip it; a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
-  function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg); if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); } else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); } }
+  function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg);
+    if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); el.style.setProperty('--shr', (c.type === 'box' || c.type === 'frame' ? (c.radius || 0) : c.type === 'image' ? (c.noframe ? (c.radius ?? 12) : 18) : 18) + 'px'); }
+    else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); el.style.removeProperty('--shr'); } }
   const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
   function shadowPop(cs) {
     const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '', v = s || SHADOW_PRESETS.medium;
     const row = (key, label, val, min, max, unit = 'px') => `<div class="sh-row" data-shk="${key}"><span class="sh-l" data-scrub="${key}" title="Drag to change">${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${val}" style="--p:${(val - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" value="${val}" data-shn="${key}" aria-label="${label}"><i>${unit}</i></div>`;
-    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow"><div class="shbody">
-      <div class="sh-head"><b class="sh-title">Drop shadow</b><button class="sh-clear" data-shd="" ${s ? '' : 'disabled'} title="Remove the shadow">Clear</button></div>
+    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow ${s ? '' : 'off'}"><div class="shbody">
+      <div class="sh-head"><b class="sh-title">Drop shadow</b>${s ? `<button class="sh-clear" data-shd="" title="Remove the shadow">Clear</button>` : `<button class="sh-clear sh-add" data-shadd="1" title="Add a shadow">Add</button>`}</div>
       ${row('x', 'X', v.x, -60, 60)}${row('y', 'Y', v.y, -60, 60)}${row('blur', 'Blur', v.blur, 0, 100)}${row('spread', 'Spread', v.spread, -30, 60)}${row('a', 'Opacity', v.a, 0, 100, '%')}
       <div class="sh-row sh-color"><span class="sh-l">Color</span><button class="sb-shsw" data-shsw="1" style="background:${v.color}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${v.color.replace('#', '').toUpperCase()}" data-shhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
       <div class="sh-pre"><span class="sh-l">Start from</span><div class="sb-shpre">${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
@@ -3760,9 +3762,13 @@
     cs.forEach(c => { const s = { ...(shadowOf(c) || SHADOW_PRESETS.medium) }; f(s, c); c.shadow = s; renderCard(c); }); }
   const shSet = (key, val, pop) => { const [lo, hi] = SH_RANGE[key]; val = Math.round(Math.max(lo, Math.min(hi, val))); const nb = pop.querySelector(`[data-shn="${key}"]`), rg = pop.querySelector(`[data-shr="${key}"]`); if (nb) nb.value = val; if (rg) { rg.value = val; rg.style.setProperty('--p', (val - rg.min) / (rg.max - rg.min) * 100 + '%'); }
     setShadow(s => { s[key] = val; }); pop.querySelectorAll('[data-shd]').forEach(b => b.classList.remove('on')); };
-  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd]'); if (!b) return; e.stopImmediatePropagation(); remember();
-    shTargets().forEach(c => { if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
-    shMark = false; $('selbar').dataset.key = ''; save(); }, true);
+  const reopenShadow = () => {   // the bar won't redraw while a dropdown is open, so: close, redraw (Add ↔ Clear, greyed or not), open the fresh sheet
+    document.querySelectorAll('#selbar .sb-popw.open').forEach(w => w.classList.remove('open')); $('selbar').dataset.key = ''; placeSelbar();
+    requestAnimationFrame(() => { const w = document.querySelector('#selbar [data-popw="shadow"]'); if (w) w.classList.add('open'); }); };
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd], [data-shadd]'); if (!b) return; e.stopImmediatePropagation(); remember();
+    const kind = b.dataset.shadd ? 'medium' : b.dataset.shd;   // Add starts you on Medium, so the shadow is plainly there
+    shTargets().forEach(c => { if (kind) c.shadow = kind; else delete c.shadow; renderCard(c); });
+    shMark = false; save(); reopenShadow(); }, true);
   $('selbar').addEventListener('input', e => {
     const r = e.target.closest('[data-shn], [data-shr], [data-shhex]'); if (!r) return; e.stopImmediatePropagation(); const pop = r.closest('.sb-pop');
     if (r.dataset.shhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; const hex = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); setShadow(s => { s.color = hex; }); pop.querySelector('.sb-shsw').style.background = hex; return; }
