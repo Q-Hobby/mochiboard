@@ -2862,7 +2862,7 @@
     if (!el.querySelector('.rot-h')) el.insertAdjacentHTML('beforeend', '<i class="rot-h" title="Drag to rotate"></i>');
     if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill === 'none' ? 'transparent' : c.fill || '#ffffff'); el.classList.toggle('no-fill', c.fill === 'none'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
-    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? 'transparent' : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
+    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src && !c.nobg ? 'transparent' : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
       boxShadow: 'none', border: '0' });
     if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
       color: c.color && c.color !== 'none' ? c.color : '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
@@ -3608,7 +3608,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3619,6 +3619,7 @@
       if (a === 'label') { const v = prompt('What picture goes here?', c.img); if (v && v.trim()) { remember(); c.img = v.trim(); renderCard(c); save(); offerFill([c]); } }
       if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
       if (a === 'frame2') startFrame(c);
+      if (a === 'nobg2') removeBgSpot(c);
       if (a === 'frame') { remember(); const d = c.noframe ? -1 : 1; c.x += 8 * d; c.y += 8 * d; c.w = Math.max(24, c.w - 16 * d); c.h = Math.max(24, c.h - 16 * d);   // the picture stays put: only the mat comes and goes (same as the bar's button)
         if (c.noframe) delete c.noframe; else c.noframe = true; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); }
       if (a === 'nobg') removeBg(c);
@@ -3671,7 +3672,22 @@
     renderCard(c); closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
 
   // ---- framing: double-click a filled image spot to move and zoom the picture inside its mask (focus fx, fy in 0..1; zoom fz ≥ 1). Non-destructive. ----
-  function frameStyle(c) { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%`; }
+  function frameStyle(c) { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%${c.nobg ? ';object-fit:contain' : ''}`; }
+  // background removal for a picture in a spot: same lift as a picture card, but the spot keeps its size (it's part of a layout); the cut-out sits inside it
+  async function removeBgSpot(c) {
+    if (c.nobg) { if (c.srcBg) { remember(); c.src = c.srcBg; delete c.srcBg; delete c.nobg; renderCard(c); selectOnly([c.id]); save(); } return; }
+    if (c._busy) return; c._busy = true; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); el?.classList.add('busy');
+    chirp(MB.removeBg ? 'Lifting the subject out ✦' : 'Lifting the subject out ✦ The first time fetches a little model (about 40 MB), then it works offline.', 7000);
+    try {
+      let out = null;
+      if (MB.removeBg) { try { out = await MB.removeBg(c.src); } catch (e) { if (!/macOS 14/.test(String(e.message))) throw e; } }
+      if (!out) { bgrm = bgrm || await import(BGRM); const blob = await bgrm.removeBackground(await (await fetch(await MB.mediaURL(c.src))).blob()); out = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); }); }
+      const t = await trimAlpha(out);
+      remember(); c.srcBg = c.src; c.src = t.src; c.nobg = true; delete c.fx; delete c.fy; delete c.fz;
+      renderCard(c); selectOnly([c.id]); save(); chirp('Background gone ✦', 2000);
+    } catch (e) { const m = String(e.message || e); say(/no subject/.test(m) ? 'I couldn’t find a subject to lift out of that one.' : 'Hmm, I couldn’t lift that one out. ' + m, 6000); }
+    finally { c._busy = false; el?.classList.remove('busy'); }
+  }
   let framing = null;   // { c, el, bar }
   function startFrame(c) {
     if (framing) endFrame(); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
