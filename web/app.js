@@ -3614,9 +3614,7 @@
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
     m.onclick = async ev => {
       const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; close();
-      if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (!f) return; const im = await imageFromFile(f); remember();
-          if (spot) { c.src = im.src; } else { const nf = c.noframe; c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (nf ? 0 : 16); }
-          renderCard(c); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it any time to swap it ✦' : 'Swapped ✦', 3000); }; picPick.click(); }
+      if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (f) putPicture(c, await imageFromFile(f)); }; picPick.click(); }
       if (a === 'mochi') { if (spot) { if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'label') { const v = prompt('What picture goes here?', c.img); if (v && v.trim()) { remember(); c.img = v.trim(); renderCard(c); save(); offerFill([c]); } }
       if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
@@ -3625,6 +3623,21 @@
       if (a === 'nobg') removeBg(c);
     };
   }
+  function putPicture(c, im) {
+    remember(); const spot = c.type === 'box';
+    if (spot) c.src = im.src; else { c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (c.noframe ? 0 : 16); delete c.crop; }
+    renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it any time to swap it ✦' : 'Swapped ✦', 3000);
+  }
+  // a file dragged from the Finder onto a picture or a placeholder lands in it (instead of becoming a new card next to it)
+  const picUnder = e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); return isPic(c) ? c : null; };
+  const hasFile = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  let picOver = null;
+  stage.addEventListener('dragover', e => { if (!hasFile(e)) return; const c = picUnder(e); if (c !== picOver) { picOver?.id && cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = c; if (c) cardsEl.querySelector(`[data-id="${c.id}"]`)?.classList.add('pic-over'); } }, true);
+  stage.addEventListener('dragleave', e => { if (picOver && !stage.contains(e.relatedTarget)) { cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = null; } }, true);
+  stage.addEventListener('drop', async e => {
+    if (picOver) { cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = null; }
+    const files = [...(e.dataTransfer?.files || [])].filter(f => f.type.startsWith('image/')); if (files.length !== 1) return;
+    const c = picUnder(e); if (!c) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); putPicture(c, await imageFromFile(files[0])); }, true);
   cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
   let picDown = null;
   cardsEl.addEventListener('pointerdown', e => { const ph = e.target.closest('.bx-ph'); picDown = ph ? [e.clientX, e.clientY, ph.closest('.card')?.dataset.id] : null; }, true);
