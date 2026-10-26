@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx"></div>${c.img && !c.src ? `<div class="bx-ph"><span class="mi">image</span><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx"></div>${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -3593,6 +3593,13 @@
     put(label); let i = 0; const tick = () => { if (!$('mcList').querySelector('.typing')) return; put(LATER[Math.min(i, LATER.length - 1)]); i++; doingTimer = setTimeout(tick, i === 1 ? 10000 : 14000); };
     doingTimer = setTimeout(tick, 9000);
   }
+
+  // ---- pixel-Mochi placeholder pictures (stamps/ph, drawn by tools/placeholders.py): the empty image spot shows a little scene that matches its label ----
+  const PH_SCENES = [[/\b(hero|landscape|banner|cover|outdoor|park|city|street|sky|beach|mountain|garden|sunny|nature|view)\b/i, 'landscape'],
+    [/\b(portrait|avatar|profile|face|person|woman|man|user|customer|headshot|selfie|founder)\b/i, 'portrait'], [/\b(team|people|friends|group|family|crowd|together|community)\b/i, 'team'],
+    [/\b(product|item|shoe|bag|food|dish|coffee|cake|bottle|box|packag|merch|shirt|plate|meal|drink)\b/i, 'product'], [/\b(photo|camera|gallery|snapshot|picture of)\b/i, 'photo'],
+    [/\b(chart|graph|stats?|data|dashboard|analytics|report|number)\b/i, 'chart'], [/\b(map|location|route|trip|travel|place|address|pin)\b/i, 'map'], [/\b(music|song|audio|podcast|video|film|movie|playlist|headphones)\b/i, 'music']];
+  function phScene(label) { const s = String(label || ''); const hit = PH_SCENES.find(([re]) => re.test(s)); return hit ? hit[1] : 'any'; }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {

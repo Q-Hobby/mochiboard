@@ -2473,6 +2473,10 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .mc-msg.typing span { margin-left: 5px; font: 600 12px/1 var(--font); color: var(--ink-soft); white-space: nowrap; }
 .mc-msg.typing span:empty { display: none; }
 
+/* image spots: a pixel-Mochi scene instead of a grey icon */
+.bx-ph .bx-art { width: 62%; max-height: 58%; object-fit: contain; image-rendering: pixelated; border-radius: 8px; opacity: .96; }
+.bx-ph .bx-l { color: #8e8a96; }
+
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }
 .dz-flows > .label { margin: 0 2px 4px; } .dz-flows > .label small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-left: 4px; }
