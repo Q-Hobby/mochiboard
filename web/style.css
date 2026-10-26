@@ -2505,23 +2505,26 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.frame[data-sh] > .frame, .card.image[data-sh]:not(.nobg) > .frame, .card.canvas[data-sh] > .frame { box-shadow: var(--shb); }
 .card.shape[data-sh] svg.sh.is-line, .card.path[data-sh] svg.pth, .card.image.nobg[data-sh] img { filter: var(--shf) !important; }
 .card.shape[data-sh] svg.sh:not(.is-line) { filter: url(#wob) var(--shf) !important; }
-.sb-pop-shadow { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 16px; width: 372px; box-sizing: border-box; }
-.sb-pop-shadow .sb-shtitle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; font: 700 13px/1 var(--font); color: var(--ink); }
-.sb-pop-shadow .sb-shtitle small { font: 600 11px/1 var(--font); color: var(--ink-faint); }
-.sb-pop-shadow .sb-sqrow, .sb-pop-shadow .sb-shcolor { gap: 12px; min-height: 30px; }
-.sb-pop-shadow .sb-sqrow > span, .sb-pop-shadow .sb-shcolor > span { width: 64px; flex: none; color: var(--ink-soft); font-weight: 600; }
-.sb-pop-shadow input[type=range] { margin: 0; }
-.sb-pop-shadow input[type=number] { width: 60px; flex: none; padding: 7px 8px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); text-align: right; }
-.sb-pop-shadow .sb-unit { width: 22px; flex: none; font: 600 11px/1 var(--font); color: var(--ink-faint); }
-.sb-shcolor .sb-shsw { width: 34px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; }
-.sb-shcolor .sb-shhex { width: 110px; flex: none; padding: 7px 10px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); letter-spacing: .04em; text-transform: uppercase; }
-.sb-pop-shadow .sb-shpre { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 14px; border-top: 1px solid rgba(0, 0, 0, .06); }
-.sb-pop-shadow .sb-shpre > span { width: 64px; flex: none; font: 600 11.5px/1 var(--font); color: var(--ink-faint); }
-.sb-pop-shadow .sb-shpre button { flex: 1; padding: 8px 4px; border: 0; border-radius: 9px; background: #f7f3f8; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; } .sb-pop-shadow .sb-shpre button.on { background: var(--blush); }
+/* the shadow sheet: sliders with a number beside each, spaced like the Templates panel. (Its open/closed display stays the bar's rule.) */
+.sb-pop-shadow { padding: 0; width: 392px; box-sizing: border-box; border-radius: 22px; }
+.sb-pop-shadow .shbody { display: flex; flex-direction: column; gap: 12px; width: 100%; padding: 22px 26px 22px; box-sizing: border-box; }
+.sb-pop-shadow .sh-title { margin: 0 0 4px; font: 700 14px/1 var(--font); color: var(--ink); }
+.sb-pop-shadow .sh-row { display: flex; align-items: center; gap: 12px; min-height: 30px; }
+.sb-pop-shadow .sh-l { width: 66px; flex: none; font: 600 12.5px/1 var(--font); color: var(--ink-soft); }
+.sb-pop-shadow .sh-row > .sh-l[data-scrub] { cursor: ew-resize; user-select: none; } .sb-pop-shadow .sh-l.scrubbing { color: var(--pink-deep, #e8467c); }
+.sb-pop-shadow input[type=range] { flex: 1; min-width: 0; margin: 0; -webkit-appearance: none; appearance: none; height: 22px; background: none; cursor: pointer; --p: 50%; }
+.sb-pop-shadow input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--select) var(--p), rgba(0, 0, 0, .1) var(--p)); }
+.sb-pop-shadow input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .25), 0 0 0 1px rgba(0, 0, 0, .06); cursor: grab; }
+.sb-pop-shadow input[type=number] { width: 60px; flex: none; height: 30px; padding: 0 9px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); text-align: right; box-sizing: border-box; -moz-appearance: textfield; }
+.sb-pop-shadow input::-webkit-outer-spin-button, .sb-pop-shadow input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sb-pop-shadow .sh-row > i { width: 22px; flex: none; font: 600 11px/1 var(--font); font-style: normal; color: var(--ink-faint); }
+.sb-pop-shadow .sb-shsw { width: 30px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; }
+.sb-pop-shadow .sb-shhex { width: 104px; flex: none; height: 30px; padding: 0 10px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 12.5px/1 var(--font); color: var(--ink); letter-spacing: .04em; text-transform: uppercase; box-sizing: border-box; }
+.sb-pop-shadow .sh-pre { display: flex; align-items: center; gap: 12px; margin-top: 6px; padding-top: 16px; border-top: 1px solid rgba(120, 80, 120, .1); }
+.sb-pop-shadow .sb-shpre { display: flex; flex: 1; gap: 5px; }
+.sb-pop-shadow .sb-shpre button { flex: 1; height: 30px; padding: 0 4px; border: 0; border-radius: 9px; background: #f4f0f5; font: 600 11.5px/1 var(--font); color: var(--ink); cursor: pointer; } .sb-pop-shadow .sb-shpre button.on { background: var(--blush); }
+body.scrub-ew, body.scrub-ew * { cursor: ew-resize !important; }
 .card.framing > :first-child { filter: none; }
-.sb-pop-shadow { display: flex; gap: 4px; padding: 6px; }
-.sb-pop-shadow button { padding: 7px 10px; border: 0; border-radius: 9px; background: #f7f3f8; font: 600 12px/1 var(--font); color: var(--ink); cursor: pointer; white-space: nowrap; }
-.sb-pop-shadow button.on { background: var(--blush); }
 
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }

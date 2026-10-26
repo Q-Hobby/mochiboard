@@ -3744,33 +3744,40 @@
   function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg); if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); } else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); } }
   const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
   function shadowPop(cs) {
-    const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '';
-    const row = (key, label, v, min, max, unit = 'px') => `<div class="sbc-top sb-sqrow" data-shk="${key}"><span>${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${v}" style="--p:${(v - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" min="${min}" max="${max}" value="${v}" data-shn="${key}" aria-label="${label}"><b class="sb-unit">${unit}</b></div>`;
-    const v = s || SHADOW_PRESETS.medium;
-    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow"><div class="sb-shtitle">Drop shadow<small>${s ? 'on' : 'off'}</small></div>
+    const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '', v = s || SHADOW_PRESETS.medium;
+    const row = (key, label, val, min, max, unit = 'px') => `<div class="sh-row" data-shk="${key}"><span class="sh-l" data-scrub="${key}" title="Drag to change">${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${val}" style="--p:${(val - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" value="${val}" data-shn="${key}" aria-label="${label}"><i>${unit}</i></div>`;
+    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow"><div class="shbody">
+      <b class="sh-title">Drop shadow</b>
       ${row('x', 'X', v.x, -60, 60)}${row('y', 'Y', v.y, -60, 60)}${row('blur', 'Blur', v.blur, 0, 100)}${row('spread', 'Spread', v.spread, -30, 60)}${row('a', 'Opacity', v.a, 0, 100, '%')}
-      <div class="sbc-top sb-shcolor"><span>Color</span><button class="sb-shsw" data-shsw="1" style="background:${v.color}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${v.color.replace('#', '').toUpperCase()}" data-shhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
-      <div class="sb-shpre"><span>Start from</span>${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></div></span>`;
+      <div class="sh-row sh-color"><span class="sh-l">Color</span><button class="sb-shsw" data-shsw="1" style="background:${v.color}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${v.color.replace('#', '').toUpperCase()}" data-shhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
+      <div class="sh-pre"><span class="sh-l">Start from</span><div class="sb-shpre">${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+    </div></div></span>`;
   }
+  const SH_RANGE = { x: [-200, 200], y: [-200, 200], blur: [0, 200], spread: [-60, 100], a: [0, 100] };
   const shTargets = () => selCards().filter(c => SHADOWABLE.includes(c.type));
   let shMark = false;
   function setShadow(f) { const cs = shTargets(); if (!cs.length) return; if (!shMark) { remember(); shMark = true; }
     cs.forEach(c => { const s = { ...(shadowOf(c) || SHADOW_PRESETS.medium) }; f(s, c); c.shadow = s; renderCard(c); }); }
+  const shSet = (key, val, pop) => { const [lo, hi] = SH_RANGE[key]; val = Math.round(Math.max(lo, Math.min(hi, val))); const nb = pop.querySelector(`[data-shn="${key}"]`), rg = pop.querySelector(`[data-shr="${key}"]`); if (nb) nb.value = val; if (rg) { rg.value = val; rg.style.setProperty('--p', (val - rg.min) / (rg.max - rg.min) * 100 + '%'); }
+    setShadow(s => { s[key] = val; }); pop.querySelectorAll('[data-shd]').forEach(b => b.classList.remove('on')); };
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd]'); if (!b) return; e.stopImmediatePropagation(); remember();
     shTargets().forEach(c => { if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
     shMark = false; $('selbar').dataset.key = ''; save(); }, true);
   $('selbar').addEventListener('input', e => {
-    const r = e.target.closest('[data-shr], [data-shn], [data-shhex]'); if (!r) return; e.stopImmediatePropagation();
-    if (r.dataset.shhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; const hex = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); setShadow(s => { s.color = hex; }); r.parentElement.querySelector('.sb-shsw').style.background = hex; return; }
-    const key = r.dataset.shr || r.dataset.shn, row = r.parentElement, rg = row.querySelector('[data-shr]'), nb = row.querySelector('[data-shn]'); if (r === rg) nb.value = rg.value; else rg.value = nb.value;
-    rg.style.setProperty('--p', (rg.value - rg.min) / (rg.max - rg.min) * 100 + '%'); const val = +rg.value; setShadow(s => { s[key] = val; });
-    row.closest('.sb-pop').querySelectorAll('[data-shd]').forEach(b => b.classList.toggle('on', false)); }, true);
-  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-shr], [data-shn], [data-shhex]')) { shMark = false; save(); } }, true);
-  // the swatch opens the app's own colour wheel; what it picks lands on the shadow live and in the hex field
+    const r = e.target.closest('[data-shn], [data-shr], [data-shhex]'); if (!r) return; e.stopImmediatePropagation(); const pop = r.closest('.sb-pop');
+    if (r.dataset.shhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; const hex = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); setShadow(s => { s.color = hex; }); pop.querySelector('.sb-shsw').style.background = hex; return; }
+    if (r.value === '') return; shSet(r.dataset.shn || r.dataset.shr, +r.value, pop); }, true);
+  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-shn], [data-shr], [data-shhex]')) { shMark = false; save(); } }, true);
+  // Figma-style scrubbing: drag a field's label left or right to change it (Shift for ×10); arrows in the field work too
+  $('selbar').addEventListener('pointerdown', e => { const h = e.target.closest('[data-scrub]'); if (!h) return; e.preventDefault(); e.stopPropagation();
+    const key = h.dataset.scrub, pop = h.closest('.sb-pop'), nb = pop.querySelector(`[data-shn="${key}"]`), x0 = e.clientX, v0 = +nb.value || 0; h.classList.add('scrubbing'); document.body.classList.add('scrub-ew');
+    const mv = ev => shSet(key, v0 + Math.round((ev.clientX - x0) / 2) * (ev.shiftKey ? 10 : 1), pop);
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); h.classList.remove('scrubbing'); document.body.classList.remove('scrub-ew'); shMark = false; save(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); }, true);
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shsw]'); if (!b) return; e.stopImmediatePropagation(); const cs = shTargets(); if (!cs.length) return; const r = b.getBoundingClientRect(), s = shadowOf(cs[0]) || SHADOW_PRESETS.medium;
     openColor({ tint: true, fromBar: true, title: 'Shadow color', hex: s.color, presets: ['#1e1428', '#000000', '#5b4a66', '#e2649a', '#4f9dff', '#5fc795', '#f7b955', '#ffffff'], at: { x: r.left - 110, y: r.top - 480 },
       apply: hex => { setShadow(x => { x.color = hex; }); b.style.background = hex; const hx = b.parentElement.querySelector('.sb-shhex'); if (hx) hx.value = hex.replace('#', '').toUpperCase(); } }); }, true);
-  $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-shhex]')) e.stopPropagation(); }, true);   // typing a hex mustn't trigger board shortcuts
+  $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-shhex], [data-shn]')) e.stopPropagation(); }, true);   // typing in the panel mustn't trigger board shortcuts
 
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
