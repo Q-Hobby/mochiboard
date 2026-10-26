@@ -3624,7 +3624,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot ? '' : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`));
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`);
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3635,8 +3635,6 @@
       if (a === 'frame2') startFrame(c);
       if (a === 'png' || a === 'jpg') exportPicture(c, a);
       if (a === 'nobg2') removeBgSpot(c);
-      if (a === 'frame') { remember(); const d = c.noframe ? -1 : 1; c.x += 8 * d; c.y += 8 * d; c.w = Math.max(24, c.w - 16 * d); c.h = Math.max(24, c.h - 16 * d);   // the picture stays put: only the mat comes and goes (same as the bar's button)
-        if (c.noframe) delete c.noframe; else c.noframe = true; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); }
       if (a === 'nobg') removeBg(c);
     };
   }
@@ -3759,7 +3757,10 @@
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
   function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // drawn by a layer behind the card (see the css), so the wobble filter can't clip it; a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
-  function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg);
+  const bwOf = c => c.nobg ? (c.bw ?? 0) : c.noframe ? 0 : (c.bw ?? 8), bcOf = c => c.bc || '#ffffff';
+  const outlineFilter = (w, col) => { if (!(w > 0)) return ''; const d = +(w * .7).toFixed(2); return [[w, 0], [-w, 0], [0, w], [0, -w], [d, d], [-d, d], [d, -d], [-d, -d]].map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${col})`).join(' '); };
+  function borderVars(c, el) { if (c.type !== 'image') return; const w = bwOf(c); el.style.setProperty('--mat', w + 'px'); el.style.setProperty('--matc', bcOf(c)); if (c.nobg && w > 0) el.style.setProperty('--outl', outlineFilter(w, bcOf(c))); else el.style.removeProperty('--outl'); }
+  function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg); borderVars(c, el);
     if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); el.style.setProperty('--shr', (c.type === 'box' || c.type === 'frame' ? (c.radius || 0) : c.type === 'image' ? (c.noframe ? (c.radius ?? 12) : 18) : 18) + 'px'); }
     else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); el.style.removeProperty('--shr'); } }
   const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
@@ -3826,6 +3827,42 @@
       await MB.saveFile(data, String(name).slice(0, 60).replace(/[^\w\- ]+/g, ' ').trim() || 'Picture', fmt); chirp(`Saved as ${fmt === 'jpg' ? 'JPEG' : 'PNG'} ✦`, 2500);
     } catch (e) { say('Hmm, I couldn’t save that picture. ' + String(e.message || e), 6000); }
   }
+
+  // ---- a picture's border, from the bar: the mat around a picture (width + colour), or a sticker outline hugging a cut-out ----
+  const BD_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="15" height="15" rx="3"/><rect x="6" y="6" width="8" height="8" rx="1.5" stroke-dasharray="2 1.6"/></svg>';
+  function borderPop(c) {
+    const w = bwOf(c), col = bcOf(c), on = w > 0;
+    return `<span class="sb-popw" data-popw="border"><button class="sb-poptrig sb-ic ${on ? 'on' : ''}" data-pop="border" title="Border">${BD_ICON}</button><div class="sb-pop sb-pop-shadow sb-pop-border ${on ? '' : 'off'}"><div class="shbody">
+      <div class="sh-head"><b class="sh-title">${c.nobg ? 'Outline' : 'Border'}</b>${on ? `<button class="sh-clear" data-bdclear="1" title="Remove the border">Clear</button>` : `<button class="sh-clear sh-add" data-bdadd="1" title="Add a border">Add</button>`}</div>
+      <div class="sh-row"><span class="sh-l" data-bscrub="1" title="Drag to change">Width</span><input type="range" min="1" max="24" step="1" value="${w || 8}" style="--p:${((w || 8) - 1) / 23 * 100}%" data-bdr="1"><input type="number" min="1" max="24" value="${w || 8}" data-bdn="1" aria-label="Width"><i>px</i></div>
+      <div class="sh-row sh-color"><span class="sh-l">Color</span><button class="sb-shsw" data-bdsw="1" style="background:${col}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${col.replace('#', '').toUpperCase()}" data-bdhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
+    </div></div></span>`;
+  }
+  let bdMark = false;
+  function setBorderWidth(c, w) {   // the picture stays put; only the mat grows or goes. A cut-out's outline is drawn outside it, so nothing moves
+    w = Math.round(Math.max(0, Math.min(24, w))); if (!bdMark) { remember(); bdMark = true; }
+    if (!c.nobg) { const d = w - bwOf(c); c.x -= d; c.y -= d; c.w = Math.max(24, c.w + 2 * d); c.h = Math.max(24, c.h + 2 * d); }
+    if (w === 0) { c.noframe = true; } else { delete c.noframe; c.bw = w; }
+    if (c.nobg) c.bw = w;
+    renderCard(c); renderWires();
+  }
+  const reopenPop = name => { document.querySelectorAll('#selbar .sb-popw.open').forEach(x => x.classList.remove('open')); $('selbar').dataset.key = ''; placeSelbar(); requestAnimationFrame(() => document.querySelector(`#selbar [data-popw="${name}"]`)?.classList.add('open')); };
+  const bdTarget = () => { const c = selCards()[0]; return c && c.type === 'image' ? c : null; };
+  $('selbar').addEventListener('click', e => { const add = e.target.closest('[data-bdadd]'), clr = e.target.closest('[data-bdclear]'); if (!add && !clr) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return;
+    bdMark = false; setBorderWidth(c, add ? 8 : 0); bdMark = false; selectOnly([c.id]); save(); reopenPop('border'); }, true);
+  $('selbar').addEventListener('input', e => { const r = e.target.closest('[data-bdr], [data-bdn], [data-bdhex]'); if (!r) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return; const pop = r.closest('.sb-pop');
+    if (r.dataset.bdhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; if (!bdMark) { remember(); bdMark = true; } c.bc = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); pop.querySelector('.sb-shsw').style.background = c.bc; renderCard(c); return; }
+    if (r.value === '') return; const w = +r.value; const nb = pop.querySelector('[data-bdn]'), rg = pop.querySelector('[data-bdr]'); nb.value = w; rg.value = w; rg.style.setProperty('--p', (w - 1) / 23 * 100 + '%'); setBorderWidth(c, w); }, true);
+  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-bdr], [data-bdn], [data-bdhex]')) { bdMark = false; selectOnly(selCards().map(c => c.id)); save(); } }, true);
+  $('selbar').addEventListener('pointerdown', e => { const h = e.target.closest('[data-bscrub]'); if (!h) return; e.preventDefault(); e.stopPropagation(); const c = bdTarget(); if (!c) return;
+    const pop = h.closest('.sb-pop'), nb = pop.querySelector('[data-bdn]'), rg = pop.querySelector('[data-bdr]'), x0 = e.clientX, v0 = +nb.value || 0; h.classList.add('scrubbing'); document.body.classList.add('scrub-ew');
+    const mv = ev => { const w = Math.max(1, Math.min(24, v0 + Math.round((ev.clientX - x0) / 4))); nb.value = w; rg.value = w; rg.style.setProperty('--p', (w - 1) / 23 * 100 + '%'); setBorderWidth(c, w); };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); h.classList.remove('scrubbing'); document.body.classList.remove('scrub-ew'); bdMark = false; selectOnly([c.id]); save(); };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); }, true);
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-bdsw]'); if (!b) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return; const r = b.getBoundingClientRect();
+    openColor({ tint: true, fromBar: true, title: c.nobg ? 'Outline color' : 'Border color', hex: bcOf(c), presets: ['#ffffff', '#1e1428', '#ff9ec4', '#e2649a', '#4f9dff', '#5fc795', '#f7b955', '#9b7bff'], at: { x: r.left - 110, y: r.top - 480 },
+      apply: hex => { if (!bdMark) { remember(); bdMark = true; } c.bc = hex; renderCard(c); b.style.background = hex; const hx = b.parentElement.querySelector('.sb-shhex'); if (hx) hx.value = hex.replace('#', '').toUpperCase(); save(); } }); }, true);
+  $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-bdhex], [data-bdn]')) e.stopPropagation(); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4735,7 +4772,7 @@ ${proseCSS()}
     if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-ic" data-pic="1" title="Replace picture" aria-label="Replace picture"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2.5"/><path d="M3 13l4-4 3.5 3.5L13 10l4 4"/><circle cx="13.5" cy="7.5" r="1.3" fill="currentColor" stroke="none"/></svg></button>`;
     if (one?.type === 'box' && one.src) h += `<button class="sb-ic" data-frame2="1" title="Crop" aria-label="Crop"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5V14h11.5M2.5 6H14v11.5"/></svg></button>`;
     if (cs.length && cs.every(c => SHADOWABLE.includes(c.type))) h += shadowPop(cs);
-    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', false) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
+    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', false) + borderPop(one) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
