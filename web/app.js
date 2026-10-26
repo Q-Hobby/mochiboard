@@ -3608,7 +3608,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (spot ? '' : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot ? '' : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3618,6 +3618,7 @@
       if (a === 'mochi') { if (spot) { const v = prompt('What picture should go here?', c.img); if (v == null) return; if (v.trim() && v.trim() !== c.img) { remember(); c.img = v.trim(); renderCard(c); save(); } if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } /* the label is the brief Mochi works from */ else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
       if (a === 'frame2') startFrame(c);
+      if (a === 'png' || a === 'jpg') exportPicture(c, a);
       if (a === 'nobg2') removeBgSpot(c);
       if (a === 'frame') { remember(); const d = c.noframe ? -1 : 1; c.x += 8 * d; c.y += 8 * d; c.w = Math.max(24, c.w - 16 * d); c.h = Math.max(24, c.h - 16 * d);   // the picture stays put: only the mat comes and goes (same as the bar's button)
         if (c.noframe) delete c.noframe; else c.noframe = true; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); }
@@ -3785,6 +3786,29 @@
       apply: hex => { setShadow(x => { x.color = hex; }); b.style.background = hex; const hx = b.parentElement.querySelector('.sb-shhex'); if (hx) hx.value = hex.replace('#', '').toUpperCase(); } }); }, true);
   $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-shhex], [data-shn]')) e.stopPropagation(); }, true);   // typing in the panel mustn't trigger board shortcuts
 
+  // ---- saving a picture out: what you see (the crop, the framing, the cut-out) as a PNG or a JPEG, at 2× ----
+  async function exportPicture(c, fmt) {
+    try {
+      const url = await MB.mediaURL(c.src), im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That picture wouldn’t load')); i.src = url; });
+      const scale = 2, cv = document.createElement('canvas'), g = cv.getContext('2d');
+      if (c.type === 'box') {   // a spot: the picture as it sits in its mask (cover + focus + zoom, or a cut-out sitting inside)
+        cv.width = Math.round(c.w * scale); cv.height = Math.round(c.h * scale);
+        if (fmt === 'jpg') { g.fillStyle = '#ffffff'; g.fillRect(0, 0, cv.width, cv.height); }
+        const fx = c.fx ?? .5, fy = c.fy ?? .5, fz = c.fz ?? 1, fit = c.nobg ? Math.min(c.w / im.width, c.h / im.height) : Math.max(c.w / im.width, c.h / im.height), w = im.width * fit, h = im.height * fit;
+        const ox = (c.w - w) * fx, oy = (c.h - h) * fy;   // object-position
+        g.translate(c.w * fx * scale, c.h * fy * scale); g.scale(fz, fz); g.translate(-c.w * fx * scale, -c.h * fy * scale);   // then the zoom, around the focus
+        g.drawImage(im, ox * scale, oy * scale, w * scale, h * scale);
+      } else {   // a picture card: the crop if there is one, else the whole picture
+        const k = c.crop; const sx = k ? k.x * im.width : 0, sy = k ? k.y * im.height : 0, sw = k ? k.w * im.width : im.width, sh = k ? k.h * im.height : im.height;
+        cv.width = Math.round(sw); cv.height = Math.round(sh);
+        if (fmt === 'jpg') { g.fillStyle = '#ffffff'; g.fillRect(0, 0, cv.width, cv.height); }
+        g.drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      }
+      const data = cv.toDataURL(fmt === 'jpg' ? 'image/jpeg' : 'image/png', .92).split(',')[1];
+      const name = (c.type === 'box' ? c.img : c.title || c.name) || 'Picture';
+      await MB.saveFile(data, String(name).slice(0, 60).replace(/[^\w\- ]+/g, ' ').trim() || 'Picture', fmt); chirp(`Saved as ${fmt === 'jpg' ? 'JPEG' : 'PNG'} ✦`, 2500);
+    } catch (e) { say('Hmm, I couldn’t save that picture. ' + String(e.message || e), 6000); }
+  }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
