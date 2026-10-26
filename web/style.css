@@ -2603,3 +2603,5 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 .card.image.framing .imgwrap { overflow: visible; }
 
 body.no-pull .card .chip[data-act="colors"] { display: none !important; }
+
+.set-body h3.set-sub { margin-top: 20px; }
