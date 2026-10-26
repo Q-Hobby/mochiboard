@@ -4095,7 +4095,7 @@
   function renderFlowTpl() {
     const grid = $('kit-flow')?.querySelector('.kit-grid'); if (!grid || !FT.length || grid.querySelector('[data-ftpl-open]')) return;
     const b = document.createElement('button'); b.dataset.ftplOpen = '1'; b.title = 'Whole flowcharts from the library'; b.innerHTML = `<svg class="kp-ic" viewBox="0 0 20 20"><rect x="2.5" y="3" width="6" height="4" rx="1.3"/><rect x="11.5" y="3" width="6" height="4" rx="1.3"/><rect x="7" y="13" width="6" height="4" rx="1.3"/><path d="M5.5 7v2.5h9V7M10 9.5V13" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>Templates</span>`;
-    grid.appendChild(b); b.onclick = e => { e.stopPropagation(); pickWF(null); if (placing) stopPlacing(); openFlowTpl(); };
+    grid.prepend(b); b.onclick = e => { e.stopPropagation(); pickWF(null); if (placing) stopPlacing(); openFlowTpl(); };
   }
   // ---- the Templates window: categories on the left, the list in the middle, a drawn preview + the why on the right, Add to the board ----
   const FTM = { cat: null, pick: null };
@@ -4200,7 +4200,7 @@
 
   // ---- a line's own right-click menu: label, ends, colour, delete ----
   stage.addEventListener('contextmenu', e => {
-    const w = e.target.closest('[data-wire]'); if (!w || placing || penT) return; const l = linkById(w.dataset.wire); if (!l) return;
+    const w = e.target.closest('[data-wire]') || document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-wire]'); if (!w || placing || penT) return; const l = linkById(w.dataset.wire); if (!l) return;
     e.preventDefault(); e.stopImmediatePropagation(); if (!selWires.has(l.id)) selectWire(l.id);
     const ls = () => [...selWires].map(linkById).filter(Boolean), swatch = c => `<i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${c || '#8c8494'};box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)"></i>`;
     const endItems = which => ENDS.map(kind => ({ label: END_N[kind] || kind, run: () => { remember(); ls().forEach(x => { if (which === 'head') { delete x.arrow; if (kind === 'none') delete x.head; else x.head = kind; } else { if (kind === 'none') delete x.tail; else x.tail = kind; } }); renderWires(); save(); } }));
