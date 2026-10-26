@@ -2486,6 +2486,16 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.pic-over { outline: 3px solid var(--pink-deep, #e8467c); outline-offset: 3px; border-radius: 12px; }
 .card.pic-over .bx-ph .bx-l { background: var(--pink-deep, #e8467c); color: #fff; }
 
+/* framing a picture inside its spot */
+.card.box .bx { overflow: hidden; }
+.card.box .bx-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.card.box .bx-ghost { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; pointer-events: none; z-index: -1; }
+.card.box.framing { cursor: grab; z-index: 50; } .card.box.framing:active { cursor: grabbing; }
+.card.box.framing .bx { outline: 2px dashed var(--pink-deep, #e8467c); outline-offset: 2px; }
+.card.box.framing .bx-ghost { display: block; }
+.frame-bar { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 120; display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-radius: 999px; background: #fff; box-shadow: 0 14px 36px rgba(120, 80, 120, .24), 0 0 0 1px rgba(0, 0, 0, .05); font: 600 12.5px/1 var(--font); color: var(--ink-soft); }
+.frame-bar button { padding: 8px 12px; border: 0; border-radius: 999px; background: #f4eef3; font: 700 12.5px/1 var(--font); color: var(--ink); cursor: pointer; } .frame-bar button.pri { background: #241f28; color: #fff; }
+
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }
 .dz-flows > .label { margin: 0 2px 4px; } .dz-flows > .label small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-left: 4px; }

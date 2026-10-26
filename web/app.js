@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx"></div>${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -2862,7 +2862,7 @@
     if (!el.querySelector('.rot-h')) el.insertAdjacentHTML('beforeend', '<i class="rot-h" title="Drag to rotate"></i>');
     if (c.type === 'icon') { el.style.setProperty('--isz', Math.min(c.w, c.h) + 'px'); el.style.setProperty('--ic', c.color || '#27272a'); }
     if (c.type === 'frame') { el.style.setProperty('--fr-fill', c.fill === 'none' ? 'transparent' : c.fill || '#ffffff'); el.classList.toggle('no-fill', c.fill === 'none'); el.style.setProperty('--fr-r', (c.radius ?? 0) + 'px'); }
-    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? `center / cover no-repeat url("${c.src}")` : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
+    if (c.type === 'box') Object.assign(el.querySelector('.bx').style, { background: c.src ? 'transparent' : c.fill === 'none' ? 'transparent' : c.fill || '#e4e4e7', borderRadius: (c.radius || 0) + 'px', opacity: c.opacity ?? 1,
       boxShadow: 'none', border: '0' });
     if (c.type === 'text') { el.style.height = 'auto'; Object.assign(el.querySelector('.tx').style, { fontFamily: `"${c.font || 'DM Sans'}", system-ui`, fontSize: (c.size || 18) + 'px', fontWeight: c.weight || 500,
       color: c.color && c.color !== 'none' ? c.color : '#27272a', textAlign: c.align || 'left', lineHeight: c.lh || 1.3 }); requestAnimationFrame(() => { const h = el.offsetHeight; if (h && Math.abs(h - c.h) > 1) c.h = h; }); }
@@ -3608,7 +3608,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+      (spot && c.src ? `<button data-m="frame2">Adjust the framing</button>` : '') + (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3618,6 +3618,7 @@
       if (a === 'mochi') { if (spot) { if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'label') { const v = prompt('What picture goes here?', c.img); if (v && v.trim()) { remember(); c.img = v.trim(); renderCard(c); save(); offerFill([c]); } }
       if (a === 'clear') { remember(); delete c.src; renderCard(c); save(); }
+      if (a === 'frame2') startFrame(c);
       if (a === 'frame') { remember(); const d = c.noframe ? -1 : 1; c.x += 8 * d; c.y += 8 * d; c.w = Math.max(24, c.w - 16 * d); c.h = Math.max(24, c.h - 16 * d);   // the picture stays put: only the mat comes and goes (same as the bar's button)
         if (c.noframe) delete c.noframe; else c.noframe = true; renderCard(c); selectOnly([c.id]); renderWires(); $('selbar').dataset.key = ''; save(); }
       if (a === 'nobg') removeBg(c);
@@ -3625,7 +3626,7 @@
   }
   function putPicture(c, im) {
     remember(); const spot = c.type === 'box';
-    if (spot) c.src = im.src; else { c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (c.noframe ? 0 : 16); delete c.crop; }
+    if (spot) { c.src = im.src; delete c.fx; delete c.fy; delete c.fz; } else { c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (c.noframe ? 0 : 16); delete c.crop; }
     renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it any time to swap it ✦' : 'Swapped ✦', 3000);
   }
   // a file dragged from the Finder onto a picture or a placeholder lands in it (instead of becoming a new card next to it)
@@ -3673,6 +3674,41 @@
     const we = e.target.closest('[data-we]'); if (!we || selWires.size) return; const c = selCards()[0]; if (!c || c.type !== 'path') return;
     e.stopImmediatePropagation(); remember(); const [which, kind] = we.dataset.we.split(':'); if (kind === 'none') delete c[which]; else c[which] = kind;
     renderCard(c); closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
+
+  // ---- framing: double-click a filled image spot to move and zoom the picture inside its mask (focus fx, fy in 0..1; zoom fz ≥ 1). Non-destructive. ----
+  function frameStyle(c) { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%`; }
+  let framing = null;   // { c, el, bar }
+  function startFrame(c) {
+    if (framing) endFrame(); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
+    remember(); selectOnly([c.id]); framing = { c, el, was: { fx: c.fx, fy: c.fy, fz: c.fz } }; el.classList.add('framing');
+    const bar = document.createElement('div'); bar.className = 'frame-bar'; bar.innerHTML = `<span>Drag to move · scroll to zoom</span><button data-f="reset">Reset</button><button data-f="done" class="pri">Done</button>`; document.body.appendChild(bar); framing.bar = bar;
+    bar.onclick = e => { const a = e.target.closest('[data-f]')?.dataset.f; if (a === 'reset') { delete c.fx; delete c.fy; delete c.fz; applyFrame(c); } if (a === 'done') endFrame(); };
+    ['pointerdown', 'mousedown', 'dblclick'].forEach(t => bar.addEventListener(t, e => e.stopPropagation()));
+  }
+  function applyFrame(c) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const st = frameStyle(c); el.querySelectorAll('.bx-img, .bx-ghost').forEach(i => i.style.cssText = st); }
+  function endFrame() { if (!framing) return; const { c, el, bar } = framing; framing = null; el.classList.remove('framing'); bar.remove(); save(); }
+  const frameImg = () => framing && framing.el.querySelector('.bx-img');
+  stage.addEventListener('dblclick', e => {   // the stage owns double-clicks (the pointer gets captured on the way), so find the card under the point
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); if (!c || c.type !== 'box' || !c.src) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); startFrame(c); }, true);
+  // drag moves the focus point; the overflow (how much picture hangs outside the mask) decides how far a pixel of drag goes
+  let fdrag = null;
+  cardsEl.addEventListener('pointerdown', e => {
+    if (!framing || e.button !== 0) return; const el = e.target.closest('.card'); if (!el || el !== framing.el) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    const c = framing.c, im = frameImg(), iw = im?.naturalWidth || 1, ih = im?.naturalHeight || 1, z = view.z, cover = Math.max(c.w / iw, c.h / ih), fz = c.fz ?? 1;
+    fdrag = { x: e.clientX, y: e.clientY, fx: c.fx ?? .5, fy: c.fy ?? .5, ox: iw * cover * fz - c.w, oy: ih * cover * fz - c.h, z };
+    const mv = ev => { const dx = (ev.clientX - fdrag.x) / fdrag.z, dy = (ev.clientY - fdrag.y) / fdrag.z;
+      if (fdrag.ox > 1) c.fx = Math.max(0, Math.min(1, fdrag.fx - dx / fdrag.ox)); if (fdrag.oy > 1) c.fy = Math.max(0, Math.min(1, fdrag.fy - dy / fdrag.oy)); applyFrame(c); };
+    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); fdrag = null; };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }, true);
+  stage.addEventListener('wheel', e => {
+    if (!framing) return; const el = e.target.closest('.card'); if (!el || el !== framing.el) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    const c = framing.c; c.fz = Math.max(1, Math.min(4, (c.fz ?? 1) * (e.deltaY < 0 ? 1.06 : 1 / 1.06))); if (c.fz === 1) delete c.fz; applyFrame(c);
+  }, { capture: true, passive: false });
+  addEventListener('keydown', e => { if (!framing) return; if (e.key === 'Escape') { const { c, was } = framing; Object.assign(c, was); ['fx', 'fy', 'fz'].forEach(k => c[k] == null && delete c[k]); applyFrame(c); endFrame(); e.stopPropagation(); } if (e.key === 'Enter') { endFrame(); e.stopPropagation(); } }, true);
+  stage.addEventListener('pointerdown', e => { if (framing && !e.target.closest('.card') && !e.target.closest('.frame-bar')) endFrame(); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
