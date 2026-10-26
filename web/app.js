@@ -3689,8 +3689,11 @@
   function endFrame() { if (!framing) return; const { c, el, bar } = framing; framing = null; el.classList.remove('framing'); bar.remove(); save(); refreshCropTip(); }
   // while a cropped-in picture is selected, a little tip above the toolbar says how to get at the crop
   const cropTip = document.createElement('div'); cropTip.className = 'frame-bar crop-tip'; cropTip.hidden = true; cropTip.textContent = 'Double-click the picture to adjust its crop'; document.body.appendChild(cropTip);
-  function refreshCropTip() { const cs = selCards(); cropTip.hidden = !!framing || !(cs.length === 1 && cs[0].type === 'box' && cs[0].src); }
-  ['pointerup', 'keyup'].forEach(t => addEventListener(t, () => setTimeout(refreshCropTip, 0), true));
+  // the tip shows only while the pointer is over a picture (not all the time it's selected)
+  let hoverPic = null;
+  function refreshCropTip() { cropTip.hidden = !!framing || !hoverPic; }
+  cardsEl.addEventListener('pointerover', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); hoverPic = c && c.type === 'box' && c.src ? c : null; refreshCropTip(); }, true);
+  cardsEl.addEventListener('pointerout', e => { if (!e.relatedTarget || !cardsEl.contains(e.relatedTarget)) { hoverPic = null; refreshCropTip(); } }, true);
   const frameImg = () => framing && framing.el.querySelector('.bx-img');
   stage.addEventListener('dblclick', e => {   // the stage owns double-clicks (the pointer gets captured on the way), so find the card under the point
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); if (!c || c.type !== 'box' || !c.src) return;
