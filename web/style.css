@@ -2587,3 +2587,7 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 .card.maskl .frame, .card.maskl .body { opacity: 0; }
 .card.maskl.sel .body { opacity: .35; }
 .card.maskl.sel .frame { opacity: .12; }
+
+/* a whole mask group selected: the mask's box is the outline; members keep their own box for when they're picked alone */
+.card.masked.gsel.sel::after, .card.masked.gsel.sel .handle, .card.masked.gsel.sel .rot-h { display: none; }
+.card.maskl.gsel.sel .body { opacity: 0; } .card.maskl.gsel.sel .frame { opacity: 0; }

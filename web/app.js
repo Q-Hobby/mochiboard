@@ -3893,7 +3893,8 @@
     const m = mk, bx = m.bx ?? 0, by = m.by ?? 0, bw = m.bw ?? 1, bh = m.bh ?? 1, vw = m.vw || 100, vh = m.vh || 100, id = 'mk-' + c.id;
     if (m.src) { el.style.removeProperty('--mask'); el.style.setProperty('--imask', `url("${m.src}") ${bx * c.w}px ${by * c.h}px / ${bw * c.w}px ${bh * c.h}px no-repeat`); }   // a picture mask: CSS alpha mask, placed where the picture was
     else el.style.removeProperty('--imask');
-    if (!m.src) el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="objectBoundingBox">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${bx} ${by}) scale(${bw / vw} ${bh / vh})"`)}</clipPath></svg>`);
+    const L = m.live, tf = L ? `translate(${L.cx} ${L.cy}) rotate(${L.dr}) translate(${-L.mw / 2} ${-L.mh / 2}) scale(${L.mw / vw} ${L.mh / vh})` : `translate(${bx * c.w} ${by * c.h}) scale(${bw * c.w / vw} ${bh * c.h / vh})`;   // in the card's own pixels
+    if (!m.src) el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="userSpaceOnUse">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="${tf}"`)}</clipPath></svg>`);
     if (!m.src) el.style.setProperty('--mask', `url(#${id})`);
     if (!wrap) { const fr = el.querySelector(':scope > .frame'), bd = el.querySelector(':scope > .body'); if (fr && bd) { const w = document.createElement('div'); w.className = 'mkw'; el.insertBefore(w, fr); w.append(fr, bd); } }
   }
@@ -3977,9 +3978,12 @@
   // ---- mask groups, the Figma way: the mask is a layer at the bottom of a group; everything in the group shows only where the mask is.
   //      Pull a layer out of the group (in Layers) and it's unmasked; drop one in and it's masked. Remove mask turns the mask back into a plain shape. ----
   const maskLayerOf = c => c && c.group ? board.cards.find(x => x.group === c.group && x.maskLayer && x !== c) : null;
-  const liveMask = c => { const m = maskLayerOf(c); if (!m || c.maskLayer) return null; const src = sourceMask(m); return src && { ...src, bx: (m.x - c.x) / c.w, by: (m.y - c.y) / c.h, bw: m.w / c.w, bh: m.h / c.h }; };
+  const rotOf = c => WF.includes(c.type) ? (c.rot || 0) : ((c.type === 'stamp' && !c.tilted) || (c.type === 'section' && !c.turned) ? 0 : (c.r || 0));   // the same tilt the card is drawn with
+  const liveMask = c => { const m = maskLayerOf(c); if (!m || c.maskLayer) return null; const src = sourceMask(m); if (!src) return null;
+    const rc = rotOf(c), rm = rotOf(m), a = -rc * Math.PI / 180, dx = m.x + m.w / 2 - (c.x + c.w / 2), dy = m.y + m.h / 2 - (c.y + c.h / 2);
+    return { ...src, bx: (m.x - c.x) / c.w, by: (m.y - c.y) / c.h, bw: m.w / c.w, bh: m.h / c.h, live: { cx: c.w / 2 + dx * Math.cos(a) - dy * Math.sin(a), cy: c.h / 2 + dx * Math.sin(a) + dy * Math.cos(a), mw: m.w, mh: m.h, dr: rm - rc } }; };
   const isMasked = c => !!(c && !c.maskLayer && (c.mask || maskLayerOf(c)));
-  const maskSig = (c, m) => [c.w, c.h, m.bx, m.by, m.bw, m.bh, m.src ? 1 : 0]   /* relative only: moving the whole group changes nothing */.map(v => +(+v || 0).toFixed(3)).join(',');
+  const maskSig = (c, m) => [c.w, c.h, m.bx, m.by, m.bw, m.bh, m.src ? 1 : 0, m.live ? m.live.dr : 0]   /* relative only: moving the whole group changes nothing */.map(v => +(+v || 0).toFixed(3)).join(',');
   const groupMembers = g => board.cards.filter(c => c.group === g);
   // the mask sits at the bottom of its group's stack
   function sinkMask(m) { const g = groupMembers(m.group), low = Math.min(...g.filter(c => c !== m).map(c => board.cards.indexOf(c))); const i = board.cards.indexOf(m); if (i > low) { board.cards.splice(i, 1); board.cards.splice(low, 0, m); } }
@@ -3997,7 +4001,7 @@
   function maskCards(cs, key) {
     cs = cs.filter(maskable); if (!cs.length) return; remember();
     const real = { circle: 'circle', tri: 'tri', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill' };
-    const made = cs.map(t => { const W = Math.max(1, t.w), H = Math.max(1, t.h), s = { id: uid(), type: 'shape', shape: real[key] || 'rect', fill: 'pink', x: t.x, y: t.y, w: W, h: H, r: 0, ln: MASKS[key][0] + ' mask' };
+    const made = cs.map(t => { const W = Math.max(1, t.w), H = Math.max(1, t.h), s = { id: uid(), type: 'shape', shape: real[key] || 'rect', fill: 'pink', x: t.x, y: t.y, w: W, h: H, r: 0, ln: MASKS[key][0] };
       if (key === 'rounded') s.radius = Math.round(.2 * Math.min(W, H)); else if (!real[key]) s.mgeo = { el: MASKS[key][1](W, H) };
       board.cards.push(s); const g = t.group || uid(); board.cards.forEach(c => { if (c.group === g && c.maskLayer) delete c.maskLayer; }); s.group = g; s.maskLayer = true; t.group = g; delete t.mask; delete t.maskPrev; sinkMask(s); return s; });
     renderAll(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
@@ -4016,6 +4020,22 @@
   const _save0 = save; save = function () { try { refreshMaskGroups(); } catch (e) {} return _save0.apply(this, arguments); };
   LICON.mask = LI('<g data-l24="1"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></g>');
   Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask, __liveMask: liveMask, __save: () => save() });
+
+  // ---- masks made before mask groups existed (the shape was folded into the picture) become mask groups when the board opens ----
+  function migrateMasks() {
+    if (!board) return; let did = false;
+    board.cards.slice().forEach(c => {
+      if (!c.mask || c.maskLayer) return; const m = c.mask, p = c.maskPrev; let s = null;
+      if (m.from) { if (p) { Object.assign(c, { x: p.x, y: p.y, w: p.w, h: p.h }); if (p.crop) c.crop = p.crop; else delete c.crop; } if (!byId(m.from.id)) { board.cards.push(m.from); s = m.from; } else s = byId(m.from.id); }
+      else if (MASKS[m.shape]) { const real = { circle: 'circle', tri: 'tri', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill' }, W = Math.max(1, c.w), H = Math.max(1, c.h);
+        s = { id: uid(), type: 'shape', shape: real[m.shape] || 'rect', fill: 'pink', x: c.x, y: c.y, w: W, h: H, r: 0, ln: MASKS[m.shape][0] }; if (m.shape === 'rounded') s.radius = Math.round(.2 * Math.min(W, H)); else if (!real[m.shape]) s.mgeo = { el: MASKS[m.shape][1](W, H) }; board.cards.push(s); }
+      if (!s) return; const g = c.group || uid(); s.group = g; s.maskLayer = true; delete s.mask; c.group = g; delete c.mask; delete c.maskPrev; sinkMask(s); did = true;
+    });
+    if (did) layersSoon();
+  }
+  const _renderAll0 = renderAll; renderAll = function () { try { migrateMasks(); } catch (e) {} return _renderAll0.apply(this, arguments); };
+  // when a whole mask group is selected, the mask's box is the group's box (like Figma); members show their own box only when picked on their own
+  const _selectOnly0 = selectOnly; selectOnly = function (ids) { const r = _selectOnly0.apply(this, arguments); try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && maskLayerOf(c) !== null | c.maskLayer ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!(c.group && whole && (c.maskLayer || maskLayerOf(c)))); }); } catch (e) {} return r; };
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -5005,10 +5025,10 @@ ${proseCSS()}
   let gbKey = '';
   function drawGroupBoxes() {
     if (!board) return; const gs = [...new Set(selCards().map(c => c.group).filter(Boolean))];
-    const boxes = gs.map(g => { const cs = board.cards.filter(c => c.group === g && !c.onFrame); if (cs.length < 2) return null;
-      const x0 = Math.min(...cs.map(c => c.x)), y0 = Math.min(...cs.map(c => c.y)), x1 = Math.max(...cs.map(c => c.x + c.w)), y1 = Math.max(...cs.map(c => c.y + c.h)); return [x0 - 14, y0 - 14, x1 - x0 + 28, y1 - y0 + 28]; }).filter(Boolean);
+    const boxes = gs.map(g => { const all = board.cards.filter(c => c.group === g && !c.onFrame); if (all.length < 2) return null; const mk = all.find(c => c.maskLayer), cs = mk ? [mk] : all;
+      const x0 = Math.min(...cs.map(c => c.x)), y0 = Math.min(...cs.map(c => c.y)), x1 = Math.max(...cs.map(c => c.x + c.w)), y1 = Math.max(...cs.map(c => c.y + c.h)); return [x0 - 14, y0 - 14, x1 - x0 + 28, y1 - y0 + 28, mk ? 'Mask' : 'Group']; }).filter(Boolean);
     const key = JSON.stringify(boxes); if (key === gbKey) return; gbKey = key;
-    $('groupBoxes').innerHTML = boxes.map(([x, y, w, h]) => `<div class="group-box" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><span>Group</span></div>`).join('');
+    $('groupBoxes').innerHTML = boxes.map(([x, y, w, h, label]) => `<div class="group-box" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><span>${label || 'Group'}</span></div>`).join('');
   }
   (function tick() { placeSelbar(); drawGroupBoxes(); if (++coverT % 8 === 0) checkTitleCover(); requestAnimationFrame(tick); })();
   $('selbar').addEventListener('pointerdown', e => e.stopPropagation());
