@@ -77,10 +77,21 @@ def _(im): cell(im, 0, 0, '#f6f2ff', GW, GH); mochi(im, 10, 8); emoji(im, 'headp
 @scene('any')         # everything else: Mochi and sparkles, the plainest one
 def _(im): mochi(im, 10, 7); sparkles(im, [(5, 6), (26, 5), (24, 16), (7, 17)])
 
+# black and white: the scenes are drawn in colour, then snapped to the wireframes' own grey ramp so they read as placeholders, not pictures
+RAMP = [hx(c) for c in ['#fafafa', '#ececee', '#d4d4d8', '#a1a1aa', '#71717a', '#3f3f46', '#18181b']]
+def mono(im):
+    out = Image.new('RGBA', im.size); s, d = im.load(), out.load()
+    for y in range(im.size[1]):
+        for x in range(im.size[0]):
+            r, g, b, a = s[x, y]
+            if not a: continue
+            l = .2126 * r + .7152 * g + .0722 * b
+            d[x, y] = RAMP[min(range(len(RAMP)), key=lambda i: abs(RAMP[i][0] - l))]
+    return out
 def main():
     sheet = Image.new('RGBA', (3 * (GW * C + 16) + 16, 3 * (GH * C + 16) + 16), (250, 246, 251, 255)); i = 0
     for name, draw in SCENES.items():
-        im = canvas(); draw(im); im.save(os.path.join(OUT, name + '.png'))
+        im = canvas(); draw(im); im = mono(im); im.save(os.path.join(OUT, name + '.png'))
         sheet.paste(im, (16 + (i % 3) * (GW * C + 16), 16 + (i // 3) * (GH * C + 16))); i += 1
     sheet.save('/private/tmp/claude-501/-Users-jessabug/ccc63478-11f7-4619-852a-3375a7a2bb41/scratchpad/ph_sheet.png'); print('made', ' '.join(SCENES))
 
