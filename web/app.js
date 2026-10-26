@@ -2571,10 +2571,7 @@
         ...(cs.some(c => c.type === 'section') ? [{ label: 'Remove section', run: () => removeSection(cs.filter(c => c.type === 'section')) }] : []),
         ...(cs.some(c => TILTS(c) && Math.round(c.type === 'stamp' && !c.tilted ? 0 : c.r || 0)) ? [{ label: cs.length > 1 ? 'Reset tilts' : 'Reset tilt', run: () => { remember(); cs.filter(TILTS).forEach(c => { c.r = 0; c.tilted = true; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); } }] : []),
         ...maskMenuItems(cs),
-        { label: 'Bring to front  ⇧⌘]', run: () => restack('front') },
-        { label: 'Bring forward  ⌘]', run: () => restack('forward') },
-        { label: 'Send backward  ⌘[', run: () => restack('backward') },
-        { label: 'Send to back  ⇧⌘[', run: () => restack('back') }, '-',
+        { label: 'Arrange', sub: arrangeSub() }, '-',
         { label: 'Export as image', run: () => exportCards(cs, cardName(cs), false) },
         { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) },
         ...(cs.length > 1 ? [{ label: 'Save each as its own image', run: () => exportEach(cs) }] : []),
@@ -3627,8 +3624,8 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button>`;
-    const subs = { mask: () => maskSub([c]), arr: () => [{ label: 'Bring to front  ⇧⌘]', run: () => restack('front') }, { label: 'Bring forward  ⌘]', run: () => restack('forward') }, { label: 'Send backward  ⌘[', run: () => restack('backward') }, { label: 'Send to back  ⇧⌘[', run: () => restack('back') }] };
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+    const subs = { mask: () => maskSub([c]), arr: arrangeSub };
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target) && !$('rowSub')?.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3636,6 +3633,8 @@
     m.onclick = async ev => {
       const a = ev.target.closest('[data-m]')?.dataset.m; if (!a) return; if (subs[a]) { openSub(ev.target.closest('[data-m]'), subs[a](), close); return; } close();
       if (a === 'unmask') unmask([c]);
+      if (a === 'dup') duplicateCards([c]);
+      if (a === 'del') removeSelected();
       if (a === 'up') { picPick.value = ''; picPick.onchange = async () => { const f = picPick.files[0]; if (f) putPicture(c, await imageFromFile(f)); }; picPick.click(); }
       if (a === 'mochi') { if (spot) { const v = prompt('What picture should go here?', c.img); if (v == null) return; if (v.trim() && v.trim() !== c.img) { remember(); c.img = v.trim(); renderCard(c); save(); } if (c.src) { remember(); delete c.src; renderCard(c); } offerFill([c]); } /* the label is the brief Mochi works from */ else { if (!chatOpen()) mochiOpen(true); const i = $('mcInput'); i.value = 'Make me a new picture for the selected one: '; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
       if (a === 'frame2') startFrame(c);
@@ -3980,6 +3979,10 @@
     setTimeout(() => addEventListener('pointerdown', off, true));
   };
   Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask });
+
+  // ---- the stacking rows live under one Arrange ▸ arrow in every right-click menu ----
+  const arrangeSub = () => [{ label: 'Bring to front  ⇧⌘]', run: () => restack('front') }, { label: 'Bring forward  ⌘]', run: () => restack('forward') }, { label: 'Send backward  ⌘[', run: () => restack('backward') }, { label: 'Send to back  ⇧⌘[', run: () => restack('back') }];
+  function duplicateCards(cs) { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); }
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
