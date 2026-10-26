@@ -635,7 +635,7 @@
   const SIZED_T = ['note', 'todo', 'title', 'shape', 'coll'];
   // strokes: boxes and screens get a border (solid or dashed); titles, wireframe text and icons get an outline around the letters
   const STROKABLE = ['box', 'frame', 'title', 'text', 'icon', 'path', 'shape', 'image'], STROKE_TEXT = ['title', 'text', 'icon'];
-  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && (c.shape === 'line' || c.shape === 'bool')) && !(c.type === 'image' && c.mask);
+  const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && (c.shape === 'line' || c.shape === 'bool')) && !(c.type === 'image' && isMasked(c));
   // boxes and screens: the line is drawn (an SVG rect) so it can be solid, dashed or dotted with your own dash length and gap, like Figma
   const skStyle = c => c.sdash === true ? 'dash' : c.sdash || 'solid';
   // dashed or dotted letters: the browser can only outline text solid, so the words are redrawn as an SVG on top (line by line, same font),
@@ -1088,7 +1088,7 @@
     return nodesFor(board.cards.filter(c => !inColl.has(c.id) && !secOf.has(c.id) && !(c.onFrame && frames.has(c.onFrame) && c.type !== 'frame')));
   }
   // a group goes by its own name, or by the words inside it (a button reads "Get started"), so the list never fills up with "Group, Group, Group"
-  const groupName = ids => { const cs = ids.map(byId).filter(Boolean); if (cs[0]?.gn) return cs[0].gn; const t = cs.filter(c => ['text', 'title', 'note'].includes(c.type)).map(c => lyText(c.text)).filter(Boolean)[0];
+  const groupName = ids => { const cs = ids.map(byId).filter(Boolean); const mk = cs.find(c => c.maskLayer); if (mk && !cs[0]?.gn) return layerName(mk) + ' mask'; if (cs[0]?.gn) return cs[0].gn; const t = cs.filter(c => ['text', 'title', 'note'].includes(c.type)).map(c => lyText(c.text)).filter(Boolean)[0];
     return t || (cs.some(c => c.type === 'box' && c.img) ? 'Image spot' : 'Group'); };
   const lyAll = n => n.kind === 'group' ? n.ids : [...n.ids, ...n.kids.flatMap(lyAll)];
   function renderLayers() {
@@ -1100,7 +1100,8 @@
     walk(tree, []);
     const row = (n, depth) => {
       const c = n.c, kids = n.kids.length, open = LY.open.has(n.key), ids = lyAll(n), hidden = ids.length && ids.every(i => byId(i)?.hidden), locked = ids.length && ids.every(i => byId(i)?.locked);
-      const name = n.kind === 'group' ? groupName(n.ids) : layerName(c), icon = n.kind === 'group' ? LICON.group : layerIcon(c);
+      const gm = n.kind === 'group' ? n.ids.map(byId).find(x => x && x.maskLayer) : null;
+      const name = n.kind === 'group' ? groupName(n.ids) : (c.maskLayer && c.group ? layerName(c) + ' · mask' : layerName(c)), icon = n.kind === 'group' ? (gm ? LICON.mask : LICON.group) : (c.maskLayer && c.group ? LICON.mask : layerIcon(c));
       return `<div class="ly${n.ids.every(i => sel.has(i)) ? ' on' : ''}${hidden ? ' off' : ''}${locked ? ' lk' : ''}${c?.type === 'frame' || c?.type === 'coll' || c?.type === 'section' || n.kind === 'group' ? ' parent' : ''}" data-key="${esc(n.key)}" draggable="true" style="--d:${depth}">
         <button class="ly-tw${kids ? '' : ' none'}${open ? ' open' : ''}" tabindex="-1" aria-label="${open ? 'Close' : 'Open'}"><svg viewBox="0 0 10 10"><path d="M3.5 2l3 3-3 3"/></svg></button>
         <span class="ly-ic">${icon}</span><span class="ly-n">${esc(name)}</span>
@@ -1158,7 +1159,8 @@
     // drag rows to restack (or, inside a collection, to reorder its cards). Only between neighbors that share the same parent
     list.addEventListener('dragstart', e => { const r = e.target.closest('.ly'); if (!r) return; LY.drag = r.dataset.key; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', ''); } catch (er) {} });
     const parentKey = key => { const find = (ns, p) => { for (const n of ns) { if (n.key === key) return p; const f = find(n.kids, n.key); if (f !== undefined) return f; } return undefined; }; return find(LY.tree || [], ''); };
-    list.addEventListener('dragover', e => { const r = e.target.closest('.ly'); list.querySelectorAll('.drop-a, .drop-b').forEach(x => x.classList.remove('drop-a', 'drop-b')); if (!r || !LY.drag || r.dataset.key === LY.drag || parentKey(r.dataset.key) !== parentKey(LY.drag)) return;
+    list.addEventListener('dragover', e => { const r = e.target.closest('.ly'); list.querySelectorAll('.drop-a, .drop-b').forEach(x => x.classList.remove('drop-a', 'drop-b')); if (!r || !LY.drag || r.dataset.key === LY.drag) return; const pm = parentKey(LY.drag), pt = parentKey(r.dataset.key), isG = s => String(s).startsWith('g:');
+      if (pm !== pt && !((pm === '' || isG(pm)) && (pt === '' || isG(pt)) && !(isG(pt) && lyFind(LY.drag)?.kind === 'group') && pt !== LY.drag)) return;   // between the top level and groups only: in or out of a group
       e.preventDefault(); const b = r.getBoundingClientRect(); r.classList.add(e.clientY < b.top + b.height / 2 ? 'drop-a' : 'drop-b'); });
     list.addEventListener('dragend', () => { LY.drag = null; list.querySelectorAll('.dragging, .drop-a, .drop-b').forEach(x => x.classList.remove('dragging', 'drop-a', 'drop-b')); });
     list.addEventListener('drop', e => {
@@ -1167,7 +1169,9 @@
       if (mv.inColl) { const co = byId(mv.inColl), k = (co.kids || []).filter(i => i !== mv.c.id), at = k.indexOf(tg.c.id); k.splice(above ? at : at + 1, 0, mv.c.id); co.kids = k; layoutAll(); }
       else { const ids = lyAll(mv), moving = board.cards.filter(c => ids.includes(c.id)), rest = board.cards.filter(c => !ids.includes(c.id)), tIdx = lyAll(tg).map(i => rest.findIndex(c => c.id === i)).filter(i => i >= 0);
         // the list is top-first, so "above" in the list means higher in the stack: after the target in the cards
-        const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest; renderAll(); }
+        const at = above ? Math.max(...tIdx) + 1 : Math.min(...tIdx); rest.splice(at, 0, ...moving); board.cards = rest;
+        const pt = parentKey(tg.key); if (pt !== parentKey(mv.key)) { if (String(pt).startsWith('g:')) moving.forEach(c => { c.group = pt.slice(2); }); else moving.forEach(c => { delete c.group; delete c.maskLayer; }); }   // dropped into a group, or out of one
+        renderAll(); }
       save(); renderLayers();
     });
   }
@@ -3762,7 +3766,7 @@
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
   function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // drawn by a layer behind the card (see the css), so the wobble filter can't clip it; a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
-  const bwOf = c => c.mask ? 0 : c.sw != null ? Math.max(0, +c.sw || 0) : (c.nobg || c.noframe ? 0 : 8), bcOf = c => c.stroke || '#ffffff';   // a fresh picture's 8px white mat is its default stroke
+  const bwOf = c => isMasked(c) ? 0 : c.sw != null ? Math.max(0, +c.sw || 0) : (c.nobg || c.noframe ? 0 : 8), bcOf = c => c.stroke || '#ffffff';   // a fresh picture's 8px white mat is its default stroke
   const outlineFilter = (w, col) => { if (!(w > 0)) return ''; const d = +(w * .7).toFixed(2); return [[w, 0], [-w, 0], [0, w], [0, -w], [d, d], [-d, d], [d, -d], [-d, -d]].map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${col})`).join(' '); };
   function borderVars(c, el) {
     if (c.type !== 'image') return; const w = bwOf(c), prev = el.dataset.mat === undefined ? null : +el.dataset.mat;
@@ -3874,6 +3878,7 @@
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
   function maskGeo(m, W, H) { if (m.el) return m.el; const d = MASKS[m.shape]; return d ? d[1](Math.max(1, W), Math.max(1, H)) : MASKS.circle[1](); }
   function sourceMask(s) {
+    if (s.mgeo) return { shape: s.shape || 'rect', ...s.mgeo };
     if (isPic(s)) return { shape: 'pic', src: s.src };
     if (s.type === 'path') return { shape: 'path', el: `<path d="${pathD(s.pts, true, s.radius || 0, s.ow / Math.max(1, s.w))}"/>`, vw: s.ow, vh: s.oh };
     const svg = shapeSVG({ ...s, stroke: null, sw: 0, fill: 'none' }), mt = svg.match(/<(path|rect|ellipse)\b[^>]*>/); if (!mt) return null;
@@ -3881,43 +3886,16 @@
   }
   const maskIcon = (m, W = 100, H = 100) => m.src ? `<img src="${m.src}" alt="" style="width:14px;height:14px;object-fit:contain">` : `<svg viewBox="-2 -2 104 104" width="14" height="14" fill="currentColor">${maskGeo(m, W, H)}</svg>`;
   function maskVars(c, el) {
-    const on = !!c.mask; el.classList.toggle('masked', on); el.querySelector(':scope > svg.mk')?.remove();
-    const wrap = el.querySelector(':scope > .mkw'); if (!on) { el.style.removeProperty('--mask'); return; }
-    const m = c.mask, bx = m.bx ?? 0, by = m.by ?? 0, bw = m.bw ?? 1, bh = m.bh ?? 1, vw = m.vw || 100, vh = m.vh || 100, id = 'mk-' + c.id;
+    if (c.maskLayer && !c.group) delete c.maskLayer;   // a mask pulled out of its group is just a shape again
+    const layer = !!c.maskLayer; el.classList.toggle('maskl', layer);
+    const mk = layer ? null : (liveMask(c) || c.mask), on = !!mk; el.classList.toggle('masked', on); el.querySelector(':scope > svg.mk')?.remove(); el.dataset.mk = mk ? maskSig(c, mk) : '';
+    const wrap = el.querySelector(':scope > .mkw'); if (!on) { el.style.removeProperty('--mask'); el.style.removeProperty('--imask'); return; }
+    const m = mk, bx = m.bx ?? 0, by = m.by ?? 0, bw = m.bw ?? 1, bh = m.bh ?? 1, vw = m.vw || 100, vh = m.vh || 100, id = 'mk-' + c.id;
     if (m.src) { el.style.removeProperty('--mask'); el.style.setProperty('--imask', `url("${m.src}") ${bx * c.w}px ${by * c.h}px / ${bw * c.w}px ${bh * c.h}px no-repeat`); }   // a picture mask: CSS alpha mask, placed where the picture was
     else el.style.removeProperty('--imask');
     if (!m.src) el.insertAdjacentHTML('beforeend', `<svg class="mk" width="0" height="0" aria-hidden="true"><clipPath id="${id}" clipPathUnits="objectBoundingBox">${maskGeo(m, c.w * bw, c.h * bh).replace(/^<(path|rect|ellipse)\b/, `<$1 transform="translate(${bx} ${by}) scale(${bw / vw} ${bh / vh})"`)}</clipPath></svg>`);
     if (!m.src) el.style.setProperty('--mask', `url(#${id})`);
     if (!wrap) { const fr = el.querySelector(':scope > .frame'), bd = el.querySelector(':scope > .body'); if (fr && bd) { const w = document.createElement('div'); w.className = 'mkw'; el.insertBefore(w, fr); w.append(fr, bd); } }
-  }
-  const freshMat = c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) delete el.dataset.mat; };
-  function maskCards(cs, key) { cs = cs.filter(maskable); if (!cs.length) return; remember(); cs.forEach(c => { if (!c.maskPrev) c.maskPrev = { x: c.x, y: c.y, w: c.w, h: c.h, crop: c.crop ? { ...c.crop } : null }; c.mask = { shape: key }; renderCard(c); }); renderWires(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); save(); }
-  // a shape on top of something becomes its mask: a picture shrinks to the shape (showing just that part of itself); anything else keeps its box and is cut where the shape was
-  function maskWithShape(s, t) {
-    const src = sourceMask(s); if (!src || !maskable(t)) return; remember();
-    t.maskPrev = { x: t.x, y: t.y, w: t.w, h: t.h, crop: t.crop ? { ...t.crop } : null };
-    if (t.type === 'image' && !t.nobg) {
-      const mat = bwOf(t), ix = t.x + mat, iy = t.y + mat, iw = Math.max(1, t.w - 2 * mat), ih = Math.max(1, t.h - 2 * mat), k = t.crop || { x: 0, y: 0, w: 1, h: 1 };
-      t.crop = { x: k.x + (s.x - ix) / iw * k.w, y: k.y + (s.y - iy) / ih * k.h, w: s.w / iw * k.w, h: s.h / ih * k.h };
-      t.x = s.x; t.y = s.y; t.w = s.w; t.h = s.h; t.mask = { ...src };
-    } else t.mask = { ...src, bx: (s.x - t.x) / t.w, by: (s.y - t.y) / t.h, bw: s.w / t.w, bh: s.h / t.h };
-    t.mask.from = JSON.parse(JSON.stringify(s));
-    board.cards = board.cards.filter(c => c.id !== s.id); board.links = board.links.filter(l => l.a !== s.id && l.b !== s.id); cardsEl.querySelector(`[data-id="${s.id}"]`)?.remove();
-    freshMat(t); renderCard(t); renderWires(); layersSoon(); selectOnly([t.id]); $('selbar').dataset.key = ''; placeSelbar(); save();
-    chirp(t.type === 'image' ? `Masked with the ${shapeWord(s)} ✦ Right-click it to adjust the crop or take the mask off.` : `Masked with the ${shapeWord(s)} ✦`, 5000);
-  }
-  function maskManyWithShape(s, ts) {
-    const src = sourceMask(s); ts = ts.filter(maskable); if (!src || !ts.length) return; remember();
-    ts.forEach(t => { t.maskPrev = { x: t.x, y: t.y, w: t.w, h: t.h, crop: t.crop ? { ...t.crop } : null }; t.mask = { ...src, bx: (s.x - t.x) / t.w, by: (s.y - t.y) / t.h, bw: s.w / t.w, bh: s.h / t.h }; });
-    ts[0].mask.from = JSON.parse(JSON.stringify(s));
-    board.cards = board.cards.filter(c => c.id !== s.id); board.links = board.links.filter(l => l.a !== s.id && l.b !== s.id); cardsEl.querySelector(`[data-id="${s.id}"]`)?.remove();
-    ts.forEach(t => { freshMat(t); renderCard(t); }); renderWires(); layersSoon(); selectOnly(ts.map(t => t.id)); $('selbar').dataset.key = ''; placeSelbar(); save(); chirp(`Masked ${ts.length} things with the ${shapeWord(s)} ✦`, 4500);
-  }
-  function unmask(cs) {
-    cs = cs.filter(c => c.mask); if (!cs.length) return; remember(); const back = [];
-    cs.forEach(c => { const p = c.maskPrev, from = c.mask.from; if (p) { Object.assign(c, { x: p.x, y: p.y, w: p.w, h: p.h }); if (p.crop) c.crop = p.crop; else delete c.crop; }
-      if (from && !byId(from.id)) { board.cards.push(from); back.push(from); } delete c.mask; delete c.maskPrev; freshMat(c); renderCard(c); });
-    back.forEach(renderCard); renderWires(); layersSoon(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); save();
   }
   // the Mask menu: the shape on top (if there is one) first, then the ready-made shapes
   function maskSub(cs) {
@@ -3935,7 +3913,7 @@
       ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
   }
   function maskMenuItems(cs) {
-    const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => c.mask)) out.push({ label: cs.filter(c => c.mask).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) });
+    const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => isMasked(c) || c.maskLayer)) out.push({ label: cs.filter(c => isMasked(c)).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) });
     if (cs.length >= 2 && cs.every(maskSource)) out.push({ label: 'Combine shapes', sub: Object.keys(BOOL).map(op => ({ label: BOOL[op], icon: boolIcon(op), run: () => combine(cs, op) })) });
     if (cs.some(c => c.type === 'shape' && c.shape === 'bool')) out.push({ label: cs.filter(c => c.shape === 'bool').length > 1 ? 'Separate the shapes' : 'Separate the shapes', run: () => separate(cs.filter(c => c.type === 'shape' && c.shape === 'bool')) });
     return out;
@@ -3991,11 +3969,53 @@
     m.addEventListener('mouseover', ev => { const b = ev.target.closest('[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.sub) openSub(b, it.sub, close); else { $('rowSub')?.remove(); m.querySelectorAll('.sub-open').forEach(x => x.classList.remove('sub-open')); } });
     setTimeout(() => addEventListener('pointerdown', off, true));
   };
-  Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask });
 
   // ---- the stacking rows live under one Arrange ▸ arrow in every right-click menu ----
   const arrangeSub = () => [{ label: 'Bring to front  ⇧⌘]', run: () => restack('front') }, { label: 'Bring forward  ⌘]', run: () => restack('forward') }, { label: 'Send backward  ⌘[', run: () => restack('backward') }, { label: 'Send to back  ⇧⌘[', run: () => restack('back') }];
   function duplicateCards(cs) { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); }
+
+  // ---- mask groups, the Figma way: the mask is a layer at the bottom of a group; everything in the group shows only where the mask is.
+  //      Pull a layer out of the group (in Layers) and it's unmasked; drop one in and it's masked. Remove mask turns the mask back into a plain shape. ----
+  const maskLayerOf = c => c && c.group ? board.cards.find(x => x.group === c.group && x.maskLayer && x !== c) : null;
+  const liveMask = c => { const m = maskLayerOf(c); if (!m || c.maskLayer) return null; const src = sourceMask(m); return src && { ...src, bx: (m.x - c.x) / c.w, by: (m.y - c.y) / c.h, bw: m.w / c.w, bh: m.h / c.h }; };
+  const isMasked = c => !!(c && !c.maskLayer && (c.mask || maskLayerOf(c)));
+  const maskSig = (c, m) => [c.w, c.h, m.bx, m.by, m.bw, m.bh, m.src ? 1 : 0]   /* relative only: moving the whole group changes nothing */.map(v => +(+v || 0).toFixed(3)).join(',');
+  const groupMembers = g => board.cards.filter(c => c.group === g);
+  // the mask sits at the bottom of its group's stack
+  function sinkMask(m) { const g = groupMembers(m.group), low = Math.min(...g.filter(c => c !== m).map(c => board.cards.indexOf(c))); const i = board.cards.indexOf(m); if (i > low) { board.cards.splice(i, 1); board.cards.splice(low, 0, m); } }
+  function makeMaskGroup(s, ts) {
+    ts = ts.filter(c => c !== s && maskable(c)); if (!ts.length) return; remember();
+    const g = (ts.find(t => t.group) || {}).group || uid();
+    board.cards.forEach(c => { if (c.group === g && c.maskLayer) delete c.maskLayer; });   // one mask per group
+    s.group = g; s.maskLayer = true; ts.forEach(t => { t.group = g; delete t.mask; delete t.maskPrev; }); sinkMask(s);
+    renderAll(); selectOnly(groupMembers(g).map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
+    chirp(`Masked with the ${shapeWord(s)} ✦ It's a mask group now: in Layers, drag things in or out of it.`, 5500);
+  }
+  const maskWithShape = (s, t) => makeMaskGroup(s, [t]);
+  const maskManyWithShape = (s, ts) => makeMaskGroup(s, ts);
+  // a ready-made shape: a real shape is made over the thing and becomes its mask (pull it out of the group and it's an ordinary shape)
+  function maskCards(cs, key) {
+    cs = cs.filter(maskable); if (!cs.length) return; remember();
+    const real = { circle: 'circle', tri: 'tri', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill' };
+    const made = cs.map(t => { const W = Math.max(1, t.w), H = Math.max(1, t.h), s = { id: uid(), type: 'shape', shape: real[key] || 'rect', fill: 'pink', x: t.x, y: t.y, w: W, h: H, r: 0, ln: MASKS[key][0] + ' mask' };
+      if (key === 'rounded') s.radius = Math.round(.2 * Math.min(W, H)); else if (!real[key]) s.mgeo = { el: MASKS[key][1](W, H) };
+      board.cards.push(s); const g = t.group || uid(); board.cards.forEach(c => { if (c.group === g && c.maskLayer) delete c.maskLayer; }); s.group = g; s.maskLayer = true; t.group = g; delete t.mask; delete t.maskPrev; sinkMask(s); return s; });
+    renderAll(); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
+  }
+  // Remove mask: on a mask (or its whole group) the mask becomes a plain shape and the group stays; on masked members, they leave the group
+  function unmask(cs) {
+    const old = cs.filter(c => c.mask), live = cs.filter(c => !c.mask && (isMasked(c) || c.maskLayer)); if (!old.length && !live.length) return; remember(); const back = [];
+    old.forEach(c => { const p = c.maskPrev, from = c.mask.from; if (p) { Object.assign(c, { x: p.x, y: p.y, w: p.w, h: p.h }); if (p.crop) c.crop = p.crop; else delete c.crop; }
+      if (from && !byId(from.id)) { board.cards.push(from); back.push(from); } delete c.mask; delete c.maskPrev; });
+    const groups = new Set(live.map(c => c.group)); groups.forEach(g => { const m = board.cards.find(c => c.group === g && c.maskLayer), members = groupMembers(g);
+      if (!m || cs.includes(m) || members.every(c => cs.includes(c))) { if (m) delete m.maskLayer; } else live.filter(c => c.group === g).forEach(c => { delete c.group; }); });
+    renderAll(); selectOnly([...cs.map(c => c.id), ...back.map(c => c.id)]); $('selbar').dataset.key = ''; placeSelbar(); layersSoon(); save();
+  }
+  // after anything moves or resizes, members whose mask shifted relative to them are drawn again
+  function refreshMaskGroups() { if (!board) return; board.cards.forEach(c => { if (!c.group) return; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const mk = c.maskLayer ? null : liveMask(c); const sig = mk ? maskSig(c, mk) : ''; if ((el.dataset.mk || '') !== sig || !!mk !== el.classList.contains('masked')) renderCard(c); }); }
+  const _save0 = save; save = function () { try { refreshMaskGroups(); } catch (e) {} return _save0.apply(this, arguments); };
+  LICON.mask = LI('<g data-l24="1"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/></g>');
+  Object.assign(window, { __maskCards: maskCards, __maskWithShape: maskWithShape, __unmask: unmask, __liveMask: liveMask, __save: () => save() });
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4956,7 +4976,7 @@ ${proseCSS()}
           ${noDash ? '' : (() => { const st = skStyle(f), sl = (k, label, v, max) => `<div class="sbc-top sb-skrow"><span>${label}</span><input type="range" min="1" max="${max}" step="1" value="${v}" style="--p:${(v - 1) / (max - 1) * 100}%" data-skr="${k}"><input type="number" min="1" max="${max}" value="${v}" data-skrn="${k}" aria-label="${label}"><b class="sb-unit">px</b></div>`;
             return `<div class="sbc-chips sb-skstyles">${[['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted'], ['none', 'None']].map(([k, t]) => `<button data-skd="${k}" class="${(k === 'none' ? !w : w && st === k) ? 'on' : ''}"><span class="sks sks-${k}"></span>${t}</button>`).join('')}</div>`
               + `<div class="sb-skdash${w && st !== 'solid' ? '' : ' off'}" data-skst="${st}">${sl('dl', 'Dash', f.dl ?? 8, 40)}${sl('dg', 'Gap', f.dg ?? 6, 40)}</div>`; })()}</div>`, 'Stroke')); }
-    const rnd = cs.filter(c => (['frame', 'box'].includes(c.type) || c.type === 'image' && !c.nobg && !c.mask || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
+    const rnd = cs.filter(c => (['frame', 'box'].includes(c.type) || c.type === 'image' && !c.nobg && !isMasked(c) || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
     if (rnd.length === cs.length && rnd.length) { const cr = rnd[0].radius ?? (rnd[0].type === 'image' ? 20 : 0), same = rnd.every(c => (c.radius ?? (c.type === 'image' ? 20 : 0)) === cr);
       h += G(3, pop('corners', `<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /></svg><b>${same ? (cr >= 999 ? 'Pill' : cr) : '–'}</b>${CARET}`,
         `<div class="sb-corners"><div class="sbc-top"><span>Corners</span><input type="range" min="0" max="80" step="1" value="${Math.min(80, cr)}" style="--p:${Math.min(100, cr / 80 * 100)}%" data-corners-range><input type="number" min="0" max="999" value="${cr >= 999 ? 0 : cr}" data-corners-num></div>
