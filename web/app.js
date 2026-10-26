@@ -685,7 +685,7 @@
     if (!el) { el = document.createElement('div'); el.dataset.id = c.id; cardsEl.appendChild(el); if (pop) el.classList.add('pop'); }
     el.className = `card ${c.type}` + (sel.has(c.id) ? ' sel' : '') + (focusSet && !focusSet.has(c.id) ? ' dim' : '') + (pop ? ' pop' : '');
     Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: titleW(c), height: c.type === 'title' ? 'auto' : c.h + 'px' });
-    el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el); if (c.shadow) el.dataset.sh = c.shadow; else delete el.dataset.sh;
+    el.classList.toggle('ly-off', !!c.hidden); el.classList.toggle('ly-lock', !!c.locked); el.classList.toggle('fixedw', !!c.fixedW); applyStroke(c, el); shadowVars(c, el);
     if (c.type === 'title' || c.type === 'text') el.classList.toggle('no-fill', (c.type === 'title' ? c.tc : c.color) === 'none'); if (SIZED_T.includes(c.type)) { el.style.setProperty('--ta', c.align || 'left');
       el.style.setProperty('--tt', { upper: 'uppercase', lower: 'lowercase', title: 'capitalize' }[c.tcase] || 'none');   // Case: how the words show (what you typed stays as typed)
       if (c.lh != null) el.style.setProperty('--lh', c.lh); else el.style.removeProperty('--lh'); el.classList.toggle('has-lh', c.lh != null);
@@ -3734,16 +3734,39 @@
   cardsEl.addEventListener('pointerdown', e => { if (e.target.closest('.bx-fr')) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-frame2]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (c?.type === 'box' && c.src) startFrame(c); }, true);
 
-  function shadowCss(c) { return ({ soft: '0 3px 8px rgba(30, 20, 40, .14)', medium: '0 8px 20px rgba(30, 20, 40, .18)', strong: '0 16px 36px rgba(30, 20, 40, .26)', hard: '5px 5px 0 rgba(30, 20, 40, .85)' })[c.shadow] || 'none'; }   // boxes set their shadow inline (the app already writes box-shadow there)
-  // ---- drop shadows: none · soft · medium · strong · hard, on boxes, pictures, shapes, screens and pen shapes ----
-  const SHADOWABLE = ['box', 'image', 'shape', 'frame', 'path', 'canvas'], SHADOWS = [['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']];
+  // ---- drop shadows, the Figma way: x, y, blur, spread, colour and opacity, live, with presets to start from ----
+  const SHADOW_PRESETS = { soft: { x: 0, y: 3, blur: 8, spread: 0, color: '#1e1428', a: 14 }, medium: { x: 0, y: 8, blur: 20, spread: 0, color: '#1e1428', a: 18 }, strong: { x: 0, y: 16, blur: 36, spread: 0, color: '#1e1428', a: 26 }, hard: { x: 5, y: 5, blur: 0, spread: 0, color: '#1e1428', a: 85 } };
+  const SHADOWABLE = ['box', 'image', 'shape', 'frame', 'path', 'canvas'];
+  const shadowOf = c => !c.shadow ? null : typeof c.shadow === 'string' ? SHADOW_PRESETS[c.shadow] || null : c.shadow;
+  const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
+  function shadowCss(c) { const s = shadowOf(c); return s ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // boxes write this inline (the app already sets box-shadow there)
+  function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
+  function shadowVars(c, el) { if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); } else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); } }
+  const SH_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><path d="M7 16.5h7.5a2 2 0 0 0 2-2V7" stroke-dasharray="2 2"/></svg>';
   function shadowPop(cs) {
-    const cur = cs.every(c => (c.shadow || '') === (cs[0].shadow || '')) ? (cs[0].shadow || '') : null;
-    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-txt" data-pop="shadow" title="Drop shadow">Shadow${CARET_W}</button><div class="sb-pop sb-pop-shadow">${SHADOWS.map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div></span>`;
+    const s = shadowOf(cs[0]) || null, cur = typeof cs[0].shadow === 'string' ? cs[0].shadow : s ? 'custom' : '';
+    const row = (key, label, v, min, max, unit = 'px') => `<div class="sbc-top sb-sqrow" data-shk="${key}"><span>${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${v}" style="--p:${(v - min) / (max - min) * 100}%" data-shr="${key}"><input type="number" min="${min}" max="${max}" value="${v}" data-shn="${key}" aria-label="${label}"><b class="sb-unit">${unit}</b></div>`;
+    const v = s || SHADOW_PRESETS.medium;
+    return `<span class="sb-popw" data-popw="shadow"><button class="sb-poptrig sb-ic ${s ? 'on' : ''}" data-pop="shadow" title="Shadow">${SH_ICON}</button><div class="sb-pop sb-pop-shadow">
+      <div class="sbc-chips sb-shpre">${[['', 'None'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong'], ['hard', 'Hard']].map(([k, n]) => `<button data-shd="${k}" class="${cur === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+      ${row('x', 'X', v.x, -60, 60)}${row('y', 'Y', v.y, -60, 60)}${row('blur', 'Blur', v.blur, 0, 100)}${row('spread', 'Spread', v.spread, -30, 60)}${row('a', 'Opacity', v.a, 0, 100, '%')}
+      <div class="sbc-top sb-shcolor"><span>Color</span><input type="color" value="${v.color}" data-shc="1" aria-label="Shadow color"><code>${v.color.replace('#', '').toUpperCase()}</code></div></div></span>`;
   }
+  const shTargets = () => selCards().filter(c => SHADOWABLE.includes(c.type));
+  let shMark = false;
+  function setShadow(f) { const cs = shTargets(); if (!cs.length) return; if (!shMark) { remember(); shMark = true; }
+    cs.forEach(c => { const s = { ...(shadowOf(c) || SHADOW_PRESETS.medium) }; f(s, c); c.shadow = s; renderCard(c); }); }
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-shd]'); if (!b) return; e.stopImmediatePropagation(); remember();
-    selCards().forEach(c => { if (!SHADOWABLE.includes(c.type)) return; if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
-    closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
+    shTargets().forEach(c => { if (b.dataset.shd) c.shadow = b.dataset.shd; else delete c.shadow; renderCard(c); });
+    shMark = false; $('selbar').dataset.key = ''; save(); }, true);
+  $('selbar').addEventListener('input', e => {
+    const r = e.target.closest('[data-shr], [data-shn], [data-shc]'); if (!r) return; e.stopImmediatePropagation();
+    if (r.dataset.shc) { setShadow(s => { s.color = r.value; }); r.parentElement.querySelector('code').textContent = r.value.replace('#', '').toUpperCase(); return; }
+    const key = r.dataset.shr || r.dataset.shn, row = r.parentElement, rg = row.querySelector('[data-shr]'), nb = row.querySelector('[data-shn]'); if (r === rg) nb.value = rg.value; else rg.value = nb.value;
+    rg.style.setProperty('--p', (rg.value - rg.min) / (rg.max - rg.min) * 100 + '%'); const val = +rg.value; setShadow(s => { s[key] = val; });
+    row.closest('.sb-pop').querySelectorAll('[data-shd]').forEach(b => b.classList.toggle('on', false)); }, true);
+  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-shr], [data-shn], [data-shc]')) { shMark = false; save(); } }, true);
+
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4650,8 +4673,8 @@ ${proseCSS()}
     if (one?.type === 'swatch') h += btn('pick', 'color', 'Change the color') + btn('hidename', 'name', one.hideName ? 'Show the name' : 'Hide the name', !one.hideName) + btn('hidehex', 'hex', one.hideHex ? 'Show the hex' : 'Hide the hex', !one.hideHex);
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
-    if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-txt" data-pic="1" title="Swap this picture for another">Replace…</button>`;
-    if (one?.type === 'box' && one.src) h += `<button class="sb-txt" data-frame2="1" title="Adjust how the picture is cropped">Crop</button>`;
+    if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-ic" data-pic="1" title="Replace picture" aria-label="Replace picture"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2.5"/><path d="M3 13l4-4 3.5 3.5L13 10l4 4"/><circle cx="13.5" cy="7.5" r="1.3" fill="currentColor" stroke="none"/></svg></button>`;
+    if (one?.type === 'box' && one.src) h += `<button class="sb-ic" data-frame2="1" title="Crop" aria-label="Crop"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5V14h11.5M2.5 6H14v11.5"/></svg></button>`;
     if (cs.length && cs.every(c => SHADOWABLE.includes(c.type))) h += shadowPop(cs);
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
