@@ -2605,3 +2605,7 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 body.no-pull .card .chip[data-act="colors"] { display: none !important; }
 
 .set-body h3.set-sub { margin-top: 20px; }
+
+/* exporting: a plain white page (then black, for the second pass that gives the PNG its transparency); nothing but the selection is drawn */
+body.exporting { background: #fff !important; } body.exporting.exp-black { background: #000 !important; }
+body.exporting .mcur, body.exporting .card.exp-off, body.exporting .bx-fr, body.exporting .frame-bar, body.exporting #groupBoxes { display: none !important; }

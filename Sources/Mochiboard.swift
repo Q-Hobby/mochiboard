@@ -167,10 +167,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             }
             if pdf { let cfg = WKPDFConfiguration(); cfg.rect = r; web.createPDF(configuration: cfg) { finish(try? $0.get()) } }
             else {
-                let cfg = WKSnapshotConfiguration(); cfg.rect = r; cfg.snapshotWidth = NSNumber(value: min(r.width * scale, 8000))
-                web.takeSnapshot(with: cfg) { img, _ in
-                    guard let img, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return finish(nil) }
-                    finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
+                let alpha = args["alpha"] as? Bool ?? false
+                let snap: (@escaping (NSImage?) -> Void) -> Void = { [weak web] done in
+                    guard let web else { return done(nil) }
+                    let cfg = WKSnapshotConfiguration(); cfg.rect = r; cfg.snapshotWidth = NSNumber(value: min(r.width * scale, 8000))
+                    web.takeSnapshot(with: cfg) { img, _ in done(img) }
+                }
+                if !alpha {
+                    snap { img in
+                        guard let img, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return finish(nil) }
+                        finish(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
+                    }
+                } else {
+                    // a transparent PNG from an opaque web view: the same pixels on white and on black differ by exactly (1 − alpha)
+                    snap { [weak web] white in
+                        guard let web else { return finish(nil) }
+                        web.evaluateJavaScript("document.body.classList.add('exp-black')") { _, _ in
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                                snap { black in
+                                    web.evaluateJavaScript("document.body.classList.remove('exp-black')", completionHandler: nil)
+                                    guard let white, let black else { return finish(nil) }
+                                    finish(alphaPNG(white: white, black: black))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         // save a file the page made (a Word doc): ask where, then write it
@@ -779,4 +800,28 @@ extension AppDelegate {
         panel.allowedContentTypes = [.image]
         panel.beginSheetModal(for: window) { completionHandler($0 == .OK ? panel.urls : nil) }
     }
+}
+
+// two snapshots of the same pixels, one over white and one over black: alpha = 1 − (white − black), and the black one is already the premultiplied color
+func alphaPNG(white: NSImage, black: NSImage) -> Data? {
+    guard let cw = white.cgImage(forProposedRect: nil, context: nil, hints: nil), let cb = black.cgImage(forProposedRect: nil, context: nil, hints: nil), cw.width == cb.width, cw.height == cb.height else { return nil }
+    let w = cw.width, h = cw.height, n = w * h * 4, space = CGColorSpaceCreateDeviceRGB()
+    let info = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+    func bytes(_ img: CGImage) -> [UInt8]? {
+        var buf = [UInt8](repeating: 0, count: n)
+        let ok: Bool = buf.withUnsafeMutableBytes { raw in
+            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: space, bitmapInfo: info) else { return false }
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h)); return true
+        }
+        return ok ? buf : nil
+    }
+    guard let W = bytes(cw), var B = bytes(cb) else { return nil }
+    var i = 0
+    while i < n {
+        let d = (Int(W[i]) - Int(B[i]) + Int(W[i + 1]) - Int(B[i + 1]) + Int(W[i + 2]) - Int(B[i + 2])) / 3
+        B[i + 3] = UInt8(max(0, min(255, 255 - d))); i += 4
+    }
+    guard let prov = CGDataProvider(data: Data(B) as CFData),
+          let out = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: space, bitmapInfo: CGBitmapInfo(rawValue: info), provider: prov, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
+    return NSBitmapImageRep(cgImage: out).representation(using: .png, properties: [:])
 }

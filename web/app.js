@@ -4091,6 +4091,35 @@
     return true;
   }
   window.__ftpl.ask = flowTplAsk;
+
+  // ---- Export as image, the Figma way: only what's selected is drawn (no other cards, no arrows to elsewhere, no cursor, no dots), at tight bounds, on a transparent background ----
+  exportCards = async function (cs, name, pdf) {
+    if (!cs.length) return say('Nothing to export yet ✦', 2500);
+    if (MB.web) return say('Saving images and PDFs works in the Mac app ✦', 0, DL);
+    const all = new Set(cs); cs.forEach(c => { if (c.type === 'coll') (c.kids || []).forEach(k => byId(k) && all.add(byId(k))); if (c.type === 'frame') onFrame(c).forEach(k => all.add(k));
+      if (c.type === 'section') board.cards.forEach(k => { if (k !== c && k.x >= c.x - 1 && k.y >= c.y - 1 && k.x + k.w <= c.x + c.w + 1 && k.y + k.h <= c.y + c.h + 1) all.add(k); }); });
+    // a mask group travels together: the mask layer is needed to draw the members
+    [...all].forEach(c => { if (c.group) board.cards.forEach(k => { if (k.group === c.group && k.maskLayer) all.add(k); }); });
+    const list = [...all], ids = new Set(list.map(c => c.id));
+    // tight bounds: each card's box turned by its tilt, plus room for its shadow
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    list.forEach(c => { if (c.maskLayer) return; const a = rotOf(c) * Math.PI / 180, cx = c.x + c.w / 2, cy = c.y + c.h / 2, hw = c.w / 2, hh = c.h / 2, ex = Math.abs(hw * Math.cos(a)) + Math.abs(hh * Math.sin(a)), ey = Math.abs(hw * Math.sin(a)) + Math.abs(hh * Math.cos(a));
+      const s = shadowOf(c), sh = s ? (typeof s === 'string' ? SHADOW_PRESETS[s] : s) : null, pad = sh ? (sh.blur || 0) + (sh.spread || 0) : 0, sx = sh ? sh.x || 0 : 0, sy = sh ? sh.y || 0 : 0;
+      x0 = Math.min(x0, cx - ex - Math.max(0, pad - sx)); y0 = Math.min(y0, cy - ey - Math.max(0, pad - sy)); x1 = Math.max(x1, cx + ex + Math.max(0, pad + sx)); y1 = Math.max(y1, cy + ey + Math.max(0, pad + sy)); });
+    x0 = Math.floor(x0); y0 = Math.floor(y0); x1 = Math.ceil(x1); y1 = Math.ceil(y1);
+    const keep = { ...view }, keepSel = [...sel], keepLinks = board.links, r = stage.getBoundingClientRect(), bw = x1 - x0, bh = y1 - y0;
+    selectOnly([]); selWire = null; selWires.clear(); endEdit(); if (framing) endFrame();
+    board.links = keepLinks.filter(l => ids.has(l.a) && ids.has(l.b)); renderWires();
+    board.cards.forEach(c => cardsEl.querySelector(`[data-id="${c.id}"]`)?.classList.toggle('exp-off', !ids.has(c.id)));
+    document.body.classList.add('exporting');
+    const z = Math.min((r.width - 60) / bw, (r.height - 60) / bh, 2); view = { x: (r.width - bw * z) / 2 - x0 * z, y: (r.height - bh * z) / 2 - y0 * z, z }; applyView();
+    await nextFrame(); await new Promise(res => setTimeout(res, 150));
+    try {
+      const saved = await MB.exportRect({ x: r.left + (r.width - bw * z) / 2, y: r.top + (r.height - bh * z) / 2, w: bw * z, h: bh * z, name, pdf, scale: Math.min(4, 2 / Math.min(z, 1)), alpha: !pdf });
+      if (saved) chirp(`Saved “${saved}” ✦`, 3500);
+    } catch (e) { say(e.message, 4000); }
+    finally { document.body.classList.remove('exporting', 'exp-black'); cardsEl.querySelectorAll('.exp-off').forEach(el => el.classList.remove('exp-off')); board.links = keepLinks; renderWires(); view = keep; applyView(); selectOnly(keepSel); }
+  };
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
