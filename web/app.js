@@ -608,7 +608,7 @@
         : c.rec ? `<div class="au-top"><span class="au-dot${c.count || c.starting ? ' wait' : ''}"></span><b>${c.count === 'connecting' ? 'Mochi is connecting to voice…' : c.count ? 'Start talking in…' : c.starting ? 'Starting…' : c.paused ? 'Paused' : 'Recording…'}</b><span class="au-time">0:00</span></div>${c.count || c.starting ? `<div class="au-count${typeof c.count === 'string' ? ' soft' : ''}">${c.count === 'connecting' ? '<i></i><i></i><i></i>' : c.count || ''}</div>` : '<canvas class="au-live" width="520" height="68"></canvas>'}<div class="au-acts"><button data-act="au-pause">${c.paused ? 'Resume' : 'Pause'}</button><button data-act="au-stop" class="solid">Stop</button></div>`
         : `<div class="au-top"><span class="text">${esc(c.title || 'Voice memo')}</span></div><div class="au-row"><button class="au-play" data-act="au-play">${PLAY}</button><div class="au-wave" data-act="au-seek">${(c.wave || Array(40).fill(.2)).map(v => `<i style="height:${Math.max(8, v * 100)}%"></i>`).join('')}</div><span class="au-time">${fmtT(c.dur || 0)}</span></div>`
           + `<div class="au-tx${c.text ? '' : ' wait'}">${c.text ? esc(c.text) : esc(c.txNote || 'Mochi is writing it out…')}</div><div class="au-acts"><button data-act="au-replace">Replace</button>${c.text ? '<button data-act="au-notes">✦ Turn into notes</button>' : c.needTx ? '<button data-act="au-tx">✦ Write it out</button>' : ''}</div>`;
-      case 'path': return `<svg class="pth" viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none"><path d="${pathD(c.pts, c.closed, c.radius || 0, c.ow / Math.max(1, c.w))}" fill="${c.closed && c.fill ? c.fill : 'none'}" stroke="${c.stroke && c.sw > 0 ? c.stroke : 'none'}" stroke-width="${c.sw || 0}" stroke-linecap="round" stroke-linejoin="round"${skStyle(c) === 'dash' ? ` stroke-dasharray="${c.dl ?? 8} ${c.dg ?? 6}"` : skStyle(c) === 'dot' ? ` stroke-dasharray="0 ${(c.dg ?? 6) + (c.sw || 0)}"` : ''} vector-effect="non-scaling-stroke"/></svg>`;
+      case 'path': return `<svg class="pth" viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none"><path d="${pathD(c.pts, c.closed, c.radius || 0, c.ow / Math.max(1, c.w))}" fill="${c.closed && c.fill ? c.fill : 'none'}" stroke="${c.stroke && c.sw > 0 ? c.stroke : 'none'}" stroke-width="${c.sw || 0}" stroke-linecap="round" stroke-linejoin="round"${skStyle(c) === 'dash' ? ` stroke-dasharray="${c.dl ?? 8} ${c.dg ?? 6}"` : skStyle(c) === 'dot' ? ` stroke-dasharray="0 ${(c.dg ?? 6) + (c.sw || 0)}"` : ''} vector-effect="non-scaling-stroke"/>${pathEnds(c)}</svg>`;
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
@@ -3646,6 +3646,33 @@
     if (!picDown || e.button !== 0) return; const [x0, y0, id] = picDown; picDown = null; if (Math.hypot(e.clientX - x0, e.clientY - y0) > 4) return;
     const c = byId(id); if (!c || c.src || c.type !== 'box') return; setTimeout(() => pictureMenu(c, e.clientX + 6, e.clientY + 6), 30); }, true);
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.top, true); }, true);
+  // the pen: a right-click finishes the line where it is (no new point, no menu)   // right-click finishes the pen
+  let penEnded = 0;
+  stage.addEventListener('pointerdown', e => { if (penT && e.button === 2) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); endPen(true); penEnded = Date.now(); } }, true);
+  stage.addEventListener('contextmenu', e => { if (penT || Date.now() - penEnded < 600) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); if (penT) endPen(true); } }, true);
+
+  // ---- arrowheads on pen lines: the same ends as connectors (arrow, triangle, dot, diamond), drawn in screen pixels so a stretched card doesn't squash them ----
+  function endMark(kind, tip, from, col, sw) {
+    if (!kind || kind === 'none') return '';
+    const ux = tip.x - from.x, uy = tip.y - from.y, ul = Math.hypot(ux, uy) || 1, ax = ux / ul, ay = uy / ul, nx = -ay, ny = ax, s = Math.max(1, (sw || 2) / 2.5), f = v => +v.toFixed(2);
+    if (kind === 'arrow') return `<path d="M${f(tip.x - ax * 11 * s + nx * 7 * s)} ${f(tip.y - ay * 11 * s + ny * 7 * s)} L${f(tip.x)} ${f(tip.y)} L${f(tip.x - ax * 11 * s - nx * 7 * s)} ${f(tip.y - ay * 11 * s - ny * 7 * s)}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    if (kind === 'tri') return `<path d="M${f(tip.x)} ${f(tip.y)} L${f(tip.x - ax * 13 * s + nx * 6.5 * s)} ${f(tip.y - ay * 13 * s + ny * 6.5 * s)} L${f(tip.x - ax * 13 * s - nx * 6.5 * s)} ${f(tip.y - ay * 13 * s - ny * 6.5 * s)} Z" fill="${col}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    if (kind === 'dot') return `<circle cx="${f(tip.x - ax * 5 * s)}" cy="${f(tip.y - ay * 5 * s)}" r="${f(5 * s)}" fill="${col}"/>`;
+    return `<path d="M${f(tip.x)} ${f(tip.y)} L${f(tip.x - ax * 7 * s + nx * 5.5 * s)} ${f(tip.y - ay * 7 * s + ny * 5.5 * s)} L${f(tip.x - ax * 14 * s)} ${f(tip.y - ay * 14 * s)} L${f(tip.x - ax * 7 * s - nx * 5.5 * s)} ${f(tip.y - ay * 7 * s - ny * 5.5 * s)} Z" fill="${col}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  }
+  function pathEnds(c) {
+    if (c.closed || !(c.head || c.tail) || !c.pts || c.pts.length < 2 || !(c.sw > 0)) return '';
+    const sx = (c.w || c.ow) / Math.max(1, c.ow), sy = (c.h || c.oh) / Math.max(1, c.oh), k = c.ow / Math.max(1, c.w);   // viewBox units → screen px (the path itself is drawn at k = ow / w)
+    const px = q => ({ x: q.x * k * sx, y: q.y * k * sy }), n = c.pts.length, col = c.stroke || '#27272a', sw = c.sw || 2;
+    const P = i => c.pts[i], a = P(n - 1), b = P(n - 2), dirA = b.ox != null ? { x: b.ox, y: b.oy } : a.ix != null ? { x: a.ix, y: a.iy } : b;   // the last segment's incoming direction, following a bezier handle if there is one
+    const s0 = P(0), s1 = P(1), dirS = s0.ox != null ? { x: s0.ox, y: s0.oy } : s1.ix != null ? { x: s1.ix, y: s1.iy } : s1;
+    const marks = endMark(c.head, px(a), px(dirA), col, sw) + endMark(c.tail, px(s0), px(dirS), col, sw);
+    return marks ? `<g transform="scale(${(1 / sx).toFixed(5)} ${(1 / sy).toFixed(5)})">${marks}</g>` : '';
+  }
+  $('selbar').addEventListener('click', e => {
+    const we = e.target.closest('[data-we]'); if (!we || selWires.size) return; const c = selCards()[0]; if (!c || c.type !== 'path') return;
+    e.stopImmediatePropagation(); remember(); const [which, kind] = we.dataset.we.split(':'); if (kind === 'none') delete c[which]; else c[which] = kind;
+    renderCard(c); closeSbPops(); $('selbar').dataset.key = ''; save(); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4559,6 +4586,7 @@ ${proseCSS()}
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
     if (one?.type === 'link' && one.url) h += btn('visit', 'open', 'Open the link') + btn('relink', 'link', 'Change the link');
     if (one?.type === 'spotify') h += btn('visit', 'open', 'Open in Spotify');
+    if (one?.type === 'path' && !one.closed && one.pts?.length > 1) h += wireEndsPop({ head: one.head, tail: one.tail });
     if (one?.type === 'shape' && one.shape === 'line') { const st = one.squig || 'straight', sl = (k, label, v, min, max, unit = '') => `<div class="sbc-top sb-sqrow" data-sqk="${k}"><span>${label}</span><input type="range" min="${min}" max="${max}" step="1" value="${v}" style="--p:${(v - min) / (max - min) * 100}%" data-sq="${k}"><input type="number" min="${min}" max="${max}" value="${v}" data-sqn="${k}" aria-label="${label}"><b class="sb-unit">${unit}</b></div>`;
       const ic = { straight: 'M3 12h18', wavy: 'M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2', zigzag: 'M2 15l4-6 4 6 4-6 4 6 4-6', loopy: 'M2 15c3 0 4-8 2-8s-1 8 3 8 4-8 2-8-1 8 3 8 4-8 2-8-1 8 4 8' };
       h += G(2, pop('squig', `<svg viewBox="0 0 24 24" class="sb-l24"><path d="${ic[st]}"/></svg>${CARET}`,
