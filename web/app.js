@@ -3927,7 +3927,9 @@
     else if (cs.length === 1 && maskSource(cs[0]) && !isPic(cs[0])) {   // just the shape is selected: offer it as the mask for what it sits on
       const s = cs[0], under = board.cards.filter(c => c !== s && z(c) < z(s) && maskable(c) && overlaps(c, s)).sort((a, b) => z(b) - z(a)).slice(0, 1);
       if (under.length) pairs.push([s, under, '', ` for the ${(under[0].type === 'image' || under[0].type === 'box' && under[0].img) ? 'picture' : under[0].type} underneath`]); }
-    else if (cs.length > 2) { const srcs = cs.filter(c => maskSource(c) && !isPic(c)); if (srcs.length === 1) { const s = srcs[0], ts = cs.filter(c => c !== s && maskable(c)); if (ts.length) pairs.push([s, ts, '', ` for the ${ts.length} things`]); } }
+    else if (cs.length > 2) {   // a drag-select that caught the shape and a few things: the shape masks what it actually sits on (a stray sticker in the selection is left alone)
+      const srcs = cs.filter(c => maskSource(c) && !isPic(c)); if (srcs.length === 1) { const s = srcs[0]; let ts = cs.filter(c => c !== s && maskable(c) && overlaps(c, s)); if (!ts.length) ts = cs.filter(c => c !== s && maskable(c));
+        if (ts.length) pairs.push([s, ts, '', ts.length === 1 ? ` for the ${(ts[0].type === 'image' || ts[0].type === 'box' && ts[0].img) ? 'picture' : ts[0].type} underneath` : ` for the ${ts.length} things`]); } }
     const targets = pairs.length ? pairs[0][1] : cs.filter(maskable); if (!targets.length) return null;
     return [...pairs.map(([s, ts, where, tail]) => ({ label: `Use the ${shapeWord(s)}${where} as the mask${tail || ''}`, icon: maskIcon(sourceMask(s) || { shape: 'circle' }, s.w, s.h), run: () => ts.length === 1 ? maskWithShape(s, ts[0]) : maskManyWithShape(s, ts) })), ...(pairs.length ? ['-'] : []),
       ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
