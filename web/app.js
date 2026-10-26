@@ -3692,8 +3692,13 @@
   // the tip shows only while the pointer is over a picture (not all the time it's selected)
   let hoverPic = null;
   function refreshCropTip() { cropTip.hidden = !!framing || !hoverPic; }
-  cardsEl.addEventListener('pointerover', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); hoverPic = c && c.type === 'box' && c.src ? c : null; refreshCropTip(); }, true);
-  cardsEl.addEventListener('pointerout', e => { if (!e.relatedTarget || !cardsEl.contains(e.relatedTarget)) { hoverPic = null; refreshCropTip(); } }, true);
+  // decided from what is really under the pointer on every move (over/out events are unreliable with the pointer captured mid-drag)
+  let tipRaf = 0;
+  addEventListener('pointermove', e => { if (tipRaf) return; tipRaf = requestAnimationFrame(() => { tipRaf = 0;
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.card'); const c = el && cardsEl.contains(el) && byId(el.dataset.id);
+    hoverPic = c && c.type === 'box' && c.src && !drag ? c : null; refreshCropTip(); }); }, true);
+  document.addEventListener('mouseleave', () => { hoverPic = null; refreshCropTip(); });
+  addEventListener('pointerdown', () => { hoverPic = null; refreshCropTip(); }, true);   // it steps aside the moment you do anything
   const frameImg = () => framing && framing.el.querySelector('.bx-img');
   stage.addEventListener('dblclick', e => {   // the stage owns double-clicks (the pointer gets captured on the way), so find the card under the point
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); if (!c || c.type !== 'box' || !c.src) return;
