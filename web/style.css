@@ -2497,6 +2497,7 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.box.framing .bx-ghost { display: block; }
 .frame-bar { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 120; display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-radius: 999px; background: #fff; box-shadow: 0 14px 36px rgba(120, 80, 120, .24), 0 0 0 1px rgba(0, 0, 0, .05); font: 600 12.5px/1 var(--font); color: var(--ink-soft); }
 .frame-bar.crop-tip { padding: 10px 16px; bottom: 92px; color: var(--ink); }
+.frame-bar[hidden] { display: none; }
 .frame-bar button { padding: 8px 12px; border: 0; border-radius: 999px; background: #f4eef3; font: 700 12.5px/1 var(--font); color: var(--ink); cursor: pointer; } .frame-bar button.pri { background: #241f28; color: #fff; }
 
 /* Wireframing: the flow library list */
