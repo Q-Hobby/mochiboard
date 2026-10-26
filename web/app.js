@@ -3320,8 +3320,12 @@
       const gx = Math.max(k.x - (c.x + c.w), c.x - (k.x + k.w), 0), gy = Math.max(k.y - (c.y + c.h), c.y - (k.y + k.h), 0), d = Math.hypot(gx, gy); if (d < bd) { bd = d; best = k; } });
     if (!best || bd > 110) return;
     const dx = (c.x + c.w / 2) - (best.x + best.w / 2), dy = (c.y + c.h / 2) - (best.y + best.h / 2), s = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');   // the sides that face each other
+    // and line it up with its neighbour, so the arrow runs straight across (or straight down); only when it's nearly there already
+    const was = { x: c.x, y: c.y }, el = cardsEl.querySelector(`[data-id="${c.id}"]`);
+    if (s === 'r' || s === 'l') { if (Math.abs(dy) <= Math.max(60, c.h)) c.y = Math.round(best.y + best.h / 2 - c.h / 2); } else if (Math.abs(dx) <= Math.max(60, c.w)) c.x = Math.round(best.x + best.w / 2 - c.w / 2);
+    const moved = c.x !== was.x || c.y !== was.y; if (moved && el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
     const l = kitLink(best, c, SIDE[s], SIDE[OPP[s]]); board.links.push(l); renderWires(); save();
-    chirp('Connected ✦', 2200, [{ label: 'Undo', run: () => { board.links = board.links.filter(x => x !== l); renderWires(); save(); } }]);
+    chirp(moved ? 'Connected and lined up ✦' : 'Connected ✦', 2200, [{ label: 'Undo', run: () => { board.links = board.links.filter(x => x !== l); if (moved) { c.x = was.x; c.y = was.y; const e2 = cardsEl.querySelector(`[data-id="${c.id}"]`); if (e2) { e2.style.left = c.x + 'px'; e2.style.top = c.y + 'px'; } } renderWires(); save(); } }]);
   }
   function placeKit(kit, name, w) {
     const P = KITS[kit]?.pieces[name]; if (!P) return;
@@ -4039,6 +4043,7 @@
   const _renderAll0 = renderAll; renderAll = function () { try { migrateMasks(); } catch (e) {} return _renderAll0.apply(this, arguments); };
   // when a whole mask group is selected, the mask's box is the group's box (like Figma); members show their own box only when picked on their own
   const _selectOnly0 = selectOnly; selectOnly = function (ids) { const r = _selectOnly0.apply(this, arguments); try { board.cards.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const whole = c.group && maskLayerOf(c) !== null | c.maskLayer ? groupMembers(c.group).every(x => sel.has(x.id)) : false; el.classList.toggle('gsel', !!(c.group && whole && (c.maskLayer || maskLayerOf(c)))); }); } catch (e) {} return r; };
+  window.__autoLink = autoLink;
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
