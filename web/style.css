@@ -2489,6 +2489,11 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 /* a cut-out picture card has nothing to clip: its shadow may fall outside */
 .card.image.nobg .body, .card.image.nobg .imgwrap { overflow: visible; }
 
+/* a picture's corner radius is its own, mat or no mat; the mat's outer corner follows it */
+.card.image.noframe .imgwrap { border-radius: var(--img-r, 12px); }
+.card.image:not(.nobg) .frame { border-radius: calc(var(--img-r, 12px) + var(--mat, 8px)); }
+.card.image[data-sh]:not(.nobg)::before { border-radius: calc(var(--img-r, 12px) + var(--mat, 8px)); }
+
 /* a picture's mat: width and colour are the card's own */
 .card.image .body { padding: var(--mat, 8px); } .card.image:not(.nobg) .frame { background: var(--matc, #fff); }
 .card.image.noframe .body { padding: 0; }

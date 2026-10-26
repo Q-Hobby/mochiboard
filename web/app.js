@@ -634,7 +634,7 @@
   const TILTS = c => !['section', 'frame', 'coll', 'ink', 'box', 'text', 'icon'].includes(c.type);   // (the wireframe list WF isn't set up yet when the first cards draw)
   const SIZED_T = ['note', 'todo', 'title', 'shape', 'coll'];
   // strokes: boxes and screens get a border (solid or dashed); titles, wireframe text and icons get an outline around the letters
-  const STROKABLE = ['box', 'frame', 'title', 'text', 'icon', 'path', 'shape'], STROKE_TEXT = ['title', 'text', 'icon'];
+  const STROKABLE = ['box', 'frame', 'title', 'text', 'icon', 'path', 'shape', 'image'], STROKE_TEXT = ['title', 'text', 'icon'];
   const canStroke = c => STROKABLE.includes(c.type) && !(c.type === 'shape' && c.shape === 'line');
   // boxes and screens: the line is drawn (an SVG rect) so it can be solid, dashed or dotted with your own dash length and gap, like Figma
   const skStyle = c => c.sdash === true ? 'dash' : c.sdash || 'solid';
@@ -2576,6 +2576,8 @@
         { label: 'Send to back  ⇧⌘[', run: () => restack('back') }, '-',
         { label: 'Export as image', run: () => exportCards(cs, cardName(cs), false) },
         { label: 'Export as PDF', run: () => exportCards(cs, cardName(cs), true) },
+        ...(cs.length > 1 ? [{ label: 'Save each as its own image', run: () => exportEach(cs) }] : []),
+        ...(cs.length > 1 && cs.every(c => c.src && (c.type === 'image' || c.type === 'box')) ? [{ label: `Save ${cs.length} pictures as PNG…`, run: () => savePictures(cs, 'png') }, { label: `Save ${cs.length} pictures as JPEG…`, run: () => savePictures(cs, 'jpg') }] : []),
         ...(spotsIn(cs).length ? [{ label: `Fill ${spotsIn(cs).length} image spot${spotsIn(cs).length > 1 ? 's' : ''}…`, run: () => offerFill(spotsIn(cs)) }] : []), '-',
         { label: 'Duplicate', run: () => { const gm = {}, copies = cs.filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
         { label: 'Delete', danger: true, run: () => removeSelected() }]);
@@ -3655,7 +3657,7 @@
     if (scene) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); const c = picUnder(e); if (c) placeholderOnto(c, scene); else { const w = toWorld(e.clientX, e.clientY); addSpot(scene, w.x - 150, w.y - 112); } return; }
     const files = [...(e.dataTransfer?.files || [])].filter(f => f.type.startsWith('image/')); if (files.length !== 1) return;
     const c = picUnder(e); if (!c) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); putPicture(c, await imageFromFile(files[0])); }, true);
-  cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
+  cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; if (sel.size > 1 && sel.has(c.id)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
   // (a plain click on a placeholder just selects it; the menu is on right-click, or Replace… in the bar)
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.top, true); }, true);
   // the pen: a right-click finishes the line where it is (no new point, no menu)   // right-click finishes the pen
@@ -3757,9 +3759,13 @@
   const rgba = (hex, a) => { const h = String(hex || '#1e1428').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(x => x + x).join('') : h, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(100, a ?? 18)) / 100})`; };
   function shadowCss(c) { const s = shadowOf(c); return s && !(c.type === 'box' && c.nobg) ? `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${rgba(s.color, s.a)}` : 'none'; }   // drawn by a layer behind the card (see the css), so the wobble filter can't clip it; a cut-out in a spot shadows its outline instead (see frameStyle)
   function shadowFilter(c) { const s = shadowOf(c); return s ? `drop-shadow(${s.x}px ${s.y}px ${Math.max(0, s.blur / 2)}px ${rgba(s.color, s.a)})` : 'none'; }   // outlines: no spread in a drop-shadow, so the blur does the work
-  const bwOf = c => c.nobg ? (c.bw ?? 0) : c.noframe ? 0 : (c.bw ?? 8), bcOf = c => c.bc || '#ffffff';
+  const bwOf = c => c.sw != null ? Math.max(0, +c.sw || 0) : (c.nobg || c.noframe ? 0 : 8), bcOf = c => c.stroke || '#ffffff';   // a fresh picture's 8px white mat is its default stroke
   const outlineFilter = (w, col) => { if (!(w > 0)) return ''; const d = +(w * .7).toFixed(2); return [[w, 0], [-w, 0], [0, w], [0, -w], [d, d], [-d, d], [d, -d], [-d, -d]].map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${col})`).join(' '); };
-  function borderVars(c, el) { if (c.type !== 'image') return; const w = bwOf(c); el.style.setProperty('--mat', w + 'px'); el.style.setProperty('--matc', bcOf(c)); if (c.nobg && w > 0) el.style.setProperty('--outl', outlineFilter(w, bcOf(c))); else el.style.removeProperty('--outl'); }
+  function borderVars(c, el) {
+    if (c.type !== 'image') return; const w = bwOf(c), prev = el.dataset.mat === undefined ? null : +el.dataset.mat;
+    if (prev !== null && prev !== w && !c.nobg) { const d = w - prev; c.x -= d; c.y -= d; c.w = Math.max(24, c.w + 2 * d); c.h = Math.max(24, c.h + 2 * d); Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.h + 'px' }); }   // the picture stays put; only the mat grows or goes
+    el.dataset.mat = w; el.style.setProperty('--mat', (c.nobg ? 0 : w) + 'px'); el.style.setProperty('--matc', w > 0 ? bcOf(c) : 'transparent');
+    if (c.nobg && w > 0) el.style.setProperty('--outl', outlineFilter(w, bcOf(c))); else el.style.removeProperty('--outl'); }
   function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg); borderVars(c, el);
     if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); el.style.setProperty('--shr', (c.type === 'box' || c.type === 'frame' ? (c.radius || 0) : c.type === 'image' ? (c.noframe ? (c.radius ?? 12) : 18) : 18) + 'px'); }
     else { delete el.dataset.sh; el.style.removeProperty('--shb'); el.style.removeProperty('--shf'); el.style.removeProperty('--shr'); } }
@@ -3828,41 +3834,20 @@
     } catch (e) { say('Hmm, I couldn’t save that picture. ' + String(e.message || e), 6000); }
   }
 
-  // ---- a picture's border, from the bar: the mat around a picture (width + colour), or a sticker outline hugging a cut-out ----
-  const BD_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="15" height="15" rx="3"/><rect x="6" y="6" width="8" height="8" rx="1.5" stroke-dasharray="2 1.6"/></svg>';
-  function borderPop(c) {
-    const w = bwOf(c), col = bcOf(c), on = w > 0;
-    return `<span class="sb-popw" data-popw="border"><button class="sb-poptrig sb-ic ${on ? 'on' : ''}" data-pop="border" title="Border">${BD_ICON}</button><div class="sb-pop sb-pop-shadow sb-pop-border ${on ? '' : 'off'}"><div class="shbody">
-      <div class="sh-head"><b class="sh-title">${c.nobg ? 'Outline' : 'Border'}</b>${on ? `<button class="sh-clear" data-bdclear="1" title="Remove the border">Clear</button>` : `<button class="sh-clear sh-add" data-bdadd="1" title="Add a border">Add</button>`}</div>
-      <div class="sh-row"><span class="sh-l" data-bscrub="1" title="Drag to change">Width</span><input type="range" min="1" max="24" step="1" value="${w || 8}" style="--p:${((w || 8) - 1) / 23 * 100}%" data-bdr="1"><input type="number" min="1" max="24" value="${w || 8}" data-bdn="1" aria-label="Width"><i>px</i></div>
-      <div class="sh-row sh-color"><span class="sh-l">Color</span><button class="sb-shsw" data-bdsw="1" style="background:${col}" title="Pick a color" aria-label="Pick a color"></button><input class="sb-shhex" type="text" value="${col.replace('#', '').toUpperCase()}" data-bdhex="1" maxlength="7" spellcheck="false" aria-label="Hex color"></div>
-    </div></div></span>`;
+  // ---- saving a selection as separate files: each object on its own, a group as one, a section as one, a screen with what's on it ----
+  function exportPlan(cs) {
+    const inside = (c, s) => c !== s && c.x >= s.x - 1 && c.y >= s.y - 1 && c.x + c.w <= s.x + s.w + 1 && c.y + c.h <= s.y + s.h + 1;
+    const sections = cs.filter(c => c.type === 'section'), frames = cs.filter(c => c.type === 'frame'), taken = new Set(), plan = [];
+    sections.forEach(s => { plan.push({ name: s.text || 'Section', cards: [s, ...board.cards.filter(c => inside(c, s))] }); cs.forEach(c => { if (inside(c, s)) taken.add(c.id); }); taken.add(s.id); });
+    frames.forEach(f => { if (taken.has(f.id)) return; plan.push({ name: f.name || 'Screen', cards: [f] }); taken.add(f.id); onFrame(f).forEach(c => taken.add(c.id)); });
+    const groups = {}; cs.forEach(c => { if (taken.has(c.id) || !c.group) return; (groups[c.group] = groups[c.group] || []).push(c); taken.add(c.id); });
+    Object.values(groups).forEach(g => plan.push({ name: cardName(g.slice(0, 1)) + ' group', cards: g }));
+    cs.forEach(c => { if (!taken.has(c.id)) plan.push({ name: cardName([c]), cards: [c] }); });
+    return plan;
   }
-  let bdMark = false;
-  function setBorderWidth(c, w) {   // the picture stays put; only the mat grows or goes. A cut-out's outline is drawn outside it, so nothing moves
-    w = Math.round(Math.max(0, Math.min(24, w))); if (!bdMark) { remember(); bdMark = true; }
-    if (!c.nobg) { const d = w - bwOf(c); c.x -= d; c.y -= d; c.w = Math.max(24, c.w + 2 * d); c.h = Math.max(24, c.h + 2 * d); }
-    if (w === 0) { c.noframe = true; } else { delete c.noframe; c.bw = w; }
-    if (c.nobg) c.bw = w;
-    renderCard(c); renderWires();
-  }
-  const reopenPop = name => { document.querySelectorAll('#selbar .sb-popw.open').forEach(x => x.classList.remove('open')); $('selbar').dataset.key = ''; placeSelbar(); requestAnimationFrame(() => document.querySelector(`#selbar [data-popw="${name}"]`)?.classList.add('open')); };
-  const bdTarget = () => { const c = selCards()[0]; return c && c.type === 'image' ? c : null; };
-  $('selbar').addEventListener('click', e => { const add = e.target.closest('[data-bdadd]'), clr = e.target.closest('[data-bdclear]'); if (!add && !clr) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return;
-    bdMark = false; setBorderWidth(c, add ? 8 : 0); bdMark = false; selectOnly([c.id]); save(); reopenPop('border'); }, true);
-  $('selbar').addEventListener('input', e => { const r = e.target.closest('[data-bdr], [data-bdn], [data-bdhex]'); if (!r) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return; const pop = r.closest('.sb-pop');
-    if (r.dataset.bdhex) { const h = r.value.trim().replace(/^#/, ''); if (!/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h)) return; if (!bdMark) { remember(); bdMark = true; } c.bc = '#' + (h.length === 3 ? h.split('').map(x => x + x).join('') : h).toLowerCase(); pop.querySelector('.sb-shsw').style.background = c.bc; renderCard(c); return; }
-    if (r.value === '') return; const w = +r.value; const nb = pop.querySelector('[data-bdn]'), rg = pop.querySelector('[data-bdr]'); nb.value = w; rg.value = w; rg.style.setProperty('--p', (w - 1) / 23 * 100 + '%'); setBorderWidth(c, w); }, true);
-  $('selbar').addEventListener('change', e => { if (e.target.closest('[data-bdr], [data-bdn], [data-bdhex]')) { bdMark = false; selectOnly(selCards().map(c => c.id)); save(); } }, true);
-  $('selbar').addEventListener('pointerdown', e => { const h = e.target.closest('[data-bscrub]'); if (!h) return; e.preventDefault(); e.stopPropagation(); const c = bdTarget(); if (!c) return;
-    const pop = h.closest('.sb-pop'), nb = pop.querySelector('[data-bdn]'), rg = pop.querySelector('[data-bdr]'), x0 = e.clientX, v0 = +nb.value || 0; h.classList.add('scrubbing'); document.body.classList.add('scrub-ew');
-    const mv = ev => { const w = Math.max(1, Math.min(24, v0 + Math.round((ev.clientX - x0) / 4))); nb.value = w; rg.value = w; rg.style.setProperty('--p', (w - 1) / 23 * 100 + '%'); setBorderWidth(c, w); };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); h.classList.remove('scrubbing'); document.body.classList.remove('scrub-ew'); bdMark = false; selectOnly([c.id]); save(); };
-    addEventListener('pointermove', mv); addEventListener('pointerup', up); }, true);
-  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-bdsw]'); if (!b) return; e.stopImmediatePropagation(); const c = bdTarget(); if (!c) return; const r = b.getBoundingClientRect();
-    openColor({ tint: true, fromBar: true, title: c.nobg ? 'Outline color' : 'Border color', hex: bcOf(c), presets: ['#ffffff', '#1e1428', '#ff9ec4', '#e2649a', '#4f9dff', '#5fc795', '#f7b955', '#9b7bff'], at: { x: r.left - 110, y: r.top - 480 },
-      apply: hex => { if (!bdMark) { remember(); bdMark = true; } c.bc = hex; renderCard(c); b.style.background = hex; const hx = b.parentElement.querySelector('.sb-shhex'); if (hx) hx.value = hex.replace('#', '').toUpperCase(); save(); } }); }, true);
-  $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-bdhex], [data-bdn]')) e.stopPropagation(); }, true);
+  async function exportEach(cs) { const plan = exportPlan(cs); for (const p of plan) await exportCards(p.cards, p.name, false); }
+  async function savePictures(cs, fmt) { for (const c of cs) await exportPicture(c, fmt); }
+  window.__exportPlan = exportPlan;
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4772,7 +4757,7 @@ ${proseCSS()}
     if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-ic" data-pic="1" title="Replace picture" aria-label="Replace picture"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2.5"/><path d="M3 13l4-4 3.5 3.5L13 10l4 4"/><circle cx="13.5" cy="7.5" r="1.3" fill="currentColor" stroke="none"/></svg></button>`;
     if (one?.type === 'box' && one.src) h += `<button class="sb-ic" data-frame2="1" title="Crop" aria-label="Crop"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5V14h11.5M2.5 6H14v11.5"/></svg></button>`;
     if (cs.length && cs.every(c => SHADOWABLE.includes(c.type))) h += shadowPop(cs);
-    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', false) + borderPop(one) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
+    if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', false) + '' + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
     if (one?.type === 'canvas') h += btn('open', 'open', 'Open this canvas');
@@ -4815,7 +4800,7 @@ ${proseCSS()}
       h += G(2, pop('tfill', `<i class="sb-cur sb-tcur${cur === 'none' ? ' sb-none' : ''}" style="--c:${cur && cur !== 'none' ? cur : 'var(--ink)'}">A</i>${CARET}`,
         `<div class="sb-dots sb-fills"><button data-tf="none" title="No fill" class="sb-nofill ${cur === 'none' ? 'on' : ''}"></button>${TF.map(v => `<button data-tf="${v}" title="${v}" style="background:${v}" class="${cur.toLowerCase() === v ? 'on' : ''}"></button>`).join('')}<button class="sb-anycolor" data-tfwheel="1" title="Any color"></button></div>`, 'Text color')); }
     const stk = cs.filter(c => canStroke(c));
-    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || '#27272a', w = f.sw || 0, textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => ['icon', 'title', 'text'].includes(c.type));   // dashed/dotted is for shapes, boxes and screens
+    if (stk.length === cs.length && stk.length) { const f = stk[0], col = f.stroke || (f.type === 'image' ? '#ffffff' : '#27272a'), w = f.type === 'image' ? bwOf(f) : (f.sw || 0), textOnly = stk.every(c => STROKE_TEXT.includes(c.type)), max = textOnly ? 12 : 24, noDash = stk.some(c => ['icon', 'title', 'text', 'image'].includes(c.type));   // dashed/dotted is for shapes, boxes and screens
       const SK = ['#000000', '#ffffff', '#71717a', '#a1a1aa', '#ff5a6e', '#ff9ec4', '#f7b955', '#5fc795', '#4f9dff', '#9b7bff', ...(board.palette || []).map(p => p.hex), ...board.cards.filter(c => c.type === 'swatch' && c.hex).map(c => c.hex)].slice(0, 18);
       h += G(2, pop('stroke', `<i class="sb-cur sb-skcur${w ? '' : ' none'}" style="--c:${col}"></i>${CARET}`,
         `<div class="sb-corners sb-stroke"><div class="sbc-top"><span>Stroke</span><input type="range" min="0" max="${max}" step="0.5" value="${w}" style="--p:${Math.min(100, w / max * 100)}%" data-skw><input type="number" min="0" max="${max}" step="0.5" value="${w}" data-skn aria-label="Stroke width"><b class="sb-unit">px</b></div>
@@ -4955,7 +4940,7 @@ ${proseCSS()}
   function setStroke(patch) {
     const cs = selCards().filter(c => canStroke(c)); if (!cs.length) return;
     cs.forEach(c => { if (patch.none) { delete c.stroke; delete c.sw; delete c.sdash; } else { if (patch.color) c.stroke = patch.color; if (patch.w != null) c.sw = +patch.w;
-      if (patch.dash != null) c.sdash = patch.dash === 'solid' ? undefined : patch.dash; if (patch.dl != null) c.dl = +patch.dl; if (patch.dg != null) c.dg = +patch.dg; if (!c.stroke) c.stroke = '#27272a'; if (!(c.sw > 0) && (patch.color || patch.dash != null)) c.sw = STROKE_TEXT.includes(c.type) ? 1.5 : 2; } renderCard(c); });
+      if (patch.dash != null) c.sdash = patch.dash === 'solid' ? undefined : patch.dash; if (patch.dl != null) c.dl = +patch.dl; if (patch.dg != null) c.dg = +patch.dg; if (!c.stroke) c.stroke = c.type === 'image' ? '#ffffff' : '#27272a'; if (!(c.sw > 0) && (patch.color || patch.dash != null)) c.sw = c.type === 'image' ? (c.nobg ? 6 : 8) : STROKE_TEXT.includes(c.type) ? 1.5 : 2; } renderCard(c); });
     selectOnly(cs.map(c => c.id)); syncDesign(); renderWires(); save();
     const f = cs[0], bar = $('selbar'), cur = bar.querySelector('.sb-skcur'); if (cur) { cur.style.setProperty('--c', f.stroke || '#27272a'); cur.classList.toggle('none', !(f.sw > 0)); }
     bar.querySelectorAll('[data-skc]').forEach(b => b.classList.toggle('on', f.sw > 0 && (f.stroke || '').toLowerCase() === b.dataset.skc));
