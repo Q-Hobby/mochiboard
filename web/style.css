@@ -2487,6 +2487,8 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.pic-over .bx-ph .bx-l { background: var(--pink-deep, #e8467c); color: #fff; }
 
 /* framing a picture inside its spot */
+.card.box .bx-fr { display: none; position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 5px 9px; border: 0; border-radius: 999px; background: rgba(36, 31, 40, .86); color: #fff; font: 700 11px/1 var(--font); cursor: pointer; }
+.card.box.sel .bx-fr { display: block; } .card.box.framing .bx-fr { display: none; }
 .card.box .bx { overflow: hidden; }
 .card.box .bx-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .card.box .bx-ghost { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; pointer-events: none; z-index: -1; }
@@ -2494,6 +2496,7 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 .card.box.framing .bx { outline: 2px dashed var(--pink-deep, #e8467c); outline-offset: 2px; }
 .card.box.framing .bx-ghost { display: block; }
 .frame-bar { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 120; display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-radius: 999px; background: #fff; box-shadow: 0 14px 36px rgba(120, 80, 120, .24), 0 0 0 1px rgba(0, 0, 0, .05); font: 600 12.5px/1 var(--font); color: var(--ink-soft); }
+.frame-bar.crop-tip { padding: 10px 16px; bottom: 92px; color: var(--ink); }
 .frame-bar button { padding: 8px 12px; border: 0; border-radius: 999px; background: #f4eef3; font: 700 12.5px/1 var(--font); color: var(--ink); cursor: pointer; } .frame-bar button.pri { background: #241f28; color: #fff; }
 
 /* Wireframing: the flow library list */

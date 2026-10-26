@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop (or double-click the picture)">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -3608,7 +3608,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the framing</button>` : '') + (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
+      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot ? `<button data-m="label">Change what goes here…</button>` : `<button data-m="frame">${c.noframe ? 'Add the border' : 'Remove the border'}</button>` + (c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`)) + (spot && c.src ? `<button data-m="clear">Back to the placeholder</button>` : '');
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); removeEventListener('pointerdown', away, true); };
     const away = ev => { if (!m.contains(ev.target)) close(); }; setTimeout(() => addEventListener('pointerdown', away, true), 0);
@@ -3627,7 +3627,7 @@
   function putPicture(c, im) {
     remember(); const spot = c.type === 'box';
     if (spot) { c.src = im.src; delete c.fx; delete c.fy; delete c.fz; } else { c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (c.noframe ? 0 : 16); delete c.crop; }
-    renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it any time to swap it ✦' : 'Swapped ✦', 3000);
+    renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Double-click it to adjust the crop; right-click to swap it ✦' : 'Swapped ✦', 4500);
   }
   // a file dragged from the Finder onto a picture or a placeholder lands in it (instead of becoming a new card next to it)
   const picUnder = e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); return isPic(c) ? c : null; };
@@ -3681,12 +3681,16 @@
   function startFrame(c) {
     if (framing) endFrame(); const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return;
     remember(); selectOnly([c.id]); framing = { c, el, was: { fx: c.fx, fy: c.fy, fz: c.fz } }; el.classList.add('framing');
-    const bar = document.createElement('div'); bar.className = 'frame-bar'; bar.innerHTML = `<span>Drag to move · scroll to zoom</span><button data-f="reset">Reset</button><button data-f="done" class="pri">Done</button>`; document.body.appendChild(bar); framing.bar = bar;
+    const bar = document.createElement('div'); bar.className = 'frame-bar'; bar.innerHTML = `<span>Drag the picture to reposition it · scroll to zoom in or out</span><button data-f="reset">Reset</button><button data-f="done" class="pri">Done</button>`; refreshCropTip(); document.body.appendChild(bar); framing.bar = bar;
     bar.onclick = e => { const a = e.target.closest('[data-f]')?.dataset.f; if (a === 'reset') { delete c.fx; delete c.fy; delete c.fz; applyFrame(c); } if (a === 'done') endFrame(); };
     ['pointerdown', 'mousedown', 'dblclick'].forEach(t => bar.addEventListener(t, e => e.stopPropagation()));
   }
   function applyFrame(c) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const st = frameStyle(c); el.querySelectorAll('.bx-img, .bx-ghost').forEach(i => i.style.cssText = st); }
-  function endFrame() { if (!framing) return; const { c, el, bar } = framing; framing = null; el.classList.remove('framing'); bar.remove(); save(); }
+  function endFrame() { if (!framing) return; const { c, el, bar } = framing; framing = null; el.classList.remove('framing'); bar.remove(); save(); refreshCropTip(); }
+  // while a cropped-in picture is selected, a little tip above the toolbar says how to get at the crop
+  const cropTip = document.createElement('div'); cropTip.className = 'frame-bar crop-tip'; cropTip.hidden = true; cropTip.textContent = 'Double-click the picture to adjust its crop'; document.body.appendChild(cropTip);
+  function refreshCropTip() { const cs = selCards(); cropTip.hidden = !!framing || !(cs.length === 1 && cs[0].type === 'box' && cs[0].src); }
+  ['pointerup', 'keyup'].forEach(t => addEventListener(t, () => setTimeout(refreshCropTip, 0), true));
   const frameImg = () => framing && framing.el.querySelector('.bx-img');
   stage.addEventListener('dblclick', e => {   // the stage owns double-clicks (the pointer gets captured on the way), so find the card under the point
     const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); if (!c || c.type !== 'box' || !c.src) return;
@@ -3709,6 +3713,10 @@
   }, { capture: true, passive: false });
   addEventListener('keydown', e => { if (!framing) return; if (e.key === 'Escape') { const { c, was } = framing; Object.assign(c, was); ['fx', 'fy', 'fz'].forEach(k => c[k] == null && delete c[k]); applyFrame(c); endFrame(); e.stopPropagation(); } if (e.key === 'Enter') { endFrame(); e.stopPropagation(); } }, true);
   stage.addEventListener('pointerdown', e => { if (framing && !e.target.closest('.card') && !e.target.closest('.frame-bar')) endFrame(); }, true);
+  // ways in to framing besides the double-click: a Frame chip on the selected spot, a Frame button in its bar, and Mochi mentions it once
+  cardsEl.addEventListener('click', e => { const b = e.target.closest('.bx-fr'); if (!b) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); const c = byId(b.closest('.card').dataset.id); if (c) startFrame(c); }, true);
+  cardsEl.addEventListener('pointerdown', e => { if (e.target.closest('.bx-fr')) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
+  $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-frame2]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (c?.type === 'box' && c.src) startFrame(c); }, true);
   // icons: search all of Material Icons, then click to place (or swap the selected icon)
   let iconSwap = null;
   function renderIcons() {
@@ -4616,6 +4624,7 @@ ${proseCSS()}
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
     if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-txt" data-pic="1" title="Swap this picture for another">Replace…</button>`;
+    if (one?.type === 'box' && one.src) h += `<button class="sb-txt" data-frame2="1" title="Adjust how the picture is cropped (or double-click it)">Crop</button>`;
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
