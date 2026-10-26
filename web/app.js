@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop (or double-click the picture)">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -3627,7 +3627,7 @@
   function putPicture(c, im) {
     remember(); const spot = c.type === 'box';
     if (spot) { c.src = im.src; delete c.fx; delete c.fy; delete c.fz; } else { c.src = im.src; c.h = Math.round(c.w * im.h / im.w) + (c.noframe ? 0 : 16); delete c.crop; }
-    renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Double-click it to adjust the crop; right-click to swap it ✦' : 'Swapped ✦', 4500);
+    renderCard(c); renderWires(); save(); selectOnly([c.id]); chirp(spot ? 'Picture’s in. Right-click it to crop or swap it ✦' : 'Swapped ✦', 4500);
   }
   // a file dragged from the Finder onto a picture or a placeholder lands in it (instead of becoming a new card next to it)
   const picUnder = e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); return isPic(c) ? c : null; };
@@ -3640,12 +3640,7 @@
     const files = [...(e.dataTransfer?.files || [])].filter(f => f.type.startsWith('image/')); if (files.length !== 1) return;
     const c = picUnder(e); if (!c) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); putPicture(c, await imageFromFile(files[0])); }, true);
   cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
-  let picDown = null;
-  cardsEl.addEventListener('pointerdown', e => { const ph = e.target.closest('.bx-ph'); picDown = ph ? [e.clientX, e.clientY, ph.closest('.card')?.dataset.id] : null; }, true);
-  // a plain click on a placeholder (not a drag) opens the menu right there. The card captures the pointer, so the click's target may be the card, not the label: we remember who was pressed
-  addEventListener('pointerup', e => {
-    if (!picDown || e.button !== 0) return; const [x0, y0, id] = picDown; picDown = null; if (Math.hypot(e.clientX - x0, e.clientY - y0) > 4) return;
-    const c = byId(id); if (!c || c.src || c.type !== 'box') return; setTimeout(() => pictureMenu(c, e.clientX + 6, e.clientY + 6), 30); }, true);
+  // (a plain click on a placeholder just selects it; the menu is on right-click, or Replace… in the bar)
   $('selbar').addEventListener('click', e => { const b = e.target.closest('[data-pic]'); if (!b) return; e.stopImmediatePropagation(); const c = selCards()[0]; if (!c) return; const r = b.getBoundingClientRect(); pictureMenu(c, r.left, r.top, true); }, true);
   // the pen: a right-click finishes the line where it is (no new point, no menu)   // right-click finishes the pen
   let penEnded = 0;
@@ -3691,7 +3686,7 @@
   const cropTip = document.createElement('div'); cropTip.className = 'frame-bar crop-tip'; cropTip.hidden = true; cropTip.textContent = 'Double-click the picture to adjust its crop'; document.body.appendChild(cropTip);
   // the tip shows only while the pointer is over a picture (not all the time it's selected)
   let hoverPic = null;
-  function refreshCropTip() { cropTip.hidden = !!framing || !hoverPic || settings.hints === false; if (hoverPic) cropTip.textContent = hoverPic.src ? 'Double-click the picture to adjust its crop' : 'Right-click to see image options'; }
+  function refreshCropTip() { cropTip.hidden = !!framing || !hoverPic || settings.hints === false; if (hoverPic) cropTip.textContent = hoverPic.src ? 'Right-click to crop or swap the picture' : 'Right-click to see image options'; }
   // decided from what is really under the pointer on every move (over/out events are unreliable with the pointer captured mid-drag)
   let tipRaf = 0;
   addEventListener('pointermove', e => { if (tipRaf) return; tipRaf = requestAnimationFrame(() => { tipRaf = 0;
@@ -3700,9 +3695,7 @@
   document.addEventListener('mouseleave', () => { hoverPic = null; refreshCropTip(); });
   addEventListener('pointerdown', () => { hoverPic = null; refreshCropTip(); }, true);   // it steps aside the moment you do anything
   const frameImg = () => framing && framing.el.querySelector('.bx-img');
-  stage.addEventListener('dblclick', e => {   // the stage owns double-clicks (the pointer gets captured on the way), so find the card under the point
-    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); if (!c || c.type !== 'box' || !c.src) return;
-    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); startFrame(c); }, true);
+  // (no double-click into cropping: a double-click already means "pick this one inside its group". Crop lives on right-click, the Crop chip and the bar.)
   // drag moves the focus point; the overflow (how much picture hangs outside the mask) decides how far a pixel of drag goes
   let fdrag = null;
   cardsEl.addEventListener('pointerdown', e => {
@@ -4632,7 +4625,7 @@ ${proseCSS()}
     if (one?.type === 'image' && cropping?.c === one) { bar.innerHTML = `<span class="sb-label">Crop</span><button class="sb-txt" data-crop="cancel">Cancel</button><button class="sb-txt" data-crop="reset">Reset</button><button class="sb-txt on" data-crop="done">Done</button>`; return; }
     if (one?.type === 'box' && one.img && !one.src) h += `<button class="sb-txt" data-fill="1" title="Fill this image spot">Fill image ✦</button>`;
     if (one && ((one.type === 'box' && one.img) || one.type === 'image')) h += `<button class="sb-txt" data-pic="1" title="Swap this picture for another">Replace…</button>`;
-    if (one?.type === 'box' && one.src) h += `<button class="sb-txt" data-frame2="1" title="Adjust how the picture is cropped (or double-click it)">Crop</button>`;
+    if (one?.type === 'box' && one.src) h += `<button class="sb-txt" data-frame2="1" title="Adjust how the picture is cropped">Crop</button>`;
     if (one?.type === 'image') h += btn('crop', 'crop', 'Crop') + btn('nobg', 'nobg', one.nobg ? 'Put the background back' : 'Remove the background', !!one.nobg) + (one.nobg ? '' : btn('frame', 'frame', one.noframe ? 'Add a border' : 'Remove the border', !one.noframe)) + btn('tag', 'caption', one.tagText ? 'Remove the caption' : 'Add a caption', !!one.tagText);
     else if (one && !['coll', 'swatch', 'stamp', 'ink'].includes(one.type)) h += G(6, btn('tag', 'tag', one.tagText ? 'Remove the label' : 'Add a label', !!one.tagText));
     if (one?.type === 'doc') h += btn('open', 'open', 'Open the doc');
