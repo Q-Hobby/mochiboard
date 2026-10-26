@@ -2532,6 +2532,13 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 body.scrub-ew, body.scrub-ew * { cursor: ew-resize !important; }
 .card.framing > :first-child { filter: none; }
 
+/* Wireframing: the placeholder library */
+.dz-ph { margin-top: 14px; } .dz-ph > .label { margin: 0 2px 6px; }
+.dz-ph-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.dz-ph-grid button { display: flex; flex-direction: column; gap: 4px; padding: 5px 5px 6px; border: 0; border-radius: 10px; background: #f7f3f8; cursor: grab; font: 600 10.5px/1 var(--font); color: var(--ink-soft); text-align: center; }
+.dz-ph-grid button:hover { background: var(--blush); color: var(--ink); } .dz-ph-grid button:active { cursor: grabbing; }
+.dz-ph-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; image-rendering: pixelated; background: #fff; }
+
 /* Wireframing: the flow library list */
 .dz-flows { margin-top: 14px; }
 .dz-flows > .label { margin: 0 2px 4px; } .dz-flows > .label small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-left: 4px; }

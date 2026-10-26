@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c.img)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -3599,8 +3599,24 @@
     [/\b(portrait|avatar|profile|face|person|woman|man|user|customer|headshot|selfie|founder)\b/i, 'portrait'], [/\b(team|people|friends|group|family|crowd|together|community)\b/i, 'team'],
     [/\b(product|item|shoe|bag|food|dish|coffee|cake|bottle|box|packag|merch|shirt|plate|meal|drink)\b/i, 'product'], [/\b(photo|camera|gallery|snapshot|picture of)\b/i, 'photo'],
     [/\b(chart|graph|stats?|data|dashboard|analytics|report|number)\b/i, 'chart'], [/\b(map|location|route|trip|travel|place|address|pin)\b/i, 'map'], [/\b(music|song|audio|podcast|video|film|movie|playlist|headphones)\b/i, 'music']];
-  function phScene(label) { const s = String(label || ''); const hit = PH_SCENES.find(([re]) => re.test(s)); return hit ? hit[1] : 'any'; }
+  function phScene(c) { if (c && typeof c === 'object') { if (c.ph && PH_LIST.some(p => p[0] === c.ph)) return c.ph; c = c.img; } const s = String(c || ''); const hit = PH_SCENES.find(([re]) => re.test(s)); return hit ? hit[1] : 'any'; }
+  const PH_LIST = [['landscape', 'a landscape'], ['portrait', 'a portrait'], ['product', 'a product'], ['team', 'the team'], ['photo', 'a photo'], ['chart', 'a chart'], ['map', 'a map'], ['music', 'media'], ['any', 'a picture']];
 
+  // ---- the placeholder library in the Wireframing pane: click to add a spot, or drag one onto a picture to replace it ----
+  function renderDzPh() {
+    const L = $('dzPh'); if (!L) return;
+    L.innerHTML = PH_LIST.map(([k, n]) => `<button data-ph="${k}" draggable="true" title="${esc(n)}"><img src="stamps/ph/${k}.png" alt="" draggable="false"><span>${esc(k === 'any' ? 'any' : k)}</span></button>`).join('');
+    L.onclick = e => { const b = e.target.closest('[data-ph]'); if (!b) return; const at = centerWorld(); addSpot(b.dataset.ph, at.x - 150, at.y - 112); };
+    L.addEventListener('dragstart', e => { const b = e.target.closest('[data-ph]'); if (!b) return; e.dataTransfer.setData('mb/ph', b.dataset.ph); e.dataTransfer.effectAllowed = 'copy'; });
+  }
+  function addSpot(scene, x, y) { const n = PH_LIST.find(p => p[0] === scene)?.[1] || 'a picture'; remember(); const c = card('box', { x: Math.round(x), y: Math.round(y), w: 300, h: 225, r: 0, fill: '#ffffff', stroke: '#e4e4e7', sw: 1, radius: 12, img: n, ph: scene }); addCard(c); selectOnly([c.id]); return c; }
+  function placeholderOnto(c, scene) {   // a placeholder dropped on a picture: the picture goes, the placeholder takes its spot
+    remember();
+    if (c.type === 'box') { delete c.src; delete c.srcBg; delete c.nobg; delete c.fx; delete c.fy; delete c.fz; c.ph = scene; if (!c.img) c.img = PH_LIST.find(p => p[0] === scene)?.[1] || 'a picture'; }
+    else { c.src = `stamps/ph/${scene}.png`; delete c.crop; delete c.nobg; delete c.srcBg; }
+    renderCard(c); renderWires(); save(); selectOnly([c.id]);
+  }
+  renderDzPh();
   // ---- replacing a picture: click a placeholder spot (or right-click any picture) for a little menu: upload one, ask Mochi, change the label, or go back to the placeholder ----
   const isPic = c => c && ((c.type === 'box' && c.img) || c.type === 'image');
   const picPick = document.createElement('input'); picPick.type = 'file'; picPick.accept = 'image/*'; picPick.hidden = true; picPick.id = 'picPick'; document.body.appendChild(picPick);
@@ -3631,12 +3647,14 @@
   }
   // a file dragged from the Finder onto a picture or a placeholder lands in it (instead of becoming a new card next to it)
   const picUnder = e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card'); const c = el && byId(el.dataset.id); return isPic(c) ? c : null; };
-  const hasFile = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  const hasFile = e => { const t = [...(e.dataTransfer?.types || [])]; return t.includes('Files') || t.includes('mb/ph'); };
   let picOver = null;
   stage.addEventListener('dragover', e => { if (!hasFile(e)) return; const c = picUnder(e); if (c !== picOver) { picOver?.id && cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = c; if (c) cardsEl.querySelector(`[data-id="${c.id}"]`)?.classList.add('pic-over'); } }, true);
   stage.addEventListener('dragleave', e => { if (picOver && !stage.contains(e.relatedTarget)) { cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = null; } }, true);
   stage.addEventListener('drop', async e => {
     if (picOver) { cardsEl.querySelector(`[data-id="${picOver.id}"]`)?.classList.remove('pic-over'); picOver = null; }
+    const scene = e.dataTransfer?.getData('mb/ph');
+    if (scene) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); const c = picUnder(e); if (c) placeholderOnto(c, scene); else { const w = toWorld(e.clientX, e.clientY); addSpot(scene, w.x - 150, w.y - 112); } return; }
     const files = [...(e.dataTransfer?.files || [])].filter(f => f.type.startsWith('image/')); if (files.length !== 1) return;
     const c = picUnder(e); if (!c) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); putPicture(c, await imageFromFile(files[0])); }, true);
   cardsEl.addEventListener('contextmenu', e => { const el = e.target.closest('.card'); const c = el && byId(el.dataset.id); if (!isPic(c)) return; e.preventDefault(); e.stopPropagation(); selectOnly([c.id]); pictureMenu(c, e.clientX, e.clientY); }, true);
