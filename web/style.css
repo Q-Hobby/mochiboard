@@ -2492,6 +2492,7 @@ body.dark .w-edit { background: var(--surface-2, #302b35); color: var(--ink); }
 /* a picture's corner radius is the corner you see: the mat's outer edge takes it, the picture inside sits (mat width) tighter; with no mat the picture takes it */
 .card.image .imgwrap { border-radius: max(0px, calc(var(--img-R, 20px) - var(--mat, 8px))); }
 .card.image.noframe .imgwrap, .card.image.nobg .imgwrap { border-radius: var(--img-R, 20px); }
+.card.image .body { border-radius: var(--img-R, 20px); }   /* the card body clips its contents with its own corner; a picture's must follow the picture's radius, or 0 can never be pointy */
 .card.image:not(.nobg) .frame { border-radius: var(--img-R, 20px); }
 .card.image[data-sh]:not(.nobg)::before { border-radius: var(--img-R, 20px); }
 
