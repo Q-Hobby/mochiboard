@@ -3906,6 +3906,13 @@
     freshMat(t); renderCard(t); renderWires(); layersSoon(); selectOnly([t.id]); $('selbar').dataset.key = ''; placeSelbar(); save();
     chirp(t.type === 'image' ? `Masked with the ${shapeWord(s)} ✦ Right-click it to adjust the crop or take the mask off.` : `Masked with the ${shapeWord(s)} ✦`, 5000);
   }
+  function maskManyWithShape(s, ts) {
+    const src = sourceMask(s); ts = ts.filter(maskable); if (!src || !ts.length) return; remember();
+    ts.forEach(t => { t.maskPrev = { x: t.x, y: t.y, w: t.w, h: t.h, crop: t.crop ? { ...t.crop } : null }; t.mask = { ...src, bx: (s.x - t.x) / t.w, by: (s.y - t.y) / t.h, bw: s.w / t.w, bh: s.h / t.h }; });
+    ts[0].mask.from = JSON.parse(JSON.stringify(s));
+    board.cards = board.cards.filter(c => c.id !== s.id); board.links = board.links.filter(l => l.a !== s.id && l.b !== s.id); cardsEl.querySelector(`[data-id="${s.id}"]`)?.remove();
+    ts.forEach(t => { freshMat(t); renderCard(t); }); renderWires(); layersSoon(); selectOnly(ts.map(t => t.id)); $('selbar').dataset.key = ''; placeSelbar(); save(); chirp(`Masked ${ts.length} things with the ${shapeWord(s)} ✦`, 4500);
+  }
   function unmask(cs) {
     cs = cs.filter(c => c.mask); if (!cs.length) return; remember(); const back = [];
     cs.forEach(c => { const p = c.maskPrev, from = c.mask.from; if (p) { Object.assign(c, { x: p.x, y: p.y, w: p.w, h: p.h }); if (p.crop) c.crop = p.crop; else delete c.crop; }
@@ -3914,11 +3921,15 @@
   }
   // the Mask menu: the shape on top (if there is one) first, then the ready-made shapes
   function maskSub(cs) {
-    const pairs = [];
-    if (cs.length === 2) { const [a, b] = cs, top = board.cards.indexOf(a) > board.cards.indexOf(b) ? a : b, bot = top === a ? b : a;
-      if (maskSource(top) && maskable(bot)) pairs.push([top, bot, maskSource(bot) ? ' on top' : '']); if (maskSource(bot) && maskable(top)) pairs.push([bot, top, maskSource(top) ? ' underneath' : '']); }
-    const targets = pairs.length ? [pairs[0][1]] : cs.filter(maskable); if (!targets.length) return null;
-    return [...pairs.map(([s, t, where]) => ({ label: `Use the ${shapeWord(s)}${where} as the mask`, icon: maskIcon(sourceMask(s) || { shape: 'circle' }, s.w, s.h), run: () => maskWithShape(s, t) })), ...(pairs.length ? ['-'] : []),
+    const pairs = [], z = c => board.cards.indexOf(c), overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    if (cs.length === 2) { const [a, b] = cs, top = z(a) > z(b) ? a : b, bot = top === a ? b : a;
+      if (maskSource(top) && maskable(bot)) pairs.push([top, [bot], maskSource(bot) ? ' on top' : '']); if (maskSource(bot) && maskable(top)) pairs.push([bot, [top], maskSource(top) ? ' underneath' : '']); }
+    else if (cs.length === 1 && maskSource(cs[0]) && !isPic(cs[0])) {   // just the shape is selected: offer it as the mask for what it sits on
+      const s = cs[0], under = board.cards.filter(c => c !== s && z(c) < z(s) && maskable(c) && overlaps(c, s)).sort((a, b) => z(b) - z(a)).slice(0, 1);
+      if (under.length) pairs.push([s, under, '', ` for the ${(under[0].type === 'image' || under[0].type === 'box' && under[0].img) ? 'picture' : under[0].type} underneath`]); }
+    else if (cs.length > 2) { const srcs = cs.filter(c => maskSource(c) && !isPic(c)); if (srcs.length === 1) { const s = srcs[0], ts = cs.filter(c => c !== s && maskable(c)); if (ts.length) pairs.push([s, ts, '', ` for the ${ts.length} things`]); } }
+    const targets = pairs.length ? pairs[0][1] : cs.filter(maskable); if (!targets.length) return null;
+    return [...pairs.map(([s, ts, where, tail]) => ({ label: `Use the ${shapeWord(s)}${where} as the mask${tail || ''}`, icon: maskIcon(sourceMask(s) || { shape: 'circle' }, s.w, s.h), run: () => ts.length === 1 ? maskWithShape(s, ts[0]) : maskManyWithShape(s, ts) })), ...(pairs.length ? ['-'] : []),
       ...Object.keys(MASKS).map(key => ({ label: MASKS[key][0], icon: maskIcon({ shape: key }), run: () => maskCards(targets, key) }))];
   }
   function maskMenuItems(cs) {
