@@ -3765,6 +3765,7 @@
     if (c.type !== 'image') return; const w = bwOf(c), prev = el.dataset.mat === undefined ? null : +el.dataset.mat;
     if (prev !== null && prev !== w && !c.nobg) { const d = w - prev; c.x -= d; c.y -= d; c.w = Math.max(24, c.w + 2 * d); c.h = Math.max(24, c.h + 2 * d); Object.assign(el.style, { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.h + 'px' }); }   // the picture stays put; only the mat grows or goes
     el.dataset.mat = w; el.style.setProperty('--mat', (c.nobg ? 0 : w) + 'px'); el.style.setProperty('--matc', w > 0 ? bcOf(c) : 'transparent');
+    el.style.setProperty('--img-R', (c.radius ?? 20) + 'px');   // the corner you see (the mat's outer edge, or the picture's when there is no mat); the picture inside follows it
     if (c.nobg && w > 0) el.style.setProperty('--outl', outlineFilter(w, bcOf(c))); else el.style.removeProperty('--outl'); }
   function shadowVars(c, el) { el.classList.toggle('cutout', c.type === 'box' && !!c.nobg); borderVars(c, el);
     if (shadowOf(c)) { el.dataset.sh = 'on'; el.style.setProperty('--shb', shadowCss(c)); el.style.setProperty('--shf', shadowFilter(c)); el.style.setProperty('--shr', (c.type === 'box' || c.type === 'frame' ? (c.radius || 0) : c.type === 'image' ? (c.noframe ? (c.radius ?? 12) : 18) : 18) + 'px'); }
@@ -4809,7 +4810,7 @@ ${proseCSS()}
             return `<div class="sbc-chips sb-skstyles">${[['solid', 'Solid'], ['dash', 'Dashed'], ['dot', 'Dotted'], ['none', 'None']].map(([k, t]) => `<button data-skd="${k}" class="${(k === 'none' ? !w : w && st === k) ? 'on' : ''}"><span class="sks sks-${k}"></span>${t}</button>`).join('')}</div>`
               + `<div class="sb-skdash${w && st !== 'solid' ? '' : ' off'}" data-skst="${st}">${sl('dl', 'Dash', f.dl ?? 8, 40)}${sl('dg', 'Gap', f.dg ?? 6, 40)}</div>`; })()}</div>`, 'Stroke')); }
     const rnd = cs.filter(c => (['frame', 'box', 'image'].includes(c.type) || c.type === 'path' || c.type === 'shape' && ['rect', 'tri', 'star'].includes(c.shape || 'rect')));
-    if (rnd.length === cs.length && rnd.length) { const cr = rnd[0].radius ?? (rnd[0].type === 'image' ? 12 : 0), same = rnd.every(c => (c.radius ?? (c.type === 'image' ? 12 : 0)) === cr);
+    if (rnd.length === cs.length && rnd.length) { const cr = rnd[0].radius ?? (rnd[0].type === 'image' ? 20 : 0), same = rnd.every(c => (c.radius ?? (c.type === 'image' ? 20 : 0)) === cr);
       h += G(3, pop('corners', `<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /></svg><b>${same ? (cr >= 999 ? 'Pill' : cr) : '–'}</b>${CARET}`,
         `<div class="sb-corners"><div class="sbc-top"><span>Corners</span><input type="range" min="0" max="80" step="1" value="${Math.min(80, cr)}" style="--p:${Math.min(100, cr / 80 * 100)}%" data-corners-range><input type="number" min="0" max="999" value="${cr >= 999 ? 0 : cr}" data-corners-num></div>
          <div class="sbc-chips">${[0, 4, 8, 12, 16, 24, 32].map(v => `<button data-corners="${v}" class="${same && cr === v ? 'on' : ''}"><i style="border-top-left-radius:${Math.min(v, 14)}px"></i>${v}</button>`).join('')}<button data-corners="999" class="${same && cr >= 999 ? 'on' : ''}"><i style="border-top-left-radius:14px"></i>Pill</button></div></div>`, 'Corners')); }
