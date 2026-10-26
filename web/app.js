@@ -3872,13 +3872,15 @@
     blob: ['Blob', () => '<path d="M52 3C72 1 95 15 97 40C99 63 88 92 60 97C35 101 8 86 3 60C-2 33 25 6 52 3Z"/>'],
   };
   const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);   // an open pen line can't be masked itself (nothing inside it)
-  const maskSource = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && (c.pts || []).length >= 3 || isPic(c) && !!c.src);   // a pen line with three or more points is closed up and used as the mask
-  const SHAPE_WORDS = { rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
-  const shapeWord = s => isPic(s) ? (s.nobg ? 'cut-out' : 'picture') : s.type === 'path' ? 'drawn shape' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
+  const vectorish = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && (c.pts || []).length >= 3 || c.type === 'box' && !c.img && !c.src);   // drawn things: shapes, pen lines (3+ points close up), plain wireframe boxes
+  const maskSource = c => vectorish(c) || isPic(c) && !!c.src;   // pictures can mask too (by their see-through parts), but they can't be combined
+  const SHAPE_WORDS = { box: 'box', rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
+  const shapeWord = s => isPic(s) ? (s.nobg ? 'cut-out' : 'picture') : s.type === 'path' ? 'drawn shape' : s.type === 'box' ? 'box' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
   function maskGeo(m, W, H) { if (m.el) return m.el; const d = MASKS[m.shape]; return d ? d[1](Math.max(1, W), Math.max(1, H)) : MASKS.circle[1](); }
   function sourceMask(s) {
     if (s.mgeo) return { shape: s.shape || 'rect', ...s.mgeo };
+    if (s.type === 'box') return { shape: 'rect', el: `<rect x="0" y="0" width="100" height="100" rx="${(s.radius || 0) * 100 / Math.max(1, s.w)}" ry="${(s.radius || 0) * 100 / Math.max(1, s.h)}"/>` };
     if (isPic(s)) return { shape: 'pic', src: s.src };
     if (s.type === 'path') return { shape: 'path', el: `<path d="${pathD(s.pts, true, s.radius || 0, s.ow / Math.max(1, s.w))}"/>`, vw: s.ow, vh: s.oh };
     const svg = shapeSVG({ ...s, stroke: null, sw: 0, fill: 'none' }), mt = svg.match(/<(path|rect|ellipse)\b[^>]*>/); if (!mt) return null;
@@ -3915,7 +3917,7 @@
   }
   function maskMenuItems(cs) {
     const sub = maskSub(cs), out = []; if (sub) out.push({ label: 'Mask', sub }); if (cs.some(c => isMasked(c) || c.maskLayer)) out.push({ label: cs.filter(c => isMasked(c)).length > 1 ? 'Remove masks' : 'Remove mask', run: () => unmask(cs) });
-    if (cs.length >= 2 && cs.every(maskSource)) out.push({ label: 'Combine shapes', sub: Object.keys(BOOL).map(op => ({ label: BOOL[op], icon: boolIcon(op), run: () => combine(cs, op) })) });
+    if (cs.length >= 2 && cs.every(vectorish)) out.push({ label: 'Combine shapes', sub: Object.keys(BOOL).map(op => ({ label: BOOL[op], icon: boolIcon(op), run: () => combine(cs, op) })) });
     if (cs.some(c => c.type === 'shape' && c.shape === 'bool')) out.push({ label: cs.filter(c => c.shape === 'bool').length > 1 ? 'Separate the shapes' : 'Separate the shapes', run: () => separate(cs.filter(c => c.type === 'shape' && c.shape === 'bool')) });
     return out;
   }
@@ -3936,7 +3938,7 @@
   }
   const boolIcon = op => `<svg viewBox="0 0 100 100" width="14" height="14" fill="currentColor">${boolSVG({ id: 'ic' + op, op, parts: [{ el: '<rect x="0" y="0" width="100" height="100" rx="12" ry="12"/>', bw: .64, bh: .64 }, { el: '<ellipse cx="50" cy="50" rx="50" ry="50"/>', bx: .36, by: .36, bw: .64, bh: .64 }] }, 'currentColor')}</svg>`;
   function combine(cs, op) {
-    cs = cs.filter(maskSource).sort((a, b) => board.cards.indexOf(a) - board.cards.indexOf(b)); if (cs.length < 2) return; remember();
+    cs = cs.filter(vectorish).sort((a, b) => board.cards.indexOf(a) - board.cards.indexOf(b)); if (cs.length < 2) return; remember();
     const X = Math.min(...cs.map(c => c.x)), Y = Math.min(...cs.map(c => c.y)), W = Math.max(...cs.map(c => c.x + c.w)) - X, H = Math.max(...cs.map(c => c.y + c.h)) - Y;
     const parts = cs.map(s => ({ ...sourceMask(s), bx: (s.x - X) / W, by: (s.y - Y) / H, bw: s.w / W, bh: s.h / H, from: JSON.parse(JSON.stringify(s)) }));
     const bottom = cs[0], n = { id: uid(), type: 'shape', shape: 'bool', op, fill: bottom.fill || 'gray', x: X, y: Y, w: W, h: H, r: 0, parts, shadow: bottom.shadow };
