@@ -2591,3 +2591,13 @@ html.night .dz-flow-list button { background: rgba(255,255,255,.05); } html.nigh
 /* a whole mask group selected: the mask's box is the outline; members keep their own box for when they're picked alone */
 .card.masked.gsel.sel::after, .card.masked.gsel.sel .handle, .card.masked.gsel.sel .rot-h { display: none; }
 .card.maskl.gsel.sel .body { opacity: 0; } .card.maskl.gsel.sel .frame { opacity: 0; }
+
+/* every picture: Crop chip on hover or when selected, pull-colors chip on hover; both sized to the picture */
+.card.image .bx-fr { display: none; position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 5px 9px; border: 0; border-radius: 999px; background: rgba(36, 31, 40, .86); color: #fff; font: 700 11px/1 var(--font); cursor: pointer; font-size: clamp(11px, calc(var(--cw, 260px) * .042), 33px); padding: .45em .82em; right: .75em; bottom: .75em; }
+.card.image.sel .bx-fr, .card.image:hover .bx-fr, .card.box:hover .bx-fr { display: block; } .card.image.framing .bx-fr, .card.image.framing .chip { display: none; }
+.card.image .chip { right: auto; left: 1.15em; }   /* pull colors on the left, Crop on the right */
+.card.box .chip { font-size: clamp(11px, calc(var(--cw, 260px) * .042), 33px); padding: .45em .82em; left: .75em; right: auto; bottom: .75em; }
+.card.box.framing .chip { display: none; }
+.card.image .bx-ghost { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; pointer-events: none; z-index: -1; }
+.card.image.framing .bx-ghost { display: block; }
+.card.image.framing .imgwrap { overflow: visible; }

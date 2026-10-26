@@ -612,7 +612,7 @@
       case 'ink': return `<svg viewBox="0 0 ${c.ow} ${c.oh}" preserveAspectRatio="none">${inkPath(c.pts, c.pen, c.size, c.ink, true)}</svg>`;
       case 'frame': return `<div class="fr-body"></div><div class="fr-name">${esc(c.name || 'Screen')}</div>`;
       case 'section': return `<div class="sec-glass"></div><div class="sec-name"><span class="text">${esc(c.text || 'Section')}</span></div>`;
-      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop">⤢ Crop</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
+      case 'box': return `<div class="bx">${c.src ? `<img class="bx-img" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}">` : ''}</div>${c.src ? `<img class="bx-ghost" src="${c.src}" alt="" draggable="false" style="${frameStyle(c)}"><button class="bx-fr" title="Adjust the crop">⤢ Crop</button><button class="chip" data-act="colors">pull colors ✦</button>` : ''}${c.img && !c.src ? `<div class="bx-ph"><img class="bx-art" src="stamps/ph/${phScene(c)}.png" alt=""><span class="bx-l">${esc(c.img)}</span></div>` : ''}`;
       case 'font': { const f = esc(c.font || 'DM Sans'); useFont(c.font); return `<div class="fs-aa" style="font-family:'${f}', system-ui">Aa</div><div class="fs-meta"><b>${f}</b><span class="fs-src">${onMac(c.font) ? 'On your Mac' : 'Google Fonts'}</span></div><div class="fs-sample text" style="font-family:'${f}', system-ui">${esc(c.text || 'The quick brown fox jumps over the lazy dog')}</div>`; }
       case 'icon': return `<span class="mi">${esc(c.name || 'star')}</span>`;
       case 'text': return `<div class="text tx">${esc(c.text || '')}</div>`;
@@ -622,7 +622,7 @@
         // a crop shows a window onto the picture: the picture is scaled up and shifted so only the kept part shows
         const k = !c.cropEdit && c.crop, st = k ? `position:absolute;width:${100 / k.w}%;height:${100 / k.h}%;left:${-k.x / k.w * 100}%;top:${-k.y / k.h * 100}%;object-fit:fill;border-radius:0` : '';
         const ui = c.cropEdit && cropping ? `<div class="crop-ui"><div class="crop-box" style="left:${cropping.box.x * 100}%;top:${cropping.box.y * 100}%;width:${cropping.box.w * 100}%;height:${cropping.box.h * 100}%">${['nw', 'ne', 'sw', 'se'].map(h => `<i data-h="${h}"></i>`).join('')}</div></div>` : '';
-        return `<div class="imgwrap"><img src="${esc(c.src)}" alt="" style="${st}">${ui}</div>${c.cropEdit ? '' : '<button class="chip" data-act="colors">pull colors ✦</button>'}`; }
+        return `<div class="imgwrap"><img class="bx-img" src="${esc(c.src)}" alt="" draggable="false" style="${st || imgFrameStyle(c)}"><img class="bx-ghost" src="${esc(c.src)}" alt="" draggable="false" style="${st || imgFrameStyle(c)}">${ui}</div>${c.cropEdit ? '' : '<button class="chip" data-act="colors">pull colors ✦</button><button class="bx-fr" title="Adjust the crop">⤢ Crop</button>'}`; }
       case 'link': return !c.url ? `<div class="link-in${c.loading ? ' loading' : ''}">${CIC.link}<input placeholder="Add a link…" value="${esc(c.draft || '')}" spellcheck="false"></div>`
         : `<div class="thumb" style="${c.image ? `background-image:url('${esc(c.image)}')` : ''}"></div><div class="meta"><i class="fav" style="background-image:url('https://www.google.com/s2/favicons?sz=64&domain=${esc(host(c.url))}')"></i><div><b>${esc(c.title || c.url)}</b><span>${esc(c.desc || host(c.url))}</span></div></div>`;
       case 'todo': return `<div class="head">${esc(c.text)}</div><ul>${(c.items || []).map((it, i) => `<li class="${it.done ? 'done' : ''}" data-i="${i}"><input type="checkbox" ${it.done ? 'checked' : ''}><span>${esc(it.t)}</span><button class="li-x" data-act="item-x" title="Remove" aria-label="Remove this item"><svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></li>`).join('')}</ul><button class="add-item" data-act="item">+ add</button>`;
@@ -3628,7 +3628,7 @@
     $('rowMenu')?.remove(); const m = document.createElement('div'); m.id = 'rowMenu'; m.className = 'row-menu pic-menu'; m.style.left = x + 'px'; m.style.top = y + 'px';
     const spot = c.type === 'box';
     m.innerHTML = `<span class="pm-title">${spot ? esc(c.img) : 'Picture'}</span><button data-m="up">Upload a picture…</button><button data-m="mochi">Ask Mochi for one ✦</button>` +
-      (spot && c.src ? `<button data-m="frame2">Adjust the crop</button><button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
+      (c.src ? `<button data-m="frame2">Adjust the crop</button>` : '') + (spot && c.src ? `<button data-m="nobg2">${c.nobg ? 'Put the background back' : 'Remove the background'}</button>` : '') + (c.src ? `<button data-m="png">Save as PNG…</button><button data-m="jpg">Save as JPEG…</button>` : '') + (spot || c.nobg ? '' : `<button data-m="nobg">Remove the background</button>`) + `<button data-m="mask" class="has-sub">Mask</button>` + (c.mask ? `<button data-m="unmask">Remove mask</button>` : '') + `<button data-m="arr" class="has-sub">Arrange</button><span class="rm-sep"></span><button data-m="dup">Duplicate</button><button data-m="del" class="danger">Delete</button>`;
     const subs = { mask: () => maskSub([c]), arr: arrangeSub };
     document.body.appendChild(m); const r = m.getBoundingClientRect(); if (above) m.style.top = y - r.height - 8 + 'px'; if (r.right > innerWidth - 10) m.style.left = innerWidth - r.width - 10 + 'px'; if (!above && r.bottom > innerHeight - 10) m.style.top = innerHeight - r.height - 10 + 'px';
     const close = () => { m.remove(); $('rowSub')?.remove(); removeEventListener('pointerdown', away, true); };
@@ -3720,7 +3720,8 @@
     bar.onclick = e => { const a = e.target.closest('[data-f]')?.dataset.f; if (a === 'reset') { delete c.fx; delete c.fy; delete c.fz; applyFrame(c); } if (a === 'done') endFrame(); };
     ['pointerdown', 'mousedown', 'dblclick'].forEach(t => bar.addEventListener(t, e => e.stopPropagation()));
   }
-  function applyFrame(c) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const st = frameStyle(c); el.querySelectorAll('.bx-img, .bx-ghost').forEach(i => i.style.cssText = st); }
+  const imgFrameStyle = c => { const fx = (c.fx ?? .5) * 100, fy = (c.fy ?? .5) * 100, fz = c.fz ?? 1; return `object-position:${fx}% ${fy}%;transform:scale(${fz});transform-origin:${fx}% ${fy}%`; };
+  function applyFrame(c) { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (!el) return; const st = c.type === 'image' ? imgFrameStyle(c) : frameStyle(c); el.querySelectorAll('.bx-img, .bx-ghost').forEach(i => i.style.cssText = st); }
   function endFrame() { if (!framing) return; const { c, el, bar } = framing; framing = null; el.classList.remove('framing'); bar.remove(); save(); refreshCropTip(); }
   // while a cropped-in picture is selected, a little tip above the toolbar says how to get at the crop
   const cropTip = document.createElement('div'); cropTip.className = 'frame-bar crop-tip'; cropTip.hidden = true; cropTip.textContent = 'Double-click the picture to adjust its crop'; document.body.appendChild(cropTip);
@@ -5237,7 +5238,7 @@ ${proseCSS()}
       list.forEach(c => c[k] = to); redraw(); }
     if (e.target.closest('[data-sbfont]')) return boardFontPop(e.target.closest('[data-sbfont]'), cs.filter(c => SIZED.includes(c.type)));
     const fz = e.target.closest('[data-fs]'); if (fz) { cs.filter(c => SIZED.includes(c.type)).forEach(c => { if (fz.dataset.fs === 'm') delete c.fs; else c.fs = fz.dataset.fs; fitNote(c); }); redraw(); }
-    if (a === 'crop') return startCrop(one);
+    if (a === 'crop') return startFrame(one);
     if (a === 'nobg') return removeBg(one);
     if (a === 'frame') { remember(); const d = one.noframe ? -1 : 1; one.x += 8 * d; one.y += 8 * d; one.w = Math.max(24, one.w - 16 * d); one.h = Math.max(24, one.h - 16 * d);   // the picture itself stays put: only the mat comes and goes
       if (one.noframe) delete one.noframe; else one.noframe = true; renderCard(one); selectOnly([one.id]); renderWires(); $('selbar').dataset.key = ''; save(); return; }
