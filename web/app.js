@@ -1741,7 +1741,7 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectOnly(board.cards.map(c => c.id)); }
     if ((e.metaKey || e.ctrlKey) && ['c', 'x'].includes(e.key.toLowerCase()) && sel.size && !homeAt) { const r = copyCards(); if (r) { navigator.clipboard?.writeText(r.text).catch(() => {}); if (e.key.toLowerCase() === 'x') { e.preventDefault(); removeSelected(); } } return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v' && !homeAt) { pendingPaste = true; setTimeout(() => { if (pendingPaste && lastClip) pasteCards(); pendingPaste = false; }, 150); return; }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); const gm = {}, copies = withMaskGroups([...sel].map(byId).filter(Boolean)).map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt() })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && sel.size) { e.preventDefault(); remember(); const gm = {}, copies = withMaskGroups([...sel].map(byId).filter(Boolean)).map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt() })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => { c.x += 30; c.y += 30; addCard(c); }); selectOnly(copies.map(c => c.id)); }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'f') setFocus(!focusSet);
@@ -2599,7 +2599,7 @@
         ...(cs.length > 1 ? [{ label: 'Save each as its own image', run: () => exportEach(cs) }] : []),
         ...(cs.length > 1 && cs.every(c => c.src && (c.type === 'image' || c.type === 'box')) ? [{ label: `Save ${cs.length} pictures as PNG…`, run: () => savePictures(cs, 'png') }, { label: `Save ${cs.length} pictures as JPEG…`, run: () => savePictures(cs, 'jpg') }] : []),
         ...(spotsIn(cs).length ? [{ label: `Fill ${spotsIn(cs).length} image spot${spotsIn(cs).length > 1 ? 's' : ''}…`, run: () => offerFill(spotsIn(cs)) }] : []), '-',
-        { label: 'Duplicate', run: () => { const gm = {}, copies = withMaskGroups(cs).filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
+        { label: 'Duplicate', run: () => { remember(); const gm = {}, copies = withMaskGroups(cs).filter(c => c.type !== 'coll').map(c => Object.assign(JSON.parse(JSON.stringify(c)), { id: uid(), r: tilt(), x: c.x + 30, y: c.y + 30 })); copies.forEach(c => { if (c.group) c.group = gm[c.group] || (gm[c.group] = uid()); }); copies.forEach(c => addCard(c)); selectOnly(copies.map(c => c.id)); } },
         { label: 'Delete', danger: true, run: () => removeSelected() }]);
     } else boardMenu(e, [
       { label: 'Background color…', run: () => tintPicker('bg', { x: e.clientX + 12, y: e.clientY - 40 }, true) },
