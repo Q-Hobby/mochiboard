@@ -2637,3 +2637,12 @@ body.dark .card.image.c-white > .frame { background: var(--matc, #fff) !importan
 .ft-prevbox.scroll { overflow-x: auto; padding-bottom: 10px; }
 .ft-prev.wide { max-height: none; height: auto; }
 .ft-scroll { display: block; margin: -6px 0 12px; font: 600 11px/1 var(--font); color: var(--ink-faint); }
+
+/* the wide Templates tile at the top of Wireframing (the same family as the Screen / Box / Icon / Text tiles) */
+.dz-wide { display: flex; align-items: center; gap: 9px; width: 100%; margin-top: 10px; padding: 10px 12px; border: 0; border-radius: 12px; background: #f7f3f8; color: var(--ink-soft); font: 600 12px/1.2 var(--font); cursor: pointer; text-align: left; }
+.dz-wide:hover { background: var(--blush); color: var(--ink); }
+.dz-wide svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.dz-wide small { margin-left: auto; font-weight: 500; opacity: .7; }
+.dz-wide + .dz-tools { margin-top: 6px; }
+body.dark .dz-wide { background: #302b35; } body.dark .dz-wide:hover { background: #4a3a48; color: #fff; }
+.ft-prevbox svg.wf-prev { width: 100%; height: auto; display: block; }

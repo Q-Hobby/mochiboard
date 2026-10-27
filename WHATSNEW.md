@@ -3,6 +3,22 @@
 Each update gets a short line here. Mochiboard shows the new ones in Settings when an update is ready.
 Write them for people, not for code: one line, what changed and why it's nice.
 
+## October 2026 · 1.8.0
+
+- Masks, the Figma way: pick a shape (or a pen line, or a cut-out) with anything under it, right-click → Mask, and it becomes the window onto them. Layers shows the mask group, you can drag things in and out of it, and there are ready-made circles, hearts, blobs and more.
+- Combine shapes: Union, Subtract, Intersect and Exclude for drawn things, and Separate to take them apart again.
+- A flowchart library: 14 templates with previews, from log in to bug triage, with swimlanes where there are handoffs. The Templates button sits first in the Flowchart tab, and Mochi places them offline too (“make a flowchart for checkout”).
+- Flowcharts line themselves up: set a shape down near another and it connects and slides into line.
+- Wireframe templates: the Templates button at the top of the Wireframing tab opens 12 common app flows (sign up, log in, forgot password, onboarding, checkout…) drawn out screen by screen, with the thinking beside each. One click adds the real, editable wireframes.
+- Pictures grew up: crop inside the frame, drop shadows with a proper sheet, a stroke that works as a mat, corners that really are the corners, remove the background, drop a file on a picture to swap it, and save any picture as PNG or JPEG. Pull colors and Crop chips grow with the picture.
+- Link cards show a screenshot of the page. Paste jessa.art without the https:// and it still reads as a link.
+- Empty image spots show a pixel-Mochi scene that matches their label; drag a placeholder from the Wireframing pane onto any picture.
+- Export as image draws only what you selected, on a transparent background, with tight edges.
+- Learn: an 80-term UX dictionary and the design principle sets, inside the app, no Claude needed.
+- Mochi says what she’s doing while she thinks, and does more without Claude: login flows, sitemaps from your notes, flowcharts.
+- Right-click menus everywhere, lines included, with Arrange ▸ in each; arrow keys nudge; Esc closes anything.
+- New stamps under New ✦: double Mochis, wings, devils and little flyers. Settings → Board → Pictures holds the picture options.
+
 ## October 2026 · 1.7.4
 
 - New boards start from Jessa’s poster: “You can literally do anything, if you dream it.” Every piece of it is movable; it’s a start, not a lesson. It’s in the Templates list as “Dream it” too.

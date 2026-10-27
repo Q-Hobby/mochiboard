@@ -3579,13 +3579,63 @@
     return made;
   }
   const FLOW_CATS = [...new Set(FLOWS.map(f => f.cat))];
+  // ---- the Wireframing Templates window: the flow library, drawn out screen by screen, with the why ----
+  const WFM = { cat: null, pick: null };
+  function flowPreview(F) {
+    const mob = F.platform !== 'web', FW = mob ? 150 : 270, FH = mob ? 300 : 190, GAP = 48, n = F.screens.length, W = n * FW + (n - 1) * GAP + 40, H = FH + 70;
+    const block = (x, y, w, h, fill, r = 6) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"/>`;
+    let g = '';
+    F.screens.forEach((sc, i) => {
+      const x0 = 20 + i * (FW + GAP), y0 = 20, pad = mob ? 12 : 16, iw = FW - pad * 2; let y = y0 + (mob ? 26 : 30);
+      g += `<rect x="${x0}" y="${y0}" width="${FW}" height="${FH}" rx="${mob ? 22 : 10}" fill="#fff" stroke="#d9d2dc" stroke-width="2"/>`;
+      g += mob ? `<rect x="${x0 + FW / 2 - 22}" y="${y0 + 9}" width="44" height="7" rx="3.5" fill="#e8e2ea"/>` : `<rect x="${x0}" y="${y0}" width="${FW}" height="22" rx="10" fill="#efeaf1"/><circle cx="${x0 + 14}" cy="${y0 + 11}" r="3.5" fill="#f7b5c8"/><circle cx="${x0 + 26}" cy="${y0 + 11}" r="3.5" fill="#f8e08a"/><circle cx="${x0 + 38}" cy="${y0 + 11}" r="3.5" fill="#a8e6c3"/>`;
+      const items = (sc.items || []).slice(0, 14);
+      for (const it of items) {
+        if (y > y0 + FH - 24) break;
+        const pz = String(it.piece || '').toLowerCase(), x = x0 + pad;
+        if (pz === 'nav bar') { g += block(x, y, iw, 14, '#efeaf1', 4); y += 22; }
+        else if (pz === 'tab bar') { g += block(x0 + 6, y0 + FH - 26, FW - 12, 18, '#efeaf1', 6); }
+        else if (pz === 'space') { y += Math.min(28, (it.h || 16) / 2); }
+        else if (pz === 'heading') { g += block(x, y, iw * .7, 10, '#5d5564', 3); y += 14; if (it.sub) { g += block(x, y, iw * .5, 6, '#c9c2cd', 3); y += 12; } y += 4; }
+        else if (pz === 'button') { g += block(x, y, iw, 20, it.style === 'secondary' || it.style === 'ghost' ? '#efeaf1' : '#2b2630', 10); y += 26; }
+        else if (pz === 'input' || pz === 'search') { g += `<rect x="${x}" y="${y}" width="${iw}" height="20" rx="8" fill="#fff" stroke="#d9d2dc" stroke-width="1.5"/>`; y += 26; }
+        else if (pz === 'text') { g += block(x, y, iw * (it.align === 'center' ? .6 : .85), 6, '#c9c2cd', 3) ; y += 12; }
+        else if (pz === 'image' || pz === 'hero' || pz === 'card') { g += block(x, y, iw, mob ? 54 : 40, '#e4dde7', 8); y += (mob ? 60 : 46); }
+        else if (pz === 'list row' || pz === 'row' || pz === 'list') { g += block(x, y, iw, 16, '#f3eff5', 5); y += 20; }
+        else if (pz === 'code' || pz === 'otp') { for (let k = 0; k < 4; k++) g += `<rect x="${x + k * (iw / 4)}" y="${y}" width="${iw / 4 - 6}" height="24" rx="6" fill="#fff" stroke="#d9d2dc" stroke-width="1.5"/>`; y += 30; }
+        else { g += block(x, y, iw, 12, '#f3eff5', 4); y += 16; }
+      }
+      g += `<text x="${x0 + FW / 2}" y="${y0 + FH + 30}" text-anchor="middle" font-size="15" font-weight="600" fill="#6b6370">${esc(sc.name)}</text>`;
+      if (i < n - 1) g += `<path d="M${x0 + FW + 8} ${y0 + FH / 2}H${x0 + FW + GAP - 8}" stroke="#8c8494" stroke-width="2.2" fill="none" marker-end="url(#wfarrow)"/>`;
+    });
+    return `<svg class="wf-prev" viewBox="0 0 ${W} ${H}" font-family="var(--font)"><defs><marker id="wfarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c8494"/></marker></defs>${g}</svg>`;
+  }
+  function openFlowLib(pick) { if (!$('wfModal')) buildFlowLibModal(); WFM.cat = WFM.cat || FLOW_CATS[0]; if (pick) { WFM.pick = pick; WFM.cat = flowBy(pick).cat; } $('wfModal').classList.add('on'); renderFlowLibModal(); setTimeout(() => ($('wfList').querySelector('.lib-item.on') || $('wfList').querySelector('.lib-item'))?.focus(), 30); }
+  const closeFlowLib = () => $('wfModal')?.classList.remove('on');
+  function buildFlowLibModal() {
+    const m = document.createElement('div'); m.className = 'settings library ft-modal'; m.id = 'wfModal';
+    m.innerHTML = `<div class="set-panel lib-panel"><div class="set-head"><h2>Wireframe templates</h2><button class="dv-btn" id="wfClose" title="Close">×</button></div><div class="lib-body"><nav class="lib-nav" id="wfNav"></nav><div class="lib-list" id="wfList"></div><div class="lib-detail" id="wfDetail"></div></div></div>`;
+    document.body.appendChild(m); $('wfClose').onclick = closeFlowLib; m.addEventListener('click', e => { if (e.target === m) closeFlowLib(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.classList.contains('on')) { e.stopPropagation(); closeFlowLib(); } }, true);
+    m.addEventListener('click', e => { const n = e.target.closest('[data-wfcat]'); if (n) { WFM.cat = n.dataset.wfcat; renderFlowLibModal(); return; }
+      const i = e.target.closest('[data-wfkey]'); if (i) { WFM.pick = i.dataset.wfkey; renderFlowLibModal(); return; }
+      const add = e.target.closest('[data-wfadd]'); if (add) { closeFlowLib(); if (placing) stopPlacing(); pickWF(null); placeFlow(add.dataset.wfadd); } });
+  }
+  function renderFlowLibModal() {
+    $('wfNav').innerHTML = FLOW_CATS.map(c => `<button data-wfcat="${esc(c)}" class="lib-part ${WFM.cat === c ? 'on' : ''}">${esc(c)} <small>${FLOWS.filter(f => f.cat === c).length}</small></button>`).join('');
+    const list = FLOWS.filter(f => f.cat === WFM.cat);
+    $('wfList').innerHTML = `<div class="lib-h">${esc(WFM.cat)}</div>` + list.map(f => `<button class="lib-item ${WFM.pick === f.key ? 'on' : ''}" data-wfkey="${f.key}"><b>${esc(f.name.replace(/^[^·]+·\s*/, ''))}</b><span>${esc(f.line)}</span><small class="ft-meta">${esc(f.platform)} · ${f.screens.length} screen${f.screens.length === 1 ? '' : 's'}</small></button>`).join('');
+    const F = WFM.pick && flowBy(WFM.pick), D = $('wfDetail');
+    D.innerHTML = F ? `<div class="lib-kicker">${esc(F.cat)} · ${esc(F.platform)}</div><h3>${esc(F.name)}</h3><p class="lib-why">${esc(F.line)}</p><div class="ft-prevbox">${flowPreview(F)}</div><ul class="ft-why">${(F.why || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul><div class="lib-acts"><button class="solid" data-wfadd="${F.key}">Add to the board</button></div>`
+      : `<div class="lib-empty"><p>Pick a flow to see its screens drawn out, with the thinking behind them.</p></div>`;
+  }
   function renderDzFlows() {
-    const L = $('dzFlows'); if (!L) return;
-    L.innerHTML = FLOW_CATS.map(cat => `<div class="label dz-sub">${esc(cat)}</div>` + FLOWS.filter(f => f.cat === cat).map(f => `<button data-flow="${f.key}" title="${esc(f.line)}"><b>${esc(f.name.replace(/^[^·]+·\s*/, ''))}</b><small>${f.platform} · ${f.screens.length} screen${f.screens.length === 1 ? '' : 's'}</small></button>`).join('')).join('');
-    L.onclick = e => { const b = e.target.closest('[data-flow]'); if (!b) return; if (placing) stopPlacing(); pickWF(null); placeFlow(b.dataset.flow); };
+    const b = $('wfTplBtn'); if (!b) return;
+    $('wfTplN').textContent = `${FLOWS.length} app flows`;
+    b.onclick = e => { e.stopPropagation(); if (placing) stopPlacing(); pickWF(null); openFlowLib(); };
   }
   renderDzFlows();
-  window.__flows = { ask: s => flowAsk(s), place: placeFlow, n: () => FLOWS.length };   // for the test harness
+  window.__flows = { ask: s => flowAsk(s), place: placeFlow, n: () => FLOWS.length, open: openFlowLib };   // for the test harness
   // Mochi offline: "make me a login flow" places one from the library (web words pick the web version)
   const FLOW_ASKS = [[/forgot|reset (my )?password|password reset/i, ['forgot-mobile']], [/\blog ?in|sign ?in|login\b/i, ['login-mobile', 'login-web']], [/sign ?up|regist|create account/i, ['signup-mobile', 'signup-web']],
     [/onboard|welcome|first[- ]run|first time/i, ['onboard-carousel', 'onboard-quiz']], [/check ?out|\bcart\b|payment|purchase/i, ['checkout-mobile', 'checkout-web']], [/dashboard/i, ['dashboard-web']], [/settings|profile (page|screen)/i, ['settings-mobile']], [/empty state/i, ['empty-states']]];
@@ -4206,7 +4256,7 @@
   addEventListener('keydown', e => {
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!d || !sel.size || e.metaKey || e.ctrlKey || e.altKey) return;
     const a = document.activeElement; if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
-    if (document.querySelector('.settings.on, #onboard.on, #library.on, #ftModal.on') || framing || vec || penT) return;
+    if (document.querySelector('.settings.on, #onboard.on, #library.on, #ftModal.on, #wfModal.on') || framing || vec || penT) return;
     const cs = selCards().filter(c => !c.locked); if (!cs.length) return; e.preventDefault();
     const step = e.shiftKey ? 10 : 1, now = Date.now(); if (now - nudgeMark > 800) remember(); nudgeMark = now;
     cs.forEach(c => { c.x += d[0] * step; c.y += d[1] * step; const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; } });
@@ -5749,7 +5799,15 @@ ${proseCSS()}
   if (MB.web) document.body.classList.add('web');
   document.querySelectorAll('.get-app').forEach(b => b.onclick = e => { e.stopPropagation(); getApp(); });
   // ---------- what's new: a little card, once, the first time a new version opens ----------
-  const NEWS = { '1.7.4': [
+  const NEWS = { '1.8.0': [
+    ['<circle cx="8" cy="10" r="5.5"/><rect x="7" y="4" width="10" height="12" rx="2"/>', 'Masks, the Figma way', 'A shape, a pen line or a cut-out over anything becomes the window onto it: right-click → Mask. Layers shows the group, and there are ready-made circles, hearts and blobs.'],
+    ['<circle cx="7.5" cy="10" r="5"/><circle cx="12.5" cy="10" r="5"/>', 'Combine shapes', 'Union, Subtract, Intersect and Exclude for drawn things, and Separate to take them apart again.'],
+    ['<rect x="2.5" y="3" width="6" height="4" rx="1"/><path d="M11.5 10l3-3 3 3-3 3z"/><rect x="2.5" y="13" width="6" height="4" rx="1"/><path d="M8.5 5h3M8.5 15h3M12 7.5V5h-.5M12 12.5V15h-.5"/>', 'Flowcharts that line up, and 14 templates', 'Set a shape down near another and it connects and slides into line. The Templates button in the Flowchart tab has log in, checkout, bug triage and more, with the thinking beside each.'],
+    ['<rect x="3" y="3" width="14" height="14" rx="2.5"/><path d="M3 12l4-4 4 4 2-2 4 4"/><circle cx="13" cy="7" r="1.2"/>', 'Pictures grew up', 'Crop inside the frame, real drop shadows, a stroke as the mat, corners that are the corners, remove the background, drop a file on a picture to swap it, save any picture as PNG or JPEG.'],
+    ['<path d="M8 12.5l4-5"/><path d="M7 14.5a3 3 0 0 1-4.2-4.2l2-2a3 3 0 0 1 4.2 0"/><path d="M13 5.5a3 3 0 0 1 4.2 4.2l-2 2a3 3 0 0 1-4.2 0"/>', 'Links with a screenshot', 'A link card shows what the page looks like. Paste jessa.art without the https:// and it still reads as a link.'],
+    ['<path d="M4 16V4h8l4 4v8z"/><path d="M7 9h6M7 12h6"/>', 'Learn, inside the app', 'An 80-term UX dictionary and the design principle sets, no Claude needed. Mochi also says what she’s doing while she thinks, and makes login flows, sitemaps and flowcharts offline.'],
+    ['<path d="M10 3v14M3 10h14"/><path d="M6 6l8 8M14 6l-8 8" opacity=".4"/>', 'Little things', 'Export only what you selected on a transparent background. Right-click menus everywhere, lines included. Arrow keys nudge. New stamps under New ✦.'],
+  ], '1.7.4': [
     ['<path d="M4 15.5c2-4 4-6 6-6s4 2 6 6"/><circle cx="10" cy="5.5" r="2"/><path d="M3 17.5h14"/>', 'A first board to dream on', 'New boards start from Jessa’s poster: “You can literally do anything, if you dream it.” Every piece of it is movable, so it’s a start, not a lesson.'],
     ['<path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"/>', 'Signed by Apple', 'The Mac app is signed and notarized, so it opens on the first double-click with no warning and no trip to System Settings.'],
    ], '1.1.0': [
