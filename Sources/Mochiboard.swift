@@ -142,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             try? FileManager.default.removeItem(at: boardsDir.appendingPathComponent("\(safe(args["id"])).json")); reply(true, true)
         case "linkPreview":
             linkPreview(args["url"] as? String ?? "") { reply(true, $0) }
+        case "linkShot":
+            LinkShot(args["url"] as? String ?? "", window: self.window) { reply($0 != nil, $0 ?? "no screenshot") }
         case "ask":
             askMochi(args["prompt"] as? String ?? "", args["board"] ?? [:], confirmed: args["confirmed"] as? Bool ?? false, mobbin: args["mobbin"] as? Bool ?? true, higgs: args["higgs"] as? Bool ?? true) { ok, text in reply(ok, text) }
         case "rewrite":
@@ -703,6 +705,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
 // Prints a doc's HTML into a PDF file on real pages. It renders in its own hidden web view (so the doc on screen is untouched),
 // waits for fonts and pictures, then runs a print operation that saves to the chosen file instead of a printer.
+// MARK: link screenshots: the page rendered off screen in its own web view, handed back as a small JPEG
+final class LinkShot: NSObject, WKNavigationDelegate {
+    static var live: [LinkShot] = []
+    let view: WKWebView, done: (String?) -> Void
+    var finished = false
+    @discardableResult init(_ s: String, window: NSWindow, done: @escaping (String?) -> Void) {
+        let cfg = WKWebViewConfiguration(); cfg.websiteDataStore = .nonPersistent()   // no cookies kept, nothing shared with the board's own web view
+        view = WKWebView(frame: NSRect(x: -10000, y: 0, width: 1280, height: 800), configuration: cfg)
+        self.done = done
+        super.init()
+        view.navigationDelegate = self; view.alphaValue = 0
+        view.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        window.contentView?.addSubview(view)   // it needs to be in a window to render; it sits off screen and invisible
+        LinkShot.live.append(self)
+        guard let url = URL(string: s), ["http", "https"].contains(url.scheme ?? "") else { finish(nil); return }
+        view.load(URLRequest(url: url, timeoutInterval: 12))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 14) { [weak self] in self?.snap() }   // a slow page still gets a shot of whatever has arrived
+    }
+    func webView(_ w: WKWebView, didFinish n: WKNavigation!) { DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.snap() } }   // a moment for fonts, pictures and the first animations
+    func webView(_ w: WKWebView, didFail n: WKNavigation!, withError e: Error) { snap() }
+    func webView(_ w: WKWebView, didFailProvisionalNavigation n: WKNavigation!, withError e: Error) { finish(nil) }
+    func snap() {
+        guard !finished else { return }
+        let c = WKSnapshotConfiguration(); c.rect = view.bounds; c.snapshotWidth = 640   // boards stay light: a 640-wide JPEG is about 100–200 KB
+        view.takeSnapshot(with: c) { img, _ in
+            guard let img, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let jpg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.72]) else { return self.finish(nil) }
+            self.finish("data:image/jpeg;base64," + jpg.base64EncodedString())
+        }
+    }
+    func finish(_ v: String?) { guard !finished else { return }; finished = true; view.removeFromSuperview(); LinkShot.live.removeAll { $0 === self }; done(v) }
+}
+
 final class DocPrinter: NSObject, WKNavigationDelegate {
     static var live: [DocPrinter] = []
     let view: WKWebView, url: URL, paper: NSSize, window: NSWindow, done: (Bool, String) -> Void

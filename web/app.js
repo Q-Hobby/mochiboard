@@ -700,6 +700,7 @@
     if (c.type === 'audio') { el.classList.toggle('paused', !!c.paused); if (!c.rec) requestAnimationFrame(() => fitAudio(c, el)); }
     if (c.type === 'stamp') { el.style.setProperty('--sz', c.w + 'px'); if (c.mv) el.classList.add('mv-' + c.mv); }
     if (c.type === 'link') el.classList.toggle('compact', !c.url || !c.image);
+    if (c.type === 'link') el.classList.toggle('shot', !!c.shot);
     if (c.type === 'canvas' && c.board) mini(c.board).then(svg => { const p = el.querySelector('.cv-prev'); if (p && svg) p.innerHTML = svg; });
     if (c.type === 'link' && !c.url) setTimeout(() => wireLinkInput(c), 0);
     if (c.type === 'coll') { const t = COLL[c.color] || COLL.pink; el.style.setProperty('--chead', t[0]); el.style.setProperty('--cframe', t[1]); el.classList.toggle('nohead', c.head === false); el.style.height = c.h + 'px'; }
@@ -1246,7 +1247,19 @@
     if (toTray) board.tray.unshift(c); else { Object.assign(c, at || {}); addCard(c); }
     try { const p = await MB.linkPreview(url); Object.assign(c, { title: p.title || url, desc: p.desc || url, image: p.image || '' }); toTray ? renderTray() : renderCard(c); save(); } catch (e) {}
     if (toTray) { renderTray(); save(); }
+    linkShot(c, url, toTray);
     return c;
+  }
+  // the picture on a link card is a screenshot of the page: the Mac app renders the page itself (nothing is sent anywhere but the site);
+  // in a browser or on Windows a free screenshot service draws it, and it looks again a little later because the service draws in the background
+  const MSHOTS = u => `https://s.wordpress.com/mshots/v1/${encodeURIComponent(u)}?w=1280&h=800`;
+  async function linkShot(c, url, inTray) {
+    let shot = '';
+    try { shot = await MB.linkShot(url); } catch (e) {}
+    const service = !shot; if (service) shot = MSHOTS(url) + '&t=' + Date.now();
+    const show = () => { if (c.url !== url) return false; c.image = shot; c.shot = true; if (!c.h || c.h < 120) c.h = 210; inTray ? renderTray() : (byId(c.id) ? renderCard(c) : renderTray()); save(); return true; };
+    if (!show()) return;
+    if (service) [7, 16, 32].forEach(sec => setTimeout(() => { if (c.image === shot) { shot = MSHOTS(url) + '&t=' + Date.now(); show(); } }, sec * 1000));
   }
   // images come in as data URLs, scaled down so boards stay light
   // GIFs (and animated WebPs) keep their own file so they still move; PNGs stay PNGs so see-through parts stay see-through
@@ -4564,6 +4577,7 @@
       let p = {}; try { p = await MB.linkPreview(url); } catch (e2) {}
       Object.assign(c, { url, title: p.title || host(url), desc: p.desc || host(url), image: p.image || '', loading: false, draft: '' });
       c.h = c.image ? 210 : 52; renderCard(c); selectOnly([c.id]); save();
+      linkShot(c, url);
     };
   }
 
@@ -5425,7 +5439,7 @@ ${proseCSS()}
     if (e.target.closest('[data-fill]')) return offerFill(spotsIn(cs));
     if (a === 'open') one.type === 'doc' ? openDoc(one) : openCanvas(one);
     if (a === 'visit') MB.openURL(one.url);
-    if (a === 'relink') { one.draft = one.url; one.url = ''; one.image = ''; one.h = 52; redraw(); }
+    if (a === 'relink') { one.draft = one.url; one.url = ''; one.image = ''; one.shot = false; one.h = 52; redraw(); }
     if (a === 'head') { one.head = one.head === false ? true : false; redraw(); }
     if (a === 'hidename') { one.hideName = !one.hideName; redraw(); }
     if (a === 'hidehex') { one.hideHex = !one.hideHex; redraw(); }

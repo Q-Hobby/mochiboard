@@ -66,6 +66,7 @@
     async docPDF(html) { const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0'; document.body.appendChild(f);
       f.srcdoc = html.replace(/__WEB__\//g, location.href.replace(/[^/]*$/, '')); await new Promise(r => f.onload = r); await f.contentDocument.fonts?.ready; f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); return ''; },
     async reveal() { alert('Your boards live in this browser while you try Mochiboard here. In the Mac app this opens their folder.'); },
+    async linkShot() { return ''; },   // the browser can't render other sites itself; the canvas asks a screenshot service instead
     async linkPreview(url) { let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {} return { title: host, desc: url, image: '' }; },
     // a pretend Mochi for the browser: she still tidies things up so the canvas can be tried without the app
     async ask(prompt, board) {
@@ -87,7 +88,7 @@
     list: () => call('list'), load: id => call('load', { id }), save: board => call('save', { board }), remove: id => call('remove', { id }),
     folders: () => call('folders'), saveFolders: folders => call('saveFolders', { folders }),
     usage: () => call('usage'), resetUsage: () => call('resetUsage'), version: () => call('version'),
-    linkPreview: url => call('linkPreview', { url }), rewrite: (text, how, title, around) => call('rewrite', { text, how, title, around }), docPDF: (html, name, paper) => call('docPDF', { html, name, paper }), saveFile: (data, name, ext) => call('saveFile', { data, name, ext }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
+    linkPreview: url => call('linkPreview', { url }), linkShot: url => call('linkShot', { url }), rewrite: (text, how, title, around) => call('rewrite', { text, how, title, around }), docPDF: (html, name, paper) => call('docPDF', { html, name, paper }), saveFile: (data, name, ext) => call('saveFile', { data, name, ext }), ask: (prompt, board, confirmed = false, opts = {}) => call('ask', { prompt, board, confirmed, ...opts }),
     saveMedia: (blob, onProgress) => saveMediaNative(blob, onProgress), mediaURL: async src => mediaAddr(src),
     removeBg: native ? src => call('removeBg', { src }) : null,
     connections: () => call('connections'), fetchImage: url => call('fetchImage', { url }), openURL: url => call('openURL', { url }), reveal: () => call('reveal'), transcribe: audio => call('transcribe', { audio }), speechAuth: () => call('speechAuth'), exportRect: o => call('export', o), fonts: () => call('fonts'), higgsQuote: o => call('higgsQuote', o || {}), updateCheck: () => call('updateCheck'), updateNow: () => call('updateNow'), updatePrepare: () => call('updatePrepare'), higgsMake: o => call('higgsMake', o), drawFill: o => call('drawFill', o),
