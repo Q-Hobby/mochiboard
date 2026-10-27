@@ -709,6 +709,7 @@
     el.innerHTML = `<div class="frame"></div><div class="body">${inner(c)}</div>${c.tagText ? `<div class="tag">${esc(c.tagText)}</div>` : ''}<div class="knob"></div><div class="handle"></div>${TILTS(c) ? '<i class="rot-h" title="Drag to tilt"></i>' : ''}`;
     el.classList.toggle('kitc', !!c.kit); el.classList.toggle('lane', !!c.lane); el.classList.toggle('nobg', !!c.nobg); el.classList.toggle('noframe', !!c.noframe);
     if (c.type === 'video') setupVideo(c, el); maskVars(c, el); el.style.setProperty('--cw', Math.max(1, c.w) + 'px'); el.classList.toggle('tiny', c.w < 140 || c.h < 90);
+    if (el.classList.contains('masked')) el.querySelectorAll('.chip, .bx-fr').forEach(ch => el.appendChild(ch));   // the chips live outside the mask's clip, so Crop stays clickable
     if (WF.includes(c.type)) styleWF(c, el);   // after the insides exist
     else applyStroke(c, el);
     if (c.type === 'image') el.style.setProperty('--img-r', (c.radius ?? 12) + 'px');
@@ -729,7 +730,8 @@
   };
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
   // "jessa.art", "mochiboard.app/updates" or a full address: all read as links, and the https:// is added when it's missing
-  const asLink = t => { t = t.trim(); if (/\s/.test(t)) return ''; if (/^https?:\/\/\S+$/i.test(t)) return t; return /^([\w-]+\.)+[a-z]{2,}(:\d+)?([\/?#]\S*)?$/i.test(t) ? 'https://' + t : ''; };
+  const FILE_EXT = /\.(png|jpe?g|gif|webp|svg|psd|ai|fig|sketch|pdf|zip|mov|mp4|m4a|mp3|wav|txt|md|csv|json|js|css|html?|swift|py|docx?|xlsx?|pptx?|key|numbers|pages|dmg|exe)$/i;
+  const asLink = t => { t = t.trim(); if (/\s/.test(t)) return ''; if (/^https?:\/\/\S+$/i.test(t)) return t; if (FILE_EXT.test(t) && !/\//.test(t)) return ''; return /^([\w-]+\.)+[a-z]{2,}(:\d+)?([\/?#]\S*)?$/i.test(t) ? 'https://' + t : ''; };
   const SHAPE_FILL = { gray: '#e4dfe7', pink: '#ffb8d2', butter: '#f8e08a', mint: '#a8e6c3', sky: '#aed3ff', lilac: '#cdb8ff', peach: '#ffc8a6', ink: '#494848' };
   // a line can be wavy, zigzag or loopy: waves = how tight, round = sharp → soft (or the loop size), wobble = hand-drawn looseness. Drawn in the 0–100 box
   function squigPath(c) {
@@ -2994,7 +2996,11 @@
     moving.forEach(c => { const el = cardsEl.querySelector(`[data-id="${c.id}"]`); if (el) cardsEl.insertBefore(el, after || null); });
     renderWires(); save(); LY.reveal = true; layersSoon();
   }
-  function groupSel(on) { const cs = selCards(); if (on && cs.length < 2) return; const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
+  function groupSel(on) {
+    let cs = selCards(); if (on && cs.length < 2) return;
+    if (on) cs = withMaskGroups(cs);   // a mask group travels as one: grouping a member with something else brings the whole mask group along
+    else { const mg = cs.filter(c => c.group && (c.maskLayer || maskLayerOf(c))); if (mg.length) { const all = withMaskGroups(mg); unmask(all); all.forEach(c => { delete c.group; renderCard(c); }); layersSoon(); save(); return; } }   // ungrouping inside a mask group = the mask turns back into a shape and the group opens
+    const g = on ? uid() : null; cs.forEach(c => { if (g) c.group = g; else delete c.group; renderCard(c); }); selectOnly(cs.map(c => c.id)); $('selbar').dataset.key = ''; save(); }
   // ready-made pieces, in clean gray; bars stretch to the screen they land on
   const T = (x, y, w, text, o = {}) => { const sz = o.size || 15, perLine = Math.max(4, Math.floor(w / (sz * .52))), lines = Math.max(1, ...String(text || '').split('\n').map(l => Math.ceil(Math.max(1, l.length) / perLine)));
     return { type: 'text', x, y, w, h: Math.round(sz * (o.lh || 1.3) * lines), text, size: 15, weight: 500, color: '#27272a', font: 'DM Sans', ...o }; };
@@ -3901,7 +3907,7 @@
   $('selbar').addEventListener('keydown', e => { if (e.target.closest('[data-shhex], [data-shn]')) e.stopPropagation(); }, true);   // typing in the panel mustn't trigger board shortcuts
 
   // ---- saving a picture out: what you see (the crop, the framing, the cut-out) as a PNG or a JPEG, at 2× ----
-  async function exportPicture(c, fmt) {
+  async function exportPicture(c, fmt, n) {
     try {
       const url = await MB.mediaURL(c.src), im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That picture wouldn’t load')); i.src = url; });
       const scale = 2, cv = document.createElement('canvas'), g = cv.getContext('2d');
@@ -3919,7 +3925,7 @@
         g.drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
       }
       const data = cv.toDataURL(fmt === 'jpg' ? 'image/jpeg' : 'image/png', .92).split(',')[1];
-      const name = (c.type === 'box' ? c.img : c.title || c.name) || 'Picture';
+      const name = ((c.type === 'box' ? c.img : c.title || c.name) || 'Picture') + (n ? ` ${n}` : '');
       await MB.saveFile(data, String(name).slice(0, 60).replace(/[^\w\- ]+/g, ' ').trim() || 'Picture', fmt); chirp(`Saved as ${fmt === 'jpg' ? 'JPEG' : 'PNG'} ✦`, 2500);
     } catch (e) { say('Hmm, I couldn’t save that picture. ' + String(e.message || e), 6000); }
   }
@@ -3936,7 +3942,7 @@
     return plan;
   }
   async function exportEach(cs) { const plan = exportPlan(cs); for (const p of plan) await exportCards(p.cards, p.name, false); }
-  async function savePictures(cs, fmt) { for (const c of cs) await exportPicture(c, fmt); }
+  async function savePictures(cs, fmt) { let i = 0; for (const c of cs) await exportPicture(c, fmt, cs.length > 1 ? ++i : 0); }
   window.__exportPlan = exportPlan;
 
   // ---- masks: a shape laid over something becomes its edge. Pick a shape from the Mask menu, or draw one, put it on top, select both and use it as the mask ----
@@ -3955,8 +3961,9 @@
   };
   const maskable = c => c && !['section', 'coll'].includes(c.type) && !(c.type === 'shape' && c.shape === 'line') && !(c.type === 'path' && !c.closed);   // an open pen line can't be masked itself (nothing inside it)
   const vectorish = c => c && (c.type === 'shape' && c.shape !== 'line' && c.shape !== 'bool' || c.type === 'path' && (c.pts || []).length >= 3 || c.type === 'box' && !c.img && !c.src);   // drawn things: shapes, pen lines (3+ points close up), plain wireframe boxes
-  const maskSource = c => vectorish(c) || isPic(c) && !!c.src;   // pictures can mask too (by their see-through parts), but they can't be combined
-  const SHAPE_WORDS = { box: 'box', rect: 'rectangle', circle: 'circle', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
+  const isBool = c => c && c.type === 'shape' && c.shape === 'bool' && (c.parts || []).length > 0;
+  const maskSource = c => vectorish(c) || isPic(c) && !!c.src || isBool(c);   // a combined shape masks by its drawing, like a picture does by its see-through parts   // pictures can mask too (by their see-through parts), but they can't be combined
+  const SHAPE_WORDS = { bool: 'combined shape', box: 'box', rect: 'rectangle', circle: 'circle', ellipse: 'ellipse', rounded: 'rounded box', squircle: 'squircle', arch: 'arch', hex: 'hexagon', blob: 'blob', tri: 'triangle', star: 'star', heart: 'heart', diamond: 'diamond', pill: 'pill', io: 'slanted box', doc: 'page', db: 'cylinder', fnote: 'note shape', page: 'page' };
   const shapeWord = s => isPic(s) ? (s.nobg ? 'cut-out' : 'picture') : s.type === 'path' ? 'drawn shape' : s.type === 'box' ? 'box' : SHAPE_WORDS[s.shape || 'rect'] || 'shape';
   // the geometry of a mask, in a 0–100 box (its own units for a drawn shape)
   function maskGeo(m, W, H) { if (m.el) return m.el; const d = MASKS[m.shape]; return d ? d[1](Math.max(1, W), Math.max(1, H)) : MASKS.circle[1](); }
@@ -3964,6 +3971,7 @@
     if (s.mgeo) return { shape: s.shape || 'rect', ...s.mgeo };
     if (s.type === 'box') return { shape: 'rect', el: `<rect x="0" y="0" width="100" height="100" rx="${(s.radius || 0) * 100 / Math.max(1, s.w)}" ry="${(s.radius || 0) * 100 / Math.max(1, s.h)}"/>` };
     if (isPic(s)) return { shape: 'pic', src: s.src };
+    if (isBool(s)) return { shape: 'bool', src: 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">${boolSVG(s, '#000')}</svg>`) };
     if (s.type === 'path') return { shape: 'path', el: `<path d="${pathD(s.pts, true, s.radius || 0, s.ow / Math.max(1, s.w))}"/>`, vw: s.ow, vh: s.oh };
     const svg = shapeSVG({ ...s, stroke: null, sw: 0, fill: 'none' }), mt = svg.match(/<(path|rect|ellipse)\b[^>]*>/); if (!mt) return null;
     return { shape: s.shape || 'rect', el: mt[0].replace(/\s(?:style|stroke|stroke-width|stroke-linejoin|vector-effect|fill)="[^"]*"/g, '') + (mt[1] === 'path' ? '' : '') };
