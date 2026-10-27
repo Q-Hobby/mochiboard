@@ -728,6 +728,8 @@
     link: CI('<path d="M8.5 11.5a3.2 3.2 0 0 0 4.5 0l2.6-2.6a3.2 3.2 0 0 0-4.5-4.5l-.9.9"/><path d="M11.5 8.5a3.2 3.2 0 0 0-4.5 0l-2.6 2.6a3.2 3.2 0 0 0 4.5 4.5l.9-.9"/>'),
   };
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
+  // "jessa.art", "mochiboard.app/updates" or a full address: all read as links, and the https:// is added when it's missing
+  const asLink = t => { t = t.trim(); if (/\s/.test(t)) return ''; if (/^https?:\/\/\S+$/i.test(t)) return t; return /^([\w-]+\.)+[a-z]{2,}(:\d+)?([\/?#]\S*)?$/i.test(t) ? 'https://' + t : ''; };
   const SHAPE_FILL = { gray: '#e4dfe7', pink: '#ffb8d2', butter: '#f8e08a', mint: '#a8e6c3', sky: '#aed3ff', lilac: '#cdb8ff', peach: '#ffc8a6', ink: '#494848' };
   // a line can be wavy, zigzag or loopy: waves = how tight, round = sharp → soft (or the loop size), wobble = hand-drawn looseness. Drawn in the 0–100 box
   function squigPath(c) {
@@ -1633,7 +1635,7 @@
   const capture = on => { $('capture').classList.toggle('on', on); if (on) { $('capInput').value = ''; $('capInput').focus(); } else $('capInput').blur(); };
   // clicking anywhere outside the box closes it (what you typed isn't saved unless you pressed Enter)
   addEventListener('pointerdown', e => { if ($('capture').classList.contains('on') && !e.target.closest('.capture')) capture(false); }, true);
-  $('capForm').onsubmit = e => { e.preventDefault(); const v = $('capInput').value.trim(); if (v) { if (/^https?:\/\//.test(v)) linkCard(v, null, true); else { board.tray.unshift(card('note', { text: v })); renderTray(); save(); } $('tray').classList.remove('closed'); } capture(false); };
+  $('capForm').onsubmit = e => { e.preventDefault(); const v = $('capInput').value.trim(); if (v) { if (asLink(v)) linkCard(asLink(v), null, true); else { board.tray.unshift(card('note', { text: v })); renderTray(); save(); } $('tray').classList.remove('closed'); } capture(false); };
 
   // ---------- focus mode ----------
   function setFocus(on) {
@@ -1869,7 +1871,7 @@
     const files = [...(e.clipboardData.files || [])]; const intoTray = $('capture').classList.contains('on');
     if (files.length) { e.preventDefault(); addImages(files, null, intoTray); capture(false); return; }
     const t = e.clipboardData.getData('text/plain').trim(); if (!t) return; e.preventDefault();
-    if (/^https?:\/\/\S+$/.test(t) || spotifyOf(t)) linkCard(t, centerWorld()); else addAtCenter('note', { text: t, color: 'butter' });
+    if (asLink(t) || spotifyOf(t)) linkCard(asLink(t) || t, centerWorld()); else addAtCenter('note', { text: t, color: 'butter' });
   });
   stage.addEventListener('dragover', e => e.preventDefault());
   stage.addEventListener('drop', e => { e.preventDefault(); const files = [...e.dataTransfer.files], w = toWorld(e.clientX, e.clientY);
